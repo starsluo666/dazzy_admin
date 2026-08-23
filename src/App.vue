@@ -1,33 +1,112 @@
 <script setup lang="ts">
-const stats = [
-  { label: '今日新增用户', value: '128', trend: '+12.6%' },
-  { label: '待审核达人', value: '24', trend: '需处理' },
-  { label: '进行中订单', value: '316', trend: '+8.2%' },
-  { label: '待处理退款', value: '9', trend: '高优先级' },
-]
+import { computed, onMounted, ref } from 'vue'
+import LoginView from './views/LoginView.vue'
+import AdminShell from './layouts/AdminShell.vue'
+import DashboardView from './views/DashboardView.vue'
+import ProviderReviewView from './views/ProviderReviewView.vue'
+import ProviderManagementView from './views/ProviderManagementView.vue'
+import FulfillmentOrdersView from './views/FulfillmentOrdersView.vue'
+import AfterSalesView from './views/AfterSalesView.vue'
+import UserManagementView from './views/UserManagementView.vue'
+import { adminApi, clearSession, getAccessToken } from './services/api'
+import type { AdminMe, AdminPage } from './types'
+
+const currentPage = ref<AdminPage>('dashboard')
+const session = ref<AdminMe | null>(null)
+const loading = ref(true)
+const preview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
+
+const authenticated = computed(() => preview || Boolean(session.value))
+const canAddOrderNote = computed(() => preview || Boolean(
+  session.value?.permissions.includes('*')
+  || session.value?.permissions.includes('order.support_note.add'),
+))
+const hasPermission = (permission: string) => computed(() => preview || Boolean(
+  session.value?.permissions.includes('*') || session.value?.permissions.includes(permission),
+))
+const canManageUserStatus = hasPermission('user.status.manage')
+const canManageUserRisk = hasPermission('user.risk.manage')
+const canManageProvider = hasPermission('provider.manage')
+const canAdjustProviderCredit = hasPermission('provider.credit.adjust')
+const canReviewProvider = hasPermission('provider.review')
+const canReviewAfterSales = hasPermission('order.after_sales.review')
+
+async function loadSession() {
+  if (preview) {
+    session.value = {
+      user: { nickname: '运营管理员', phone: '138****0000' },
+      role_name: '超级管理员',
+      organization: { name: '乐搭伴运营平台' },
+      permissions: ['*'],
+      data_scope: 'all',
+      city_codes: [],
+    }
+    loading.value = false
+    return
+  }
+  if (!getAccessToken()) {
+    loading.value = false
+    return
+  }
+  try {
+    session.value = await adminApi.me()
+    const permissions = session.value.permissions
+    if (!permissions.includes('*') && !permissions.includes('dashboard.view')) {
+      if (permissions.includes('user.view')) currentPage.value = 'users'
+      else if (permissions.includes('provider.view')) currentPage.value = 'providers'
+      else if (permissions.includes('provider.review')) currentPage.value = 'provider_reviews'
+      else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
+      else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+    }
+  } catch {
+    clearSession()
+  } finally {
+    loading.value = false
+  }
+}
+
+async function logout() {
+  try {
+    await adminApi.logout()
+  } finally {
+    session.value = null
+  }
+}
+
+onMounted(loadSession)
 </script>
 
 <template>
-  <el-container class="shell">
-    <el-aside width="232px" class="aside">
-      <div class="brand"><span class="brand-mark">D</span><span>DAZZY 运营台</span></div>
-      <el-menu default-active="1" class="menu">
-        <el-menu-item index="1">工作台</el-menu-item><el-menu-item index="2">用户管理</el-menu-item>
-        <el-menu-item index="3">达人审核</el-menu-item><el-menu-item index="4">活动审核</el-menu-item>
-        <el-menu-item index="5">订单管理</el-menu-item><el-menu-item index="6">退款与结算</el-menu-item>
-        <el-menu-item index="7">内容与举报</el-menu-item><el-menu-item index="8">运营配置</el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header"><div><h1>工作台</h1><p>2026年8月15日 · 平台运营概览</p></div><el-button>运营管理员</el-button></el-header>
-      <el-main class="main">
-        <section class="stats"><article v-for="item in stats" :key="item.label"><span>{{ item.label }}</span><strong>{{ item.value }}</strong><em>{{ item.trend }}</em></article></section>
-        <section class="panel"><header><div><h2>待办事项</h2><p>优先处理影响用户交易和平台安全的事项</p></div><el-button type="primary">查看全部</el-button></header>
-          <el-table :data="[{type:'达人实名认证',count:24,priority:'高'}, {type:'活动发布审核',count:18,priority:'中'}, {type:'退款人工复核',count:9,priority:'高'}]">
-            <el-table-column prop="type" label="事项"/><el-table-column prop="count" label="待处理数量"/><el-table-column prop="priority" label="优先级"/><el-table-column label="操作"><template #default><el-button link type="primary">立即处理</el-button></template></el-table-column>
-          </el-table>
-        </section>
-      </el-main>
-    </el-container>
-  </el-container>
+  <div v-if="loading" class="screen-loader"><span></span></div>
+  <LoginView v-else-if="!authenticated" @authenticated="loadSession" />
+  <AdminShell
+    v-else
+    :active="currentPage"
+    :session="session"
+    @navigate="currentPage = $event"
+    @logout="logout"
+  >
+    <DashboardView v-if="currentPage === 'dashboard'" :preview="preview" @review="currentPage = 'provider_reviews'" />
+    <UserManagementView
+      v-else-if="currentPage === 'users'"
+      :preview="preview"
+      :can-manage-status="canManageUserStatus"
+      :can-manage-risk="canManageUserRisk"
+    />
+    <ProviderManagementView
+      v-else-if="currentPage === 'providers'"
+      :preview="preview"
+      :can-manage="canManageProvider"
+      :can-adjust-credit="canAdjustProviderCredit"
+      :can-review="canReviewProvider"
+      @review="currentPage = 'provider_reviews'"
+    />
+    <ProviderReviewView v-else-if="currentPage === 'provider_reviews'" :preview="preview" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" />
+    <AfterSalesView
+      v-else-if="currentPage === 'after_sales'"
+      :preview="preview"
+      :can-review="canReviewAfterSales"
+    />
+  </AdminShell>
 </template>
