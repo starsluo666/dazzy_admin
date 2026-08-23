@@ -156,6 +156,12 @@ export interface AdminProvider {
   lifestyle_photo_url: string | null
   service_city_code: string
   service_city_name: string
+  service_location_name: string
+  service_address: string
+  map_source: 'amap' | 'tencent'
+  source_longitude: string | null
+  source_latitude: string | null
+  has_service_location: boolean
   max_service_radius_km: number
   rating: string
   service_count: number
