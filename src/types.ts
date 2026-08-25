@@ -45,6 +45,21 @@ export interface AdminUserRecentActivity {
   starts_at: string
 }
 
+export interface AdminUserAddress {
+  id: number
+  name: string
+  address: string
+  city_name: string
+  contact_name: string
+  contact_gender: 'mr' | 'ms' | ''
+  contact_gender_label: string
+  contact_phone: string
+  longitude: string | number
+  latitude: string | number
+  is_default: boolean
+  updated_at: string
+}
+
 export interface AdminUser {
   public_id: string
   nickname: string
@@ -67,6 +82,7 @@ export interface AdminUser {
   last_login: string | null
   recent_orders?: AdminUserRecentOrder[]
   recent_activities?: AdminUserRecentActivity[]
+  addresses?: AdminUserAddress[]
 }
 
 export interface AdminUserSummary {
@@ -280,8 +296,11 @@ export interface AdminProviderOrder {
   starts_at: string
   ends_at: string
   duration_minutes: number
+  meeting_location_name: string
   meeting_address: string
   contact_name: string
+  contact_gender: 'mr' | 'ms' | ''
+  contact_gender_label: string
   contact_phone_masked: string
   note: string
   unit_price_amount: number

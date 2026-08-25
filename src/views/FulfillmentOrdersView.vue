@@ -112,8 +112,11 @@ function demoOrder(
     starts_at: '2026-08-24T13:20:00+08:00',
     ends_at: '2026-08-24T15:20:00+08:00',
     duration_minutes: 120,
-    meeting_address: '邯郸市丛台区美乐城南门',
-    contact_name: '张女士',
+    meeting_location_name: '邯郸美乐城',
+    meeting_address: '人民东路456号 南门',
+    contact_name: '张',
+    contact_gender: 'ms',
+    contact_gender_label: '女士',
     contact_phone_masked: '138****6688',
     note: '请提前十分钟联系',
     unit_price_amount: 28000,
@@ -485,7 +488,7 @@ onMounted(load)
           <div><span>订单金额</span><strong class="amount">{{ formatAmount(selected.payable_amount) }}</strong></div>
           <div><span>服务时间</span><strong>{{ formatServiceTime(selected) }}</strong></div>
           <div><span>服务城市</span><strong>{{ selected.service_city_name }}</strong></div>
-          <div class="wide"><span>集合地点</span><strong>{{ selected.meeting_address }}</strong></div>
+          <div class="wide"><span>集合地点</span><strong>{{ [selected.meeting_location_name, selected.meeting_address].filter(Boolean).join('，') }}</strong></div>
         </section>
 
         <section class="detail-section">
@@ -534,7 +537,7 @@ onMounted(load)
           <div class="party-grid">
             <article><span>用户</span><strong>{{ selected.customer_name }}</strong><p>{{ selected.customer_phone_masked }}</p></article>
             <article><span>达人</span><strong>{{ selected.provider_name }}</strong><p>{{ selected.provider_phone_masked }}</p></article>
-            <article><span>订单联系人</span><strong>{{ selected.contact_name }}</strong><p>{{ selected.contact_phone_masked }}</p></article>
+            <article><span>订单联系人</span><strong>{{ selected.contact_name }}{{ selected.contact_gender_label }}</strong><p>{{ selected.contact_phone_masked }}</p></article>
           </div>
           <p v-if="selected.note" class="customer-note">用户备注：{{ selected.note }}</p>
         </section>
