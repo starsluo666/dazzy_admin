@@ -351,7 +351,7 @@ onMounted(load)
         <div v-if="selected.service_names.length" class="service-tags">
           <el-tag v-for="name in selected.service_names" :key="name" effect="plain">{{ name }}</el-tag>
         </div>
-        <p v-else class="muted-copy">申请通过后，达人可在工作台配置服务、价格和档期。</p>
+        <p v-else class="muted-copy">申请通过后，达人可在达人端小程序配置服务、价格和档期。</p>
       </section>
 
       <section>

@@ -62,7 +62,7 @@ const verificationLabels: Record<VerificationStatus, string> = {
 
 const summaryCards = computed(() => [
   { key: 'all', label: '全部达人', value: summary.value.total, icon: UserFilled, tone: 'blue' },
-  { key: 'accepting', label: '正在接单', value: summary.value.accepting, icon: CircleCheck, tone: 'cyan' },
+  { key: 'accepting', label: '在线达人', value: summary.value.accepting, icon: CircleCheck, tone: 'cyan' },
   { key: 'restricted', label: '接单受限', value: summary.value.restricted, icon: Warning, tone: 'orange' },
   { key: 'suspended', label: '资格暂停', value: summary.value.suspended, icon: Service, tone: 'red' },
   { key: 'pending', label: '待审核', value: summary.value.pending, icon: CreditCard, tone: 'purple' },
@@ -83,9 +83,11 @@ function demoProvider(index: number, overrides: Partial<AdminProvider> = {}): Ad
     bio: '热爱城市探索与摄影，熟悉本地路线，性格开朗有耐心。',
     lifestyle_photo_available: true, lifestyle_photo_url: null,
     service_city_code: '130400', service_city_name: '邯郸市',
-    service_location_name: '邯郸美乐城', service_address: '河北省邯郸市丛台区人民东路456号',
-    map_source: 'tencent', source_longitude: '114.5389610', source_latitude: '36.6256570',
-    has_service_location: true, max_service_radius_km: 20,
+    is_online: index !== 2, has_live_location: true,
+    current_longitude: '114.5389610', current_latitude: '36.6256570',
+    location_accuracy_m: '18.50', location_updated_at: now,
+    location_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    max_service_radius_km: 20,
     rating: index ? '4.80' : '4.92', service_count: 56 + index * 18, order_count: 64 + index * 20,
     credit_score: 100 - index * 4, is_accepting_orders: index !== 2,
     admin_order_restricted: false, admin_restriction_reason: '',
@@ -110,9 +112,9 @@ function demoRows() {
   return [
     demoProvider(0),
     demoProvider(1, { credit_score: 82 }),
-    demoProvider(2, { is_accepting_orders: false, admin_order_restricted: true, admin_restriction_reason: '服务投诉待复核' }),
-    demoProvider(3, { status: 'suspended', status_label: '已暂停', is_accepting_orders: false, admin_order_restricted: true, admin_restriction_reason: '资料真实性复核中' }),
-    demoProvider(4, { status: 'pending', status_label: '待审核', is_accepting_orders: false, service_count: 0, order_count: 0, service_names: [], services: [], weekly_availability: [] }),
+    demoProvider(2, { is_online: false, is_accepting_orders: false, admin_order_restricted: true, admin_restriction_reason: '服务投诉待复核' }),
+    demoProvider(3, { status: 'suspended', status_label: '已暂停', is_online: false, is_accepting_orders: false, admin_order_restricted: true, admin_restriction_reason: '资料真实性复核中' }),
+    demoProvider(4, { status: 'pending', status_label: '待审核', is_online: false, is_accepting_orders: false, has_live_location: false, current_longitude: null, current_latitude: null, location_accuracy_m: null, location_updated_at: null, location_expires_at: null, service_count: 0, order_count: 0, service_names: [], services: [], weekly_availability: [] }),
   ]
 }
 
@@ -123,8 +125,8 @@ function filteredDemoRows() {
   if (cityFilter.value) items = items.filter((item) => item.service_city_code === cityFilter.value)
   if (statusFilter.value) items = items.filter((item) => item.status === statusFilter.value)
   if (verificationFilter.value) items = items.filter((item) => item.verification_status === verificationFilter.value)
-  if (acceptingFilter.value === 'accepting') items = items.filter((item) => item.status === 'approved' && item.is_accepting_orders && !item.admin_order_restricted)
-  if (acceptingFilter.value === 'paused') items = items.filter((item) => item.status === 'approved' && !item.is_accepting_orders && !item.admin_order_restricted)
+  if (acceptingFilter.value === 'accepting') items = items.filter((item) => item.is_online)
+  if (acceptingFilter.value === 'paused') items = items.filter((item) => item.status === 'approved' && !item.is_online && !item.admin_order_restricted)
   if (acceptingFilter.value === 'restricted') items = items.filter((item) => item.admin_order_restricted)
   return items
 }
@@ -135,8 +137,8 @@ function formatDateTime(value: string | null) {
 }
 function formatAmount(amount: number) { return `¥${(amount / 100).toLocaleString()}` }
 function coordinateLabel(provider: AdminProvider) {
-  if (!provider.source_longitude || !provider.source_latitude) return '未记录坐标'
-  return `${provider.source_longitude}, ${provider.source_latitude}`
+  if (!provider.current_longitude || !provider.current_latitude) return '未记录坐标'
+  return `${provider.current_longitude}, ${provider.current_latitude}`
 }
 function statusTagType(status: ProviderApplicationStatus) {
   if (status === 'approved') return 'success'
@@ -148,8 +150,8 @@ function serviceState(provider: AdminProvider) {
   if (provider.status === 'suspended') return { label: '资格暂停', type: 'danger' as const }
   if (provider.admin_order_restricted) return { label: '平台限制', type: 'warning' as const }
   if (provider.status !== 'approved') return { label: '不可接单', type: 'info' as const }
-  if (provider.is_accepting_orders) return { label: '正在接单', type: 'success' as const }
-  return { label: '自主暂停', type: 'info' as const }
+  if (provider.is_online) return { label: '在线', type: 'success' as const }
+  return { label: '离线', type: 'info' as const }
 }
 
 async function load() {
@@ -161,7 +163,7 @@ async function load() {
       total.value = rows.value.length
       summary.value = {
         total: all.length,
-        accepting: all.filter((item) => serviceState(item).label === '正在接单').length,
+        accepting: all.filter((item) => item.is_online).length,
         restricted: all.filter((item) => item.admin_order_restricted).length,
         suspended: all.filter((item) => item.status === 'suspended').length,
         pending: all.filter((item) => item.status === 'pending').length,
@@ -228,13 +230,13 @@ async function submitAction() {
         next.credit_adjustments = [{ id: Date.now(), delta: actionForm.delta, before_score: next.credit_score, after_score: after, reason: actionForm.reason, operator_name: '运营管理员', organization_name: '乐搭伴运营平台', created_at: new Date().toISOString() }, ...next.credit_adjustments]
         next.credit_score = after
       } else if (actionForm.action === 'restrict_orders') {
-        next.admin_order_restricted = true; next.is_accepting_orders = false; next.admin_restriction_reason = actionForm.reason
+        next.admin_order_restricted = true; next.is_accepting_orders = false; next.is_online = false; next.admin_restriction_reason = actionForm.reason
       } else if (actionForm.action === 'resume_orders') {
-        next.admin_order_restricted = false; next.is_accepting_orders = false; next.admin_restriction_reason = ''
+        next.admin_order_restricted = false; next.is_accepting_orders = false; next.is_online = false; next.admin_restriction_reason = ''
       } else if (actionForm.action === 'suspend_qualification') {
-        next.status = 'suspended'; next.status_label = '已暂停'; next.admin_order_restricted = true; next.is_accepting_orders = false; next.admin_restriction_reason = actionForm.reason
+        next.status = 'suspended'; next.status_label = '已暂停'; next.admin_order_restricted = true; next.is_accepting_orders = false; next.is_online = false; next.admin_restriction_reason = actionForm.reason
       } else {
-        next.status = 'approved'; next.status_label = '已通过'; next.admin_order_restricted = false; next.is_accepting_orders = false; next.admin_restriction_reason = ''
+        next.status = 'approved'; next.status_label = '已通过'; next.admin_order_restricted = false; next.is_accepting_orders = false; next.is_online = false; next.admin_restriction_reason = ''
       }
       updated = next
     } else if (actionForm.kind === 'credit') {
@@ -262,13 +264,13 @@ onMounted(load)
     <section class="provider-summary" aria-label="达人概况"><button v-for="card in summaryCards" :key="card.key" @click="selectSummary(card.key)"><el-icon :class="card.tone"><component :is="card.icon" /></el-icon><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>点击筛选</small></button></section>
 
     <section class="provider-panel">
-      <header class="provider-filters"><el-input v-model="search" clearable :prefix-icon="Search" placeholder="达人昵称 / 手机号" @keyup.enter="page = 1; load()" /><el-select v-model="cityFilter" clearable placeholder="服务城市"><el-option label="邯郸市" value="130400" /><el-option label="北京市" value="110100" /><el-option label="上海市" value="310100" /></el-select><el-select v-model="statusFilter" clearable placeholder="达人状态"><el-option v-for="(label, value) in statusLabels" :key="value" :label="label" :value="value" /></el-select><el-select v-model="acceptingFilter" placeholder="接单状态"><el-option label="全部状态" value="all" /><el-option label="正在接单" value="accepting" /><el-option label="自主暂停" value="paused" /><el-option label="平台限制" value="restricted" /></el-select><el-select v-model="verificationFilter" clearable placeholder="实名认证"><el-option v-for="(label, value) in verificationLabels" :key="value" :label="label" :value="value" /></el-select><el-button @click="resetFilters">重置</el-button><el-button type="primary" @click="page = 1; load()">查询</el-button></header>
+      <header class="provider-filters"><el-input v-model="search" clearable :prefix-icon="Search" placeholder="达人昵称 / 手机号" @keyup.enter="page = 1; load()" /><el-select v-model="cityFilter" clearable placeholder="服务城市"><el-option label="邯郸市" value="130400" /><el-option label="北京市" value="110100" /><el-option label="上海市" value="310100" /></el-select><el-select v-model="statusFilter" clearable placeholder="达人状态"><el-option v-for="(label, value) in statusLabels" :key="value" :label="label" :value="value" /></el-select><el-select v-model="acceptingFilter" placeholder="定位状态"><el-option label="全部状态" value="all" /><el-option label="在线" value="accepting" /><el-option label="离线" value="paused" /><el-option label="平台限制" value="restricted" /></el-select><el-select v-model="verificationFilter" clearable placeholder="实名认证"><el-option v-for="(label, value) in verificationLabels" :key="value" :label="label" :value="value" /></el-select><el-button @click="resetFilters">重置</el-button><el-button type="primary" @click="page = 1; load()">查询</el-button></header>
 
       <el-table v-loading="loading" :data="rows" height="calc(100vh - 370px)" empty-text="当前筛选条件下没有达人" @row-click="openDetail">
         <el-table-column label="达人" min-width="170"><template #default="scope"><div class="provider-person"><el-avatar :size="38">{{ scope.row.nickname.slice(0, 1) }}</el-avatar><div><strong>{{ scope.row.nickname }}</strong><span>{{ scope.row.phone_masked }} · {{ scope.row.service_city_name }}</span></div></div></template></el-table-column>
         <el-table-column label="服务项目" min-width="165"><template #default="scope"><div class="service-names"><el-tag v-for="name in scope.row.service_names.slice(0, 2)" :key="name" size="small" effect="plain">{{ name }}</el-tag><span v-if="!scope.row.service_names.length">尚未配置</span></div></template></el-table-column>
         <el-table-column label="达人状态" width="96"><template #default="scope"><el-tag :type="statusTagType(scope.row.status)" effect="plain">{{ scope.row.status_label }}</el-tag></template></el-table-column>
-        <el-table-column label="接单状态" width="100"><template #default="scope"><el-tag :type="serviceState(scope.row).type" effect="light">{{ serviceState(scope.row).label }}</el-tag></template></el-table-column>
+        <el-table-column label="定位状态" width="100"><template #default="scope"><el-tag :type="serviceState(scope.row).type" effect="light">{{ serviceState(scope.row).label }}</el-tag></template></el-table-column>
         <el-table-column label="信用 / 评分" width="120"><template #default="scope"><div class="score-cell"><strong>{{ scope.row.credit_score }}分</strong><span><el-icon><Star /></el-icon>{{ scope.row.rating }}</span></div></template></el-table-column>
         <el-table-column label="服务数据" min-width="120"><template #default="scope"><div class="score-cell"><strong>{{ scope.row.service_count }} 次服务</strong><span>{{ scope.row.order_count }} 笔订单</span></div></template></el-table-column>
         <el-table-column label="更新时间" width="145"><template #default="scope">{{ formatDateTime(scope.row.updated_at) }}</template></el-table-column>
@@ -282,7 +284,7 @@ onMounted(load)
         <header><div><h2>达人详情</h2><p>PA{{ selected.id.toString().padStart(10, '0') }}</p></div><el-tag :type="statusTagType(selected.status)" effect="plain">{{ selected.status_label }}</el-tag><button aria-label="关闭达人详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button></header>
         <el-alert v-if="selected.admin_order_restricted" class="restriction-alert" :type="selected.status === 'suspended' ? 'error' : 'warning'" :closable="false" show-icon :title="serviceState(selected).label" :description="selected.admin_restriction_reason || '平台已限制该达人接单'" />
         <section class="provider-identity"><el-avatar :size="60">{{ selected.nickname.slice(0, 1) }}</el-avatar><div><h3>{{ selected.nickname }} <el-tag size="small" :type="serviceState(selected).type" effect="plain">{{ serviceState(selected).label }}</el-tag></h3><p>{{ selected.phone_masked }} · {{ selected.gender_label }} · {{ selected.service_city_name }}</p><span>{{ selected.verification_status_label }} · 服务半径 {{ selected.max_service_radius_km }}km</span></div><div class="credit-score"><strong>{{ selected.credit_score }}</strong><span>信用分</span></div></section>
-        <section class="detail-section"><div class="section-title"><h3>常驻服务地点</h3><el-tag size="small" :type="selected.has_service_location ? 'success' : 'warning'" effect="plain">{{ selected.has_service_location ? '已设置' : '未设置' }}</el-tag></div><div v-if="selected.has_service_location" class="service-location"><el-icon><Location /></el-icon><div><strong>{{ selected.service_location_name || selected.service_city_name }}</strong><p>{{ selected.service_address || '未填写详细地址' }}</p><span>{{ selected.service_city_name }} · 服务半径 {{ selected.max_service_radius_km }}km · {{ coordinateLabel(selected) }}</span></div></div><el-empty v-else :image-size="48" description="达人尚未设置常驻服务地点" /><p class="location-privacy">仅供距离计算和平台管理使用，请勿向用户公开详细地址。</p></section>
+        <section class="detail-section"><div class="section-title"><h3>当前接单位置</h3><el-tag size="small" :type="selected.is_online ? 'success' : 'info'" effect="plain">{{ selected.is_online ? '在线' : '离线' }}</el-tag></div><div v-if="selected.has_live_location" class="service-location"><el-icon><Location /></el-icon><div><strong>{{ coordinateLabel(selected) }}</strong><p>定位精度约 {{ selected.location_accuracy_m || '—' }} 米 · 服务半径 {{ selected.max_service_radius_km }}km</p><span>最后更新 {{ formatDateTime(selected.location_updated_at) }} · 有效至 {{ formatDateTime(selected.location_expires_at) }}</span></div></div><el-empty v-else :image-size="48" description="达人尚未上报接单位置" /><p class="location-privacy">精确坐标仅供平台管理和距离计算使用，用户端只展示距离。</p></section>
         <section class="detail-section provider-metrics"><div><span>综合评分</span><strong>{{ selected.rating }}</strong></div><div><span>服务次数</span><strong>{{ selected.service_count }}</strong></div><div><span>订单总量</span><strong>{{ selected.order_count }}</strong></div><div><span>服务项目</span><strong>{{ selected.service_names.length }}</strong></div></section>
         <section class="detail-section"><h3>达人资料</h3><p class="provider-bio">{{ selected.bio || '达人尚未填写个人简介' }}</p><div v-if="selected.lifestyle_photo_available" class="photo-status"><span>生活照</span><el-image v-if="selected.lifestyle_photo_url" :src="selected.lifestyle_photo_url" :preview-src-list="[selected.lifestyle_photo_url]" fit="cover" preview-teleported /><el-tag v-else type="success" effect="plain">已留存，仅审核人员可查看</el-tag></div></section>
         <section class="detail-section"><h3>服务配置</h3><div v-if="selected.services.length" class="service-cards"><article v-for="service in selected.services" :key="service.id"><header><strong>{{ service.category }}</strong><el-tag size="small" :type="service.is_active ? 'success' : 'info'" effect="plain">{{ service.is_active ? '启用' : '停用' }}</el-tag></header><p>{{ service.billing_type_label }} · <b>{{ formatAmount(service.price_amount) }}</b><template v-if="service.estimated_duration_minutes"> · {{ service.estimated_duration_minutes }}分钟</template></p><span>{{ service.description || '暂无服务说明' }}</span></article></div><el-empty v-else :image-size="48" description="尚未配置服务项目" /></section>
@@ -294,7 +296,7 @@ onMounted(load)
     </el-drawer>
 
     <el-dialog v-model="actionVisible" :title="actionTitle" width="480px" append-to-body>
-      <el-alert v-if="actionForm.action === 'suspend_qualification' && actionForm.kind === 'status'" type="error" :closable="false" show-icon title="暂停后达人无法进入工作台，也不能接受新预约。" />
+      <el-alert v-if="actionForm.action === 'suspend_qualification' && actionForm.kind === 'status'" type="error" :closable="false" show-icon title="暂停后达人无法使用达人端，也不能接受新预约。" />
       <el-form label-position="top" class="provider-action-form"><el-form-item v-if="actionForm.kind === 'credit'" label="调整分值"><el-input-number v-model="actionForm.delta" :min="-100" :max="100" /><span class="score-preview">调整后 {{ Math.max(0, Math.min(100, (selected?.credit_score || 0) + actionForm.delta)) }} 分</span></el-form-item><el-form-item label="操作原因"><el-input v-model="actionForm.reason" type="textarea" :rows="4" maxlength="500" show-word-limit placeholder="请填写投诉、复核或规则依据，提交后写入审计日志" /></el-form-item></el-form>
       <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionForm.action === 'suspend_qualification' ? 'danger' : 'primary'" :loading="actionSaving" @click="submitAction">确认提交</el-button></template>
     </el-dialog>
