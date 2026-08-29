@@ -1,10 +1,16 @@
 import type {
   AccountStatus,
+  ActivityStatus,
+  AdminActivity,
+  AdminActivitySummary,
   AdminAfterSalesCase,
   AdminMe,
   AdminProvider,
   AdminProviderOrder,
   AdminProviderSummary,
+  AdminServiceCategory,
+  AdminServiceCategoryMutation,
+  AdminServiceCategorySummary,
   AdminUser,
   AdminUserSummary,
   AfterSalesCaseStatus,
@@ -148,6 +154,22 @@ export interface AfterSalesQuery {
   page_size?: number
 }
 
+export interface ServiceCategoryQuery {
+  status?: 'all' | 'active' | 'inactive'
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface AdminActivityQuery {
+  status?: ActivityStatus | ''
+  city_code?: string
+  category?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
 function queryString(query: object) {
   const params = new URLSearchParams()
   Object.entries(query).forEach(([key, value]) => {
@@ -187,6 +209,32 @@ export const adminApi = {
     }
     todos: Array<{ key: string; label: string; count: number; priority: string }>
   }>(`/admin/overview/?days=${days}`),
+  serviceCategories: (query: ServiceCategoryQuery) => request<{
+    items: AdminServiceCategory[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: AdminServiceCategorySummary
+  }>(`/admin/service-categories/?${queryString(query)}`),
+  createServiceCategory: (payload: AdminServiceCategoryMutation) =>
+    request<AdminServiceCategory>('/admin/service-categories/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateServiceCategory: (id: number, payload: Partial<AdminServiceCategoryMutation>) =>
+    request<AdminServiceCategory>(`/admin/service-categories/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  activities: (query: AdminActivityQuery) => request<{
+    items: AdminActivity[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: AdminActivitySummary
+  }>(`/admin/activities/?${queryString(query)}`),
+  activity: (id: number) => request<AdminActivity>(`/admin/activities/${id}/`),
+  reviewActivity: (id: number, decision: 'approve' | 'reject', reason = '') =>
+    request<AdminActivity>(`/admin/activities/${id}/review/`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+    }),
   providers: (query: ProviderApplicationQuery) => {
     const params = queryString(query)
     return request<{

@@ -7,7 +7,111 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'orders' | 'after_sales'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'activities' | 'orders' | 'after_sales'
+
+export type ActivityStatus = 'draft' | 'pending_review' | 'rejected' | 'recruiting' | 'formed' | 'in_progress' | 'completed' | 'cancelled' | 'failed_to_form'
+
+export interface AdminActivityPublishOrder {
+  order_no: string
+  status: 'pending_payment' | 'paid' | 'cancelled' | 'refunded'
+  status_label: string
+  aa_principal_amount: number
+  platform_service_fee_amount: number
+  payable_amount: number
+  pricing_snapshot: Record<string, unknown>
+  paid_at: string | null
+}
+
+export interface AdminActivityParticipant {
+  public_id: string
+  nickname: string
+  phone_masked: string
+  status: 'active' | 'cancelled'
+  status_label: string
+  joined_at: string
+  cancelled_at: string | null
+}
+
+export interface AdminActivity {
+  id: number
+  title: string
+  status: ActivityStatus
+  status_label: string
+  category_name: string
+  category_slug: string
+  organizer_public_id: string
+  organizer_name: string
+  organizer_phone_masked: string
+  organizer_verification_status: VerificationStatus
+  organizer_verification_status_label: string
+  organizer_account_status: AccountStatus
+  organizer_account_status_label: string
+  cover_url: string | null
+  city_code: string
+  city_name: string
+  starts_at: string
+  ends_at: string
+  formation_deadline: string
+  meeting_place_name: string
+  meeting_address: string
+  source_longitude: string | number
+  source_latitude: string | number
+  capacity: number
+  min_participants: number
+  participant_count: number
+  description: string
+  participation_rules: string
+  aa_principal_amount: number
+  refund_template_version: string
+  refund_rule_snapshot: Record<string, unknown>
+  publish_order: AdminActivityPublishOrder | null
+  published_at: string | null
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  rejection_reason: string
+  participants: AdminActivityParticipant[]
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivitySummary {
+  total: number
+  pending_review: number
+  active: number
+  ended: number
+}
+
+export interface AdminServiceCategory {
+  id: number
+  name: string
+  slug: string
+  icon_object_key: string
+  icon_url: string | null
+  city_codes: string[]
+  sort_order: number
+  is_active: boolean
+  service_count: number
+  active_service_count: number
+  provider_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminServiceCategorySummary {
+  total: number
+  active: number
+  inactive: number
+  active_services: number
+}
+
+export interface AdminServiceCategoryMutation {
+  name: string
+  slug: string
+  icon_object_key: string
+  city_codes: string[]
+  sort_order: number
+  is_active: boolean
+}
 
 export type ProviderApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected'

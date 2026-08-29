@@ -9,7 +9,7 @@ type TrendDays = 7 | 30
 type TrendPoint = { date: string; transaction_amount: number; order_count: number }
 
 const props = defineProps<{ preview: boolean }>()
-const emit = defineEmits<{ review: [] }>()
+const emit = defineEmits<{ reviewProvider: []; reviewActivity: [] }>()
 const metrics = ref<Record<string, number | null>>({})
 const todos = ref<Array<{ key: string; label: string; count: number; priority: string }>>([])
 const trendDays = ref<TrendDays>(7)
@@ -117,6 +117,11 @@ async function selectTrendDays(days: TrendDays) {
 }
 
 onMounted(load)
+
+function handleTodo(key: string) {
+  if (key === 'provider_review') emit('reviewProvider')
+  if (key === 'activity_review') emit('reviewActivity')
+}
 </script>
 
 <template>
@@ -129,7 +134,7 @@ onMounted(load)
       </div>
     </div>
 
-    <button class="alert-bar" @click="emit('review')">
+    <button class="alert-bar" @click="emit('reviewActivity')">
       🔔&nbsp;&nbsp;当前有 <strong>{{ metrics.pending_providers || 0 }}</strong> 条达人申请和
       <strong>{{ metrics.pending_activities || 0 }}</strong> 条活动申请等待处理
       <span>立即处理&nbsp;›</span>
@@ -177,7 +182,7 @@ onMounted(load)
       </article>
       <article class="data-panel todo-panel">
         <header><h2>实时待办</h2></header>
-        <button v-for="todo in todos" :key="todo.key" @click="todo.key === 'provider_review' && emit('review')">
+        <button v-for="todo in todos" :key="todo.key" @click="handleTodo(todo.key)">
           <i>审</i><span>{{ todo.label }}</span><strong>{{ todo.count }}</strong>
           <em :class="todo.priority">{{ todo.priority === 'high' ? '高' : '中' }}</em><b>去处理 ›</b>
         </button>

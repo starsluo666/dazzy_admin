@@ -16,8 +16,8 @@ const navigation = computed(() => [
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
   { key: 'providers', label: '达人列表', icon: List, child: true, enabled: can('provider.view'), visible: can('provider.view') },
   { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, enabled: can('provider.review'), visible: can('provider.review') },
-  { key: 'services', label: '服务分类', icon: Grid, enabled: false },
-  { key: 'activities', label: '活动管理', icon: Calendar, enabled: false },
+  { key: 'services', label: '服务分类', icon: Grid, enabled: can('service_category.view'), visible: can('service_category.view') },
+  { key: 'activities', label: '活动管理', icon: Calendar, enabled: can('activity.view'), visible: can('activity.view') },
   { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') },
   { key: 'orders', label: '达人订单', icon: List, child: true, enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
@@ -36,11 +36,13 @@ const pageLabels: Record<AdminPage, string> = {
   users: '用户管理 / 用户列表',
   providers: '达人管理 / 达人列表',
   provider_reviews: '达人管理 / 入驻审核',
+  services: '服务分类',
+  activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'orders', 'after_sales'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'activities', 'orders', 'after_sales'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }

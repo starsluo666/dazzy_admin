@@ -8,6 +8,8 @@ import ProviderManagementView from './views/ProviderManagementView.vue'
 import FulfillmentOrdersView from './views/FulfillmentOrdersView.vue'
 import AfterSalesView from './views/AfterSalesView.vue'
 import UserManagementView from './views/UserManagementView.vue'
+import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
+import ActivityManagementView from './views/ActivityManagementView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -30,6 +32,8 @@ const canManageProvider = hasPermission('provider.manage')
 const canAdjustProviderCredit = hasPermission('provider.credit.adjust')
 const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
+const canManageServiceCategory = hasPermission('service_category.manage')
+const canReviewActivity = hasPermission('activity.review')
 
 async function loadSession() {
   if (preview) {
@@ -55,6 +59,8 @@ async function loadSession() {
       if (permissions.includes('user.view')) currentPage.value = 'users'
       else if (permissions.includes('provider.view')) currentPage.value = 'providers'
       else if (permissions.includes('provider.review')) currentPage.value = 'provider_reviews'
+      else if (permissions.includes('service_category.view')) currentPage.value = 'services'
+      else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
     }
@@ -86,7 +92,12 @@ onMounted(loadSession)
     @navigate="currentPage = $event"
     @logout="logout"
   >
-    <DashboardView v-if="currentPage === 'dashboard'" :preview="preview" @review="currentPage = 'provider_reviews'" />
+    <DashboardView
+      v-if="currentPage === 'dashboard'"
+      :preview="preview"
+      @review-provider="currentPage = 'provider_reviews'"
+      @review-activity="currentPage = 'activities'"
+    />
     <UserManagementView
       v-else-if="currentPage === 'users'"
       :preview="preview"
@@ -102,6 +113,16 @@ onMounted(loadSession)
       @review="currentPage = 'provider_reviews'"
     />
     <ProviderReviewView v-else-if="currentPage === 'provider_reviews'" :preview="preview" />
+    <ServiceCategoriesView
+      v-else-if="currentPage === 'services'"
+      :preview="preview"
+      :can-manage="canManageServiceCategory"
+    />
+    <ActivityManagementView
+      v-else-if="currentPage === 'activities'"
+      :preview="preview"
+      :can-review="canReviewActivity"
+    />
     <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
