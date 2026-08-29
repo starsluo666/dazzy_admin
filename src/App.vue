@@ -34,6 +34,13 @@ const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
 const canManageServiceCategory = hasPermission('service_category.manage')
 const canReviewActivity = hasPermission('activity.review')
+const canManageActivity = hasPermission('activity.manage')
+const canViewActivityCategory = hasPermission('activity_category.view')
+const canManageActivityCategory = hasPermission('activity_category.manage')
+const canViewActivityReport = hasPermission('activity_report.view')
+const canManageActivityReport = hasPermission('activity_report.manage')
+const canViewActivityFinance = hasPermission('activity_finance.view')
+const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
 
 async function loadSession() {
   if (preview) {
@@ -122,6 +129,13 @@ onMounted(loadSession)
       v-else-if="currentPage === 'activities'"
       :preview="preview"
       :can-review="canReviewActivity"
+      :can-manage="canManageActivity"
+      :can-view-category="canViewActivityCategory"
+      :can-manage-category="canManageActivityCategory"
+      :can-view-report="canViewActivityReport"
+      :can-manage-report="canManageActivityReport"
+      :can-view-finance="canViewActivityFinance"
+      :can-manage-after-sales="canManageActivityAfterSales"
     />
     <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" />
     <AfterSalesView

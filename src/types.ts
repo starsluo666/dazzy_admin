@@ -13,7 +13,7 @@ export type ActivityStatus = 'draft' | 'pending_review' | 'rejected' | 'recruiti
 
 export interface AdminActivityPublishOrder {
   order_no: string
-  status: 'pending_payment' | 'paid' | 'cancelled' | 'refunded'
+  status: 'pending_payment' | 'paid' | 'cancelled' | 'partially_refunded' | 'refunded'
   status_label: string
   aa_principal_amount: number
   platform_service_fee_amount: number
@@ -22,14 +22,146 @@ export interface AdminActivityPublishOrder {
   paid_at: string | null
 }
 
+export interface AdminActivityRefundRecord {
+  refund_no: string
+  refund_type: 'review_rejection' | 'admin_cancellation' | 'organizer_cancellation' | 'failed_to_form'
+  refund_type_label: string
+  status: 'simulated_refunded'
+  status_label: string
+  principal_amount: number
+  service_fee_amount: number
+  refund_amount: number
+  retained_principal_amount: number
+  retained_service_fee_amount: number
+  retained_principal_destination: string
+  beneficiary_name: string
+  reason: string
+  operator_name: string | null
+  refunded_at: string
+}
+
 export interface AdminActivityParticipant {
   public_id: string
   nickname: string
   phone_masked: string
-  status: 'active' | 'cancelled'
+  status: 'pending_payment' | 'active' | 'cancelled' | 'expired'
   status_label: string
-  joined_at: string
+  joined_at: string | null
   cancelled_at: string | null
+  payment_expires_at?: string | null
+  payable_amount?: number
+  payment_orders?: Array<{
+    order_no: string
+    status: ActivityParticipationPaymentStatus
+    status_label: string
+    channel: ActivityPaymentChannel
+    channel_label: string
+    payable_amount: number
+    expires_at: string
+    paid_at: string | null
+  }>
+  refund_orders?: ActivityParticipationRefundSummary[]
+  after_sales_cases?: Array<{
+    case_no: string
+    status: ActivityAfterSalesStatus
+    status_label: string
+    reason_label: string
+  }>
+}
+
+export type ActivityPaymentChannel = 'mock_wechat' | 'mock_alipay' | 'wechat' | 'alipay'
+export type ActivityParticipationPaymentStatus = 'pending_payment' | 'paid' | 'closed' | 'partially_refunded' | 'refunded'
+export type ActivityParticipationRefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed'
+export type ActivityAfterSalesStatus = 'pending' | 'processing' | 'approved' | 'rejected'
+
+export interface ActivityParticipationRefundSummary {
+  refund_no: string
+  refund_type: string
+  refund_type_label: string
+  status: ActivityParticipationRefundStatus
+  status_label: string
+  principal_refund_amount: number
+  service_fee_refund_amount: number
+  refund_amount: number
+  retained_principal_amount: number
+  retained_service_fee_amount: number
+  retained_principal_destination: 'none' | 'organizer' | 'platform'
+  retained_principal_destination_label?: string
+  reason: string
+  requested_at: string
+  refunded_at: string | null
+}
+
+export interface AdminActivityParticipationPayment {
+  order_no: string
+  activity_id: number
+  activity_title: string
+  city_code: string
+  city_name: string
+  payer_name: string
+  payer_phone_masked: string
+  aa_principal_amount: number
+  platform_service_fee_amount: number
+  payable_amount: number
+  channel: ActivityPaymentChannel
+  channel_label: string
+  status: ActivityParticipationPaymentStatus
+  status_label: string
+  gateway_trade_no: string
+  expires_at: string
+  paid_at: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivityParticipationRefund extends ActivityParticipationRefundSummary {
+  payment_order_no: string
+  activity_id: number
+  activity_title: string
+  city_code: string
+  city_name: string
+  beneficiary_name: string
+  beneficiary_phone_masked: string
+  operator_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivityAfterSales {
+  case_no: string
+  activity_id: number
+  activity_title: string
+  city_code: string
+  city_name: string
+  applicant_name: string
+  applicant_phone_masked: string
+  reason: string
+  reason_label: string
+  description: string
+  evidence_count: number
+  status: ActivityAfterSalesStatus
+  status_label: string
+  requested_principal_amount: number
+  requested_service_fee_amount: number
+  requested_amount: number
+  approved_principal_amount: number | null
+  approved_service_fee_amount: number | null
+  approved_amount: number | null
+  result_note: string
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  refund_order: ActivityParticipationRefundSummary | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivityFinanceSummary {
+  paid_count: number
+  pending_payment_count: number
+  refund_count: number
+  refunded_amount: number
+  open_after_sales_count: number
 }
 
 export interface AdminActivity {
@@ -69,6 +201,11 @@ export interface AdminActivity {
   reviewed_by_name: string | null
   reviewed_at: string | null
   rejection_reason: string
+  cancellation_reason: string
+  cancelled_by_name: string | null
+  cancelled_at: string | null
+  refund_records: AdminActivityRefundRecord[]
+  report_count: number
   participants: AdminActivityParticipant[]
   created_at: string
   updated_at: string
@@ -79,6 +216,78 @@ export interface AdminActivitySummary {
   pending_review: number
   active: number
   ended: number
+}
+
+export interface AdminActivityCategory {
+  id: number
+  name: string
+  slug: string
+  icon_object_key: string
+  icon_url: string | null
+  city_codes: string[]
+  min_capacity: number
+  max_capacity: number
+  min_aa_principal_amount: number
+  max_aa_principal_amount: number
+  content_guidance: string
+  sort_order: number
+  is_active: boolean
+  activity_count: number
+  active_activity_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivityCategorySummary {
+  total: number
+  active: number
+  inactive: number
+  active_activities: number
+}
+
+export interface AdminActivityCategoryMutation {
+  name: string
+  slug: string
+  icon_object_key: string
+  city_codes: string[]
+  min_capacity: number
+  max_capacity: number
+  min_aa_principal_amount: number
+  max_aa_principal_amount: number
+  content_guidance: string
+  sort_order: number
+  is_active: boolean
+}
+
+export type ActivityReportStatus = 'pending' | 'processing' | 'resolved' | 'rejected'
+
+export interface AdminActivityReport {
+  case_no: string
+  activity_id: number
+  activity_title: string
+  activity_status: ActivityStatus
+  city_code: string
+  city_name: string
+  organizer_name: string
+  reporter_name: string
+  reporter_phone_masked: string
+  reason: string
+  reason_label: string
+  description: string
+  status: ActivityReportStatus
+  status_label: string
+  result_note: string
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminActivityReportSummary {
+  total: number
+  pending: number
+  processing: number
+  resolved: number
 }
 
 export interface AdminServiceCategory {

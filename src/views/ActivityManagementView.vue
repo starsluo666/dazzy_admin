@@ -14,8 +14,21 @@ import {
 
 import { adminApi } from '../services/api'
 import type { ActivityStatus, AdminActivity, AdminActivitySummary } from '../types'
+import ActivityCategoriesPanel from './activity/ActivityCategoriesPanel.vue'
+import ActivityFinancePanel from './activity/ActivityFinancePanel.vue'
+import ActivityReportsPanel from './activity/ActivityReportsPanel.vue'
 
-const props = defineProps<{ preview: boolean; canReview: boolean }>()
+const props = defineProps<{
+  preview: boolean
+  canReview: boolean
+  canManage: boolean
+  canViewCategory: boolean
+  canManageCategory: boolean
+  canViewReport: boolean
+  canManageReport: boolean
+  canViewFinance: boolean
+  canManageAfterSales: boolean
+}>()
 
 const rows = ref<AdminActivity[]>([])
 const summary = ref<AdminActivitySummary>({ total: 0, pending_review: 0, active: 0, ended: 0 })
@@ -30,6 +43,13 @@ const detailLoading = ref(false)
 const reviewing = ref(false)
 const drawerVisible = ref(false)
 const selected = ref<AdminActivity | null>(null)
+const activePanel = ref<'list' | 'categories' | 'reports' | 'finance'>('list')
+const panels = computed(() => [
+  { key: 'list', label: '活动列表' },
+  ...(props.canViewCategory ? [{ key: 'categories', label: '分类配置' }] : []),
+  ...(props.canViewReport ? [{ key: 'reports', label: '举报与处置' }] : []),
+  ...(props.canViewFinance ? [{ key: 'finance', label: '支付 / 退款 / 售后' }] : []),
+] as Array<{ key: 'list' | 'categories' | 'reports' | 'finance'; label: string }>)
 
 const statusOptions: Array<{ label: string; value: ActivityStatus }> = [
   { label: '待审核', value: 'pending_review' },
@@ -97,6 +117,18 @@ function demoActivity(
     reviewed_by_name: status === 'pending_review' ? null : '运营管理员',
     reviewed_at: status === 'pending_review' ? null : future(-1),
     rejection_reason: status === 'rejected' ? '活动介绍信息不完整，请补充参与规则后重新发布。' : '',
+    cancellation_reason: '', cancelled_by_name: null, cancelled_at: null,
+    refund_records: status === 'rejected' ? [{
+      refund_no: `ARF20260829${String(id).padStart(6, '0')}`, refund_type: 'review_rejection',
+      refund_type_label: '审核驳回退款', status: 'simulated_refunded', status_label: '模拟退款成功',
+      principal_amount: amount, service_fee_amount: Math.round(amount * .1),
+      refund_amount: Math.round(amount * 1.1), beneficiary_name: organizer,
+      retained_principal_amount: 0, retained_service_fee_amount: 0,
+      retained_principal_destination: '',
+      reason: '活动介绍信息不完整，请补充参与规则后重新发布。', operator_name: '运营管理员',
+      refunded_at: future(-1),
+    }] : [],
+    report_count: id === 23 ? 1 : 0,
     participants: Array.from({ length: count }, (_, index) => ({
       public_id: `10000000-0000-4000-8000-${String(id * 10 + index).padStart(12, '0')}`,
       nickname: ['小雨', '阿哲', '可可', '林一'][index % 4], phone_masked: `186****${String(1200 + index)}`,
@@ -233,6 +265,33 @@ async function review(decision: 'approve' | 'reject') {
   }
 }
 
+async function cancelActivity() {
+  if (!selected.value || !props.canManage) return
+  try {
+    const result = await ElMessageBox.prompt(
+      '取消后活动将停止招募，并按规则同步处理发起人发布款与所有参与者退款。',
+      '取消 / 下架活动',
+      { inputPlaceholder: '请填写取消原因', inputValidator: (value) => value.trim().length >= 2 || '至少填写 2 个字', confirmButtonText: '确认取消并退款', cancelButtonText: '暂不取消', type: 'warning' },
+    )
+    reviewing.value = true
+    if (props.preview) {
+      const item = demoActivities.value.find((row) => row.id === selected.value?.id)
+      if (item) {
+        item.status = 'cancelled'; item.status_label = '已取消'
+        item.cancellation_reason = result.value.trim(); item.cancelled_by_name = '运营管理员'
+        item.cancelled_at = new Date().toISOString()
+        if (item.publish_order) { item.publish_order.status = 'refunded'; item.publish_order.status_label = '已退款' }
+        item.refund_records.push({ refund_no: `ARF${Date.now()}`, refund_type: 'admin_cancellation', refund_type_label: '后台取消退款', status: 'simulated_refunded', status_label: '模拟退款成功', principal_amount: item.aa_principal_amount, service_fee_amount: Math.round(item.aa_principal_amount * .1), refund_amount: Math.round(item.aa_principal_amount * 1.1), retained_principal_amount: 0, retained_service_fee_amount: 0, retained_principal_destination: '', beneficiary_name: item.organizer_name, reason: result.value.trim(), operator_name: '运营管理员', refunded_at: item.cancelled_at })
+        selected.value = { ...item }
+      }
+    } else selected.value = await adminApi.changeActivityStatus(selected.value.id, result.value.trim())
+    ElMessage.success('活动已取消，发布支付退款记录已生成'); await load()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '取消活动失败')
+  } finally { reviewing.value = false }
+}
+
 function selectSummary(key: string) {
   if (key === 'active' || key === 'ended') return
   statusFilter.value = key as ActivityStatus | ''
@@ -273,6 +332,11 @@ onMounted(load)
       <el-button :icon="Refresh" @click="load">刷新数据</el-button>
     </header>
 
+    <nav class="activity-tabs">
+      <button v-for="panel in panels" :key="panel.key" :class="{ active: activePanel === panel.key }" @click="activePanel = panel.key">{{ panel.label }}</button>
+    </nav>
+
+    <template v-if="activePanel === 'list'">
     <section class="activity-summary">
       <button v-for="item in summaryCards" :key="item.label" :class="{ static: item.key === 'active' || item.key === 'ended' }" @click="selectSummary(item.key)">
         <el-icon :class="item.tone"><component :is="item.icon" /></el-icon>
@@ -350,15 +414,23 @@ onMounted(load)
         <section v-if="selected.participants.length" class="detail-card"><header><h3>报名用户（{{ selected.participants.length }}）</h3></header><div class="participant-list"><div v-for="participant in selected.participants" :key="participant.public_id"><el-avatar :size="32">{{ participant.nickname.slice(0, 1) }}</el-avatar><span><strong>{{ participant.nickname }}</strong><small>{{ participant.phone_masked }} · {{ formatDate(participant.joined_at) }}</small></span><el-tag type="success" size="small" effect="plain">{{ participant.status_label }}</el-tag></div></div></section>
 
         <section v-if="selected.reviewed_at" class="detail-card review-result"><header><h3>审核记录</h3></header><p><strong>{{ selected.reviewed_by_name }}</strong> 于 {{ formatDate(selected.reviewed_at) }} 完成审核</p><p v-if="selected.rejection_reason" class="reject-reason">驳回原因：{{ selected.rejection_reason }}</p></section>
+        <section v-if="selected.cancelled_at" class="detail-card review-result"><header><h3>取消记录</h3></header><p><strong>{{ selected.cancelled_by_name }}</strong> 于 {{ formatDate(selected.cancelled_at) }} 取消活动</p><p class="reject-reason">取消原因：{{ selected.cancellation_reason }}</p></section>
+        <section v-if="selected.refund_records.length" class="detail-card"><header><h3>退款记录（{{ selected.refund_records.length }}）</h3></header><div v-for="refund in selected.refund_records" :key="refund.refund_no" class="refund-row"><div><strong>{{ refund.refund_type_label }}</strong><small>{{ refund.refund_no }} · {{ formatDate(refund.refunded_at) }}</small></div><div><strong>{{ money(refund.refund_amount) }}</strong><el-tag type="success" size="small">{{ refund.status_label }}</el-tag></div></div></section>
       </div>
       <template #footer>
         <div v-if="selected?.status === 'pending_review' && canReview" class="review-actions"><span>请核对内容与支付信息后操作</span><el-button :disabled="reviewing" @click="review('reject')">驳回并退款</el-button><el-button type="primary" :loading="reviewing" @click="review('approve')">通过并开始招募</el-button></div>
+        <div v-else-if="selected && ['recruiting','formed'].includes(selected.status) && canManage" class="review-actions"><span>取消后将原子化处理活动状态、参与者退款与发起人发布款</span><el-button type="danger" plain :loading="reviewing" @click="cancelActivity">取消 / 下架活动</el-button></div>
         <el-button v-else @click="drawerVisible = false">关闭</el-button>
       </template>
     </el-drawer>
+    </template>
+
+    <ActivityCategoriesPanel v-else-if="activePanel === 'categories'" :preview="preview" :can-manage="canManageCategory" />
+    <ActivityReportsPanel v-else-if="activePanel === 'reports'" :preview="preview" :can-manage="canManageReport" />
+    <ActivityFinancePanel v-else :preview="preview" :can-manage="canManageAfterSales" />
   </div>
 </template>
 
 <style scoped>
-.activity-page{min-height:calc(100vh - 76px)}.activity-heading{margin-bottom:18px}.activity-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.activity-summary button{position:relative;display:grid;grid-template-columns:50px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.activity-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.activity-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.activity-summary .blue{color:#2679e9;background:#e9f1ff}.activity-summary .cyan{color:#00aeb4;background:#e4f8f8}.activity-summary .orange{color:#e97825;background:#fff0e6}.activity-summary .gray{color:#6f7884;background:#f0f2f4}.activity-summary span{color:var(--muted);font-size:12px}.activity-summary strong{font-size:25px;color:#172033}.activity-summary small{position:absolute;right:14px;bottom:14px;color:#9ba4af;font-size:10px}.activity-summary button.static{cursor:default}.activity-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.activity-filters{display:grid;grid-template-columns:minmax(280px,1fr) 135px 135px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.activity-info{display:flex;align-items:center;gap:11px}.mini-cover{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:8px;color:#fff;font-weight:800}.cover-0{background:linear-gradient(145deg,#35cad0,#087f91)}.cover-1{background:linear-gradient(145deg,#ffb36b,#f06431)}.cover-2{background:linear-gradient(145deg,#76a7ff,#6554cc)}.activity-info>div:last-child,.organizer,.time-place{display:flex;flex-direction:column;gap:5px}.activity-info strong{overflow:hidden;max-width:185px;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.activity-info small,.organizer small,.time-place small{color:var(--muted);font-size:11px}.organizer strong,.time-place strong{font-size:12px}.capacity strong{color:#0b9ba1;font-size:18px}.capacity span{color:var(--muted);font-size:11px}.amount{color:#ef6d2e;font-size:13px}.activity-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.drawer-title{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}.detail-body{display:flex;flex-direction:column;gap:12px;padding-bottom:12px}.detail-hero{display:grid;grid-template-columns:156px 1fr;gap:18px;align-items:center;padding-bottom:16px;border-bottom:1px solid #e8edf0}.poster{display:flex;flex-direction:column;justify-content:flex-end;width:156px;height:112px;padding:14px;border-radius:10px;color:#fff}.poster span{font-size:20px;font-weight:800}.poster b{margin-top:3px;font-size:11px;opacity:.86}.detail-hero small{color:var(--muted)}.detail-hero h2{margin:6px 0 12px;font-size:19px}.detail-hero p{display:flex;align-items:center;gap:5px;margin:5px 0;color:#626d79;font-size:12px}.detail-card{padding:16px;border:1px solid #e4eaed;border-radius:8px;background:#fff}.detail-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.detail-card h3{margin:0;font-size:14px}.organizer-profile{display:flex;align-items:center;gap:10px}.organizer-profile>div{display:flex;flex:1;flex-direction:column;gap:4px}.organizer-profile span{color:var(--muted);font-size:11px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-card dl{margin:0}.detail-card dl>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #edf0f2;font-size:12px}.detail-card dl>div:last-child{border:0}.detail-card dt{color:var(--muted)}.detail-card dd{margin:0;font-weight:650}.detail-card .total dd{color:#ef6d2e}.order-no{max-width:150px;overflow:hidden;text-overflow:ellipsis}.location-name{margin:0 0 6px;font-weight:700}.muted{margin:0;color:var(--muted);font-size:12px}.coordinate{margin:10px 0 0;padding:8px 10px;border-radius:5px;color:#71808b;background:#f5f7f8;font-size:11px}.content-card h4{margin:14px 0 5px;font-size:12px}.content-card p{margin:0;color:#5e6974;font-size:12px;line-height:1.7}.content-card pre{margin:0;padding:10px;border-radius:5px;color:#53606a;background:#f7f9fa;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}.participant-list{display:flex;flex-direction:column}.participant-list>div{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f2}.participant-list>div:last-child{border:0}.participant-list span{display:flex;flex:1;flex-direction:column;gap:3px}.participant-list strong{font-size:12px}.participant-list small{color:var(--muted);font-size:10px}.review-result p{margin:0;color:#626d79;font-size:12px}.reject-reason{margin-top:9px!important;padding:9px;border-radius:5px;color:#b34f28!important;background:#fff5ed}.review-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;width:100%}.review-actions span{margin-right:auto;color:var(--muted);font-size:11px}:deep(.activity-drawer .el-drawer__footer){border-top:1px solid #e8edf0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.activity-filters{grid-template-columns:minmax(230px,1fr) 120px 120px 64px 64px}.activity-summary small{display:none}}@media(prefers-reduced-motion:reduce){.activity-summary button{transition:none}.activity-summary button:hover{transform:none}}
+.activity-page{min-height:calc(100vh - 76px)}.activity-heading{margin-bottom:10px}.activity-tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}.activity-tabs button{position:relative;padding:11px 20px;border:0;color:var(--muted);background:transparent;font-size:13px}.activity-tabs button.active{color:#078f94;font-weight:700}.activity-tabs button.active::after{position:absolute;right:18px;bottom:-1px;left:18px;height:2px;background:#08b8bd;content:''}.activity-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.activity-summary button{position:relative;display:grid;grid-template-columns:50px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.activity-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.activity-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.activity-summary .blue{color:#2679e9;background:#e9f1ff}.activity-summary .cyan{color:#00aeb4;background:#e4f8f8}.activity-summary .orange{color:#e97825;background:#fff0e6}.activity-summary .gray{color:#6f7884;background:#f0f2f4}.activity-summary span{color:var(--muted);font-size:12px}.activity-summary strong{font-size:25px;color:#172033}.activity-summary small{position:absolute;right:14px;bottom:14px;color:#9ba4af;font-size:10px}.activity-summary button.static{cursor:default}.activity-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.activity-filters{display:grid;grid-template-columns:minmax(280px,1fr) 135px 135px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.activity-info{display:flex;align-items:center;gap:11px}.mini-cover{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:8px;color:#fff;font-weight:800}.cover-0{background:linear-gradient(145deg,#35cad0,#087f91)}.cover-1{background:linear-gradient(145deg,#ffb36b,#f06431)}.cover-2{background:linear-gradient(145deg,#76a7ff,#6554cc)}.activity-info>div:last-child,.organizer,.time-place{display:flex;flex-direction:column;gap:5px}.activity-info strong{overflow:hidden;max-width:185px;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.activity-info small,.organizer small,.time-place small{color:var(--muted);font-size:11px}.organizer strong,.time-place strong{font-size:12px}.capacity strong{color:#0b9ba1;font-size:18px}.capacity span{color:var(--muted);font-size:11px}.amount{color:#ef6d2e;font-size:13px}.activity-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.drawer-title{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}.detail-body{display:flex;flex-direction:column;gap:12px;padding-bottom:12px}.detail-hero{display:grid;grid-template-columns:156px 1fr;gap:18px;align-items:center;padding-bottom:16px;border-bottom:1px solid #e8edf0}.poster{display:flex;flex-direction:column;justify-content:flex-end;width:156px;height:112px;padding:14px;border-radius:10px;color:#fff}.poster span{font-size:20px;font-weight:800}.poster b{margin-top:3px;font-size:11px;opacity:.86}.detail-hero small{color:var(--muted)}.detail-hero h2{margin:6px 0 12px;font-size:19px}.detail-hero p{display:flex;align-items:center;gap:5px;margin:5px 0;color:#626d79;font-size:12px}.detail-card{padding:16px;border:1px solid #e4eaed;border-radius:8px;background:#fff}.detail-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.detail-card h3{margin:0;font-size:14px}.organizer-profile{display:flex;align-items:center;gap:10px}.organizer-profile>div{display:flex;flex:1;flex-direction:column;gap:4px}.organizer-profile span{color:var(--muted);font-size:11px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-card dl{margin:0}.detail-card dl>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #edf0f2;font-size:12px}.detail-card dl>div:last-child{border:0}.detail-card dt{color:var(--muted)}.detail-card dd{margin:0;font-weight:650}.detail-card .total dd{color:#ef6d2e}.order-no{max-width:150px;overflow:hidden;text-overflow:ellipsis}.location-name{margin:0 0 6px;font-weight:700}.muted{margin:0;color:var(--muted);font-size:12px}.coordinate{margin:10px 0 0;padding:8px 10px;border-radius:5px;color:#71808b;background:#f5f7f8;font-size:11px}.content-card h4{margin:14px 0 5px;font-size:12px}.content-card p{margin:0;color:#5e6974;font-size:12px;line-height:1.7}.content-card pre{margin:0;padding:10px;border-radius:5px;color:#53606a;background:#f7f9fa;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}.participant-list{display:flex;flex-direction:column}.participant-list>div{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f2}.participant-list>div:last-child{border:0}.participant-list span{display:flex;flex:1;flex-direction:column;gap:3px}.participant-list strong{font-size:12px}.participant-list small{color:var(--muted);font-size:10px}.review-result p{margin:0;color:#626d79;font-size:12px}.reject-reason{margin-top:9px!important;padding:9px;border-radius:5px;color:#b34f28!important;background:#fff5ed}.refund-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #edf0f2}.refund-row:last-child{border:0}.refund-row>div{display:flex;flex-direction:column;gap:4px}.refund-row>div:last-child{align-items:flex-end}.refund-row small{color:var(--muted);font-size:10px}.review-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;width:100%}.review-actions span{margin-right:auto;color:var(--muted);font-size:11px}:deep(.activity-drawer .el-drawer__footer){border-top:1px solid #e8edf0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.activity-filters{grid-template-columns:minmax(230px,1fr) 120px 120px 64px 64px}.activity-summary small{display:none}}@media(prefers-reduced-motion:reduce){.activity-summary button{transition:none}.activity-summary button:hover{transform:none}}
 </style>

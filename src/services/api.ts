@@ -2,6 +2,15 @@ import type {
   AccountStatus,
   ActivityStatus,
   AdminActivity,
+  AdminActivityAfterSales,
+  AdminActivityCategory,
+  AdminActivityCategoryMutation,
+  AdminActivityCategorySummary,
+  AdminActivityFinanceSummary,
+  AdminActivityParticipationPayment,
+  AdminActivityParticipationRefund,
+  AdminActivityReport,
+  AdminActivityReportSummary,
   AdminActivitySummary,
   AdminAfterSalesCase,
   AdminMe,
@@ -25,6 +34,7 @@ import type {
   ProviderOrderSupportNote,
   UserRiskLevel,
   VerificationStatus,
+  ActivityReportStatus,
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
@@ -170,6 +180,30 @@ export interface AdminActivityQuery {
   page_size?: number
 }
 
+export interface AdminActivityCategoryQuery {
+  status?: 'all' | 'active' | 'inactive'
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface AdminActivityReportQuery {
+  status?: ActivityReportStatus | ''
+  city_code?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface AdminActivityFinanceQuery {
+  record_type: 'payment' | 'refund' | 'after_sales'
+  status?: string
+  city_code?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
 function queryString(query: object) {
   const params = new URLSearchParams()
   Object.entries(query).forEach(([key, value]) => {
@@ -235,6 +269,60 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ decision, reason }),
     }),
+  changeActivityStatus: (id: number, reason: string) =>
+    request<AdminActivity>(`/admin/activities/${id}/action/`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'cancel', reason }),
+    }),
+  activityCategories: (query: AdminActivityCategoryQuery) => request<{
+    items: AdminActivityCategory[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: AdminActivityCategorySummary
+  }>(`/admin/activity-categories/?${queryString(query)}`),
+  createActivityCategory: (payload: AdminActivityCategoryMutation) =>
+    request<AdminActivityCategory>('/admin/activity-categories/', {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+  updateActivityCategory: (id: number, payload: Partial<AdminActivityCategoryMutation>) =>
+    request<AdminActivityCategory>(`/admin/activity-categories/${id}/`, {
+      method: 'PATCH', body: JSON.stringify(payload),
+    }),
+  activityReports: (query: AdminActivityReportQuery) => request<{
+    items: AdminActivityReport[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: AdminActivityReportSummary
+  }>(`/admin/activity-reports/?${queryString(query)}`),
+  reviewActivityReport: (
+    caseNo: string,
+    action: 'start_review' | 'resolve' | 'reject',
+    resultNote = '',
+  ) => request<AdminActivityReport>(
+    `/admin/activity-reports/${encodeURIComponent(caseNo)}/action/`,
+    { method: 'POST', body: JSON.stringify({ action, result_note: resultNote }) },
+  ),
+  activityFinance: (query: AdminActivityFinanceQuery) => request<{
+    items: Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales>
+    pagination: { page: number; page_size: number; total: number }
+    summary: AdminActivityFinanceSummary
+  }>(`/admin/activity-finance/?${queryString(query)}`),
+  reviewActivityAfterSales: (
+    caseNo: string,
+    action: 'start_review' | 'approve' | 'reject',
+    resultNote = '',
+    approvedPrincipalAmount?: number,
+    approvedServiceFeeAmount?: number,
+  ) => request<AdminActivityAfterSales>(
+    `/admin/activity-after-sales/${encodeURIComponent(caseNo)}/action/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        result_note: resultNote,
+        ...(approvedPrincipalAmount === undefined ? {} : { approved_principal_amount: approvedPrincipalAmount }),
+        ...(approvedServiceFeeAmount === undefined ? {} : { approved_service_fee_amount: approvedServiceFeeAmount }),
+      }),
+    },
+  ),
   providers: (query: ProviderApplicationQuery) => {
     const params = queryString(query)
     return request<{
