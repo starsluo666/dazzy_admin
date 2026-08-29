@@ -9,6 +9,7 @@ import type {
   AdminActivityFinanceSummary,
   AdminActivityParticipationPayment,
   AdminActivityParticipationRefund,
+  AdminActivitySettlement,
   AdminActivityReport,
   AdminActivityReportSummary,
   AdminActivitySummary,
@@ -196,7 +197,7 @@ export interface AdminActivityReportQuery {
 }
 
 export interface AdminActivityFinanceQuery {
-  record_type: 'payment' | 'refund' | 'after_sales'
+  record_type: 'payment' | 'refund' | 'after_sales' | 'settlement'
   status?: string
   city_code?: string
   search?: string
@@ -301,7 +302,7 @@ export const adminApi = {
     { method: 'POST', body: JSON.stringify({ action, result_note: resultNote }) },
   ),
   activityFinance: (query: AdminActivityFinanceQuery) => request<{
-    items: Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales>
+    items: Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales | AdminActivitySettlement>
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivityFinanceSummary
   }>(`/admin/activity-finance/?${queryString(query)}`),
@@ -322,6 +323,14 @@ export const adminApi = {
         ...(approvedServiceFeeAmount === undefined ? {} : { approved_service_fee_amount: approvedServiceFeeAmount }),
       }),
     },
+  ),
+  reviewActivitySettlement: (
+    settlementNo: string,
+    action: 'freeze_dispute' | 'release_dispute' | 'retry_settlement',
+    reason = '',
+  ) => request<AdminActivitySettlement>(
+    `/admin/activity-settlements/${encodeURIComponent(settlementNo)}/action/`,
+    { method: 'POST', body: JSON.stringify({ action, reason }) },
   ),
   providers: (query: ProviderApplicationQuery) => {
     const params = queryString(query)

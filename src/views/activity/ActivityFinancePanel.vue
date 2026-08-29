@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheck, Clock, Money, Refresh, Search, Tickets, WarningFilled } from '@element-plus/icons-vue'
+import { CircleCheck, Clock, Lock, Money, Refresh, Search, Tickets, WalletFilled, WarningFilled } from '@element-plus/icons-vue'
 
 import { adminApi } from '../../services/api'
 import type {
@@ -10,19 +10,25 @@ import type {
   AdminActivityFinanceSummary,
   AdminActivityParticipationPayment,
   AdminActivityParticipationRefund,
+  AdminActivitySettlement,
 } from '../../types'
 
-const props = defineProps<{ preview: boolean; canManage: boolean }>()
-type RecordType = 'payment' | 'refund' | 'after_sales'
+const props = defineProps<{ preview: boolean; canManageAfterSales: boolean; canManageSettlement: boolean }>()
+type RecordType = 'payment' | 'refund' | 'after_sales' | 'settlement'
 
 const recordType = ref<RecordType>('payment')
-const rows = ref<Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales>>([])
+const rows = ref<Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales | AdminActivitySettlement>>([])
 const summary = ref<AdminActivityFinanceSummary>({
   paid_count: 0,
   pending_payment_count: 0,
   refund_count: 0,
   refunded_amount: 0,
   open_after_sales_count: 0,
+  confirming_settlement_count: 0,
+  frozen_settlement_count: 0,
+  disputed_settlement_count: 0,
+  settled_count: 0,
+  settled_amount: 0,
 })
 const search = ref('')
 const statusFilter = ref('')
@@ -34,11 +40,14 @@ const loading = ref(false)
 const handling = ref(false)
 const drawerVisible = ref(false)
 const selectedCase = ref<AdminActivityAfterSales | null>(null)
+const settlementDrawerVisible = ref(false)
+const selectedSettlement = ref<AdminActivitySettlement | null>(null)
 
 const tabs: Array<{ key: RecordType; label: string }> = [
   { key: 'payment', label: '参与支付' },
   { key: 'refund', label: '退款记录' },
   { key: 'after_sales', label: '退款 / 售后' },
+  { key: 'settlement', label: '活动结算' },
 ]
 const statusOptions = computed(() => {
   if (recordType.value === 'payment') return [
@@ -50,12 +59,22 @@ const statusOptions = computed(() => {
     { value: 'pending', label: '待退款' }, { value: 'processing', label: '退款中' },
     { value: 'succeeded', label: '退款成功' }, { value: 'failed', label: '退款失败' },
   ]
-  return [
+  if (recordType.value === 'after_sales') return [
     { value: 'pending', label: '待处理' }, { value: 'processing', label: '处理中' },
     { value: 'approved', label: '已同意' }, { value: 'rejected', label: '已驳回' },
   ]
+  return [
+    { value: 'confirming', label: '履约确认中' }, { value: 'risk_frozen', label: '风险冻结中' },
+    { value: 'dispute_frozen', label: '争议冻结中' }, { value: 'settled', label: '已结算入账' },
+  ]
 })
-const summaryCards = computed(() => [
+const summaryCards = computed(() => recordType.value === 'settlement' ? [
+  { label: '履约确认中', value: summary.value.confirming_settlement_count, suffix: '笔', icon: Clock, tone: 'cyan' },
+  { label: '风险冻结中', value: summary.value.frozen_settlement_count, suffix: '笔', icon: Lock, tone: 'orange' },
+  { label: '争议冻结中', value: summary.value.disputed_settlement_count, suffix: '笔', icon: WarningFilled, tone: 'red' },
+  { label: '已结算', value: summary.value.settled_count, suffix: '笔', icon: CircleCheck, tone: 'blue' },
+  { label: '累计结算入账', value: money(summary.value.settled_amount), suffix: '', icon: WalletFilled, tone: 'purple' },
+] : [
   { label: '支付成功', value: summary.value.paid_count, suffix: '笔', icon: CircleCheck, tone: 'cyan' },
   { label: '待支付锁位', value: summary.value.pending_payment_count, suffix: '笔', icon: Clock, tone: 'orange' },
   { label: '成功退款', value: summary.value.refund_count, suffix: '笔', icon: Tickets, tone: 'blue' },
@@ -136,8 +155,32 @@ const demoCases = ref<AdminActivityAfterSales[]>([
   },
 ])
 
+const demoSettlements = ref<AdminActivitySettlement[]>([
+  {
+    settlement_no: 'AST7B5E429DCDA84A8DA052', activity_id: 23, activity_title: '邯郸周边轻徒步交友',
+    city_code: '130400', city_name: '邯郸市', beneficiary_name: '林一', beneficiary_phone_masked: '188****6600',
+    status: 'risk_frozen', status_label: '风险冻结中', organizer_principal_amount: 3600,
+    participant_principal_amount: 10800, retained_participant_principal_amount: 0,
+    settlement_amount: 14400, platform_service_fee_amount: 1440, available_balance_amount: 26800,
+    confirmation_started_at: iso(-48), confirmation_deadline: iso(-24), risk_frozen_at: iso(-24),
+    freeze_until: iso(144), dispute_source: '', dispute_source_label: '无', dispute_reason: '',
+    calculation_snapshot: { version: 'activity-settlement-v1' }, settled_at: null, created_at: iso(-48), updated_at: iso(-24),
+  },
+  {
+    settlement_no: 'ASTA9D0C159B59C4E1C8207', activity_id: 24, activity_title: '年轻人商务交流午餐会',
+    city_code: '130400', city_name: '邯郸市', beneficiary_name: '晓晓', beneficiary_phone_masked: '188****6611',
+    status: 'dispute_frozen', status_label: '争议冻结中', organizer_principal_amount: 12800,
+    participant_principal_amount: 25600, retained_participant_principal_amount: 0,
+    settlement_amount: 38400, platform_service_fee_amount: 3840, available_balance_amount: 0,
+    confirmation_started_at: iso(-8), confirmation_deadline: iso(16), risk_frozen_at: null,
+    freeze_until: iso(184), dispute_source: 'after_sales', dispute_source_label: '退款售后',
+    dispute_reason: '售后单 AAS1919C5F8781347F5B3A0 待处理', calculation_snapshot: { version: 'activity-settlement-v1' },
+    settled_at: null, created_at: iso(-8), updated_at: iso(-2),
+  },
+])
+
 function demoRows() {
-  const source = recordType.value === 'payment' ? demoPayments : recordType.value === 'refund' ? demoRefunds : demoCases.value
+  const source = recordType.value === 'payment' ? demoPayments : recordType.value === 'refund' ? demoRefunds : recordType.value === 'after_sales' ? demoCases.value : demoSettlements.value
   const keyword = search.value.trim().toLowerCase()
   return source.filter((row) => {
     const text = JSON.stringify(row).toLowerCase()
@@ -153,7 +196,7 @@ async function load() {
     if (props.preview) {
       rows.value = demoRows()
       total.value = rows.value.length
-      summary.value = { paid_count: 12, pending_payment_count: 3, refund_count: 6, refunded_amount: 28740, open_after_sales_count: 2 }
+      summary.value = { paid_count: 12, pending_payment_count: 3, refund_count: 6, refunded_amount: 28740, open_after_sales_count: 2, confirming_settlement_count: 3, frozen_settlement_count: 5, disputed_settlement_count: 1, settled_count: 8, settled_amount: 126800 }
       return
     }
     const data = await adminApi.activityFinance({
@@ -188,8 +231,13 @@ function openCase(item: AdminActivityAfterSales) {
   drawerVisible.value = true
 }
 
+function openSettlement(item: AdminActivitySettlement) {
+  selectedSettlement.value = item
+  settlementDrawerVisible.value = true
+}
+
 async function handleCase(action: 'start_review' | 'approve' | 'reject') {
-  if (!selectedCase.value || !props.canManage) return
+  if (!selectedCase.value || !props.canManageAfterSales) return
   let note = ''
   try {
     if (action === 'start_review') {
@@ -242,6 +290,47 @@ async function handleCase(action: 'start_review' | 'approve' | 'reject') {
   } finally { handling.value = false }
 }
 
+async function handleSettlement(action: 'freeze_dispute' | 'release_dispute' | 'retry_settlement') {
+  if (!selectedSettlement.value || !props.canManageSettlement) return
+  let reason = ''
+  try {
+    if (action === 'freeze_dispute') {
+      const result = await ElMessageBox.prompt('冻结后资金将暂停入账，操作会写入审计日志。', '争议冻结', {
+        inputPlaceholder: '请填写冻结原因（至少 5 个字）',
+        inputValidator: (value) => value.trim().length >= 5 || '至少填写 5 个字',
+        confirmButtonText: '确认冻结', cancelButtonText: '取消', type: 'warning',
+      })
+      reason = result.value.trim()
+    } else {
+      await ElMessageBox.confirm(
+        action === 'release_dispute' ? '确认争议已处理完毕并恢复结算倒计时？' : '系统将重新核算金额并尝试推进结算状态。',
+        action === 'release_dispute' ? '解除争议冻结' : '重试结算',
+        { confirmButtonText: '确认', cancelButtonText: '取消', type: 'info' },
+      )
+    }
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
+  handling.value = true
+  try {
+    if (props.preview) {
+      const item = demoSettlements.value.find((entry) => entry.settlement_no === selectedSettlement.value?.settlement_no)
+      if (item) {
+        if (action === 'freeze_dispute') { item.status = 'dispute_frozen'; item.status_label = '争议冻结中'; item.dispute_source = 'admin'; item.dispute_source_label = '后台风控'; item.dispute_reason = reason }
+        if (action === 'release_dispute') { item.status = 'risk_frozen'; item.status_label = '风险冻结中'; item.dispute_source = ''; item.dispute_source_label = '无'; item.dispute_reason = '' }
+        selectedSettlement.value = { ...item }
+      }
+    } else {
+      selectedSettlement.value = await adminApi.reviewActivitySettlement(selectedSettlement.value.settlement_no, action, reason)
+    }
+    ElMessage.success(action === 'freeze_dispute' ? '结算已冻结' : action === 'release_dispute' ? '已恢复结算流程' : '结算状态已重新核算')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '结算操作失败')
+  } finally { handling.value = false }
+}
+
 function money(value = 0) { return `¥${(value / 100).toFixed(2)}` }
 function formatDate(value: string | null) {
   if (!value) return '—'
@@ -258,6 +347,12 @@ function caseTag(status: string) {
   if (status === 'processing') return 'primary'
   if (status === 'approved' || status === 'succeeded') return 'success'
   return 'info'
+}
+function settlementTag(status: string) {
+  if (status === 'settled') return 'success'
+  if (status === 'dispute_frozen') return 'danger'
+  if (status === 'risk_frozen') return 'warning'
+  return 'primary'
 }
 
 onMounted(load)
@@ -309,7 +404,7 @@ onMounted(load)
         <el-table-column label="完成时间" min-width="135"><template #default="{ row }">{{ formatDate(row.refunded_at) }}</template></el-table-column>
       </el-table>
 
-      <el-table v-else v-loading="loading" :data="rows" height="calc(100vh - 424px)" empty-text="暂无退款售后记录">
+      <el-table v-else-if="recordType === 'after_sales'" v-loading="loading" :data="rows" height="calc(100vh - 424px)" empty-text="暂无退款售后记录">
         <el-table-column label="售后单 / 活动" min-width="245"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.activity_title }}</strong><small>{{ row.case_no }} · {{ row.reason_label }}</small></div></template></el-table-column>
         <el-table-column label="申请人" min-width="125"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.applicant_name }}</strong><small>{{ row.applicant_phone_masked }}</small></div></template></el-table-column>
         <el-table-column label="申请退款" width="125"><template #default="{ row }"><strong class="money">{{ money(row.requested_amount) }}</strong></template></el-table-column>
@@ -317,6 +412,16 @@ onMounted(load)
         <el-table-column label="状态" width="105"><template #default="{ row }"><el-tag :type="caseTag(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
         <el-table-column label="申请时间" min-width="130"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
         <el-table-column label="操作" width="90" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">{{ ['pending','processing'].includes(row.status) ? '去处理' : '查看' }}</el-button></template></el-table-column>
+      </el-table>
+
+      <el-table v-else v-loading="loading" :data="rows" height="calc(100vh - 424px)" empty-text="暂无活动结算记录">
+        <el-table-column label="结算单 / 活动" min-width="245"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.activity_title }}</strong><small>{{ row.settlement_no }} · #{{ row.activity_id }}</small></div></template></el-table-column>
+        <el-table-column label="入账用户" min-width="125"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.beneficiary_name }}</strong><small>{{ row.beneficiary_phone_masked }}</small></div></template></el-table-column>
+        <el-table-column label="预计 / 实际入账" min-width="130"><template #default="{ row }"><strong class="money">{{ money(row.settlement_amount) }}</strong></template></el-table-column>
+        <el-table-column label="资金构成" min-width="180"><template #default="{ row }"><div class="primary-cell"><strong>发起人 {{ money(row.organizer_principal_amount) }} · 参与者 {{ money(row.participant_principal_amount) }}</strong><small>取消扣留 {{ money(row.retained_participant_principal_amount) }} · 平台服务费 {{ money(row.platform_service_fee_amount) }}</small></div></template></el-table-column>
+        <el-table-column label="状态" width="125"><template #default="{ row }"><el-tag :type="settlementTag(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
+        <el-table-column label="下一节点" min-width="140"><template #default="{ row }">{{ formatDate(row.status === 'confirming' ? row.confirmation_deadline : row.status === 'settled' ? row.settled_at : row.freeze_until) }}</template></el-table-column>
+        <el-table-column label="操作" width="90" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openSettlement(row)">查看</el-button></template></el-table-column>
       </el-table>
 
       <footer class="finance-footer"><span>共 {{ total }} 条记录</span><el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" @current-change="load" /></footer>
@@ -332,7 +437,7 @@ onMounted(load)
         <section class="rule-note"><strong>处理原则</strong><p>常规取消优先按活动退款规则自动计算；不可抗力、信息不实或未履约等特殊情形进入人工售后。批准后由统一退款服务生成退款单，避免重复退款。</p></section>
       </div>
       <template #footer>
-        <div v-if="selectedCase && canManage && ['pending','processing'].includes(selectedCase.status)" class="case-actions">
+        <div v-if="selectedCase && canManageAfterSales && ['pending','processing'].includes(selectedCase.status)" class="case-actions">
           <el-button v-if="selectedCase.status === 'pending'" :loading="handling" @click="handleCase('start_review')">领取处理</el-button>
           <el-button :disabled="handling" @click="handleCase('reject')">驳回申请</el-button>
           <el-button type="primary" :loading="handling" @click="handleCase('approve')">同意并退款</el-button>
@@ -340,9 +445,30 @@ onMounted(load)
         <el-button v-else @click="drawerVisible = false">关闭</el-button>
       </template>
     </el-drawer>
+
+    <el-drawer v-model="settlementDrawerVisible" size="580px" destroy-on-close>
+      <template #header><div class="drawer-heading"><span>活动结算详情</span><el-tag v-if="selectedSettlement" :type="settlementTag(selectedSettlement.status)">{{ selectedSettlement.status_label }}</el-tag></div></template>
+      <div v-if="selectedSettlement" class="case-detail">
+        <section class="case-hero"><small>{{ selectedSettlement.settlement_no }}</small><h2>{{ selectedSettlement.activity_title }}</h2><p>{{ selectedSettlement.beneficiary_name }} · {{ selectedSettlement.beneficiary_phone_masked }} · {{ selectedSettlement.city_name }}</p></section>
+        <section class="settlement-flow"><div class="done"><i>1</i><span><strong>履约确认</strong><small>{{ formatDate(selectedSettlement.confirmation_deadline) }} 截止</small></span></div><b /><div :class="{ done: selectedSettlement.status !== 'confirming' }"><i>2</i><span><strong>风险冻结</strong><small>{{ formatDate(selectedSettlement.freeze_until) }} 截止</small></span></div><b /><div :class="{ done: selectedSettlement.status === 'settled' }"><i>3</i><span><strong>结算入账</strong><small>{{ formatDate(selectedSettlement.settled_at) }}</small></span></div></section>
+        <section class="amount-grid settlement-amounts"><article><span>发起人AA本金</span><strong>{{ money(selectedSettlement.organizer_principal_amount) }}</strong></article><article><span>有效参与者AA本金</span><strong>{{ money(selectedSettlement.participant_principal_amount) }}</strong></article><article><span>取消参与者归发起人</span><strong>{{ money(selectedSettlement.retained_participant_principal_amount) }}</strong></article><article><span>平台服务费净额（不入账）</span><strong>{{ money(selectedSettlement.platform_service_fee_amount) }}</strong></article><article class="total"><span>本单结算入账</span><strong>{{ money(selectedSettlement.settlement_amount) }}</strong></article></section>
+        <section class="case-card"><header><h3>资金状态</h3><el-tag effect="plain">可用余额 {{ money(selectedSettlement.available_balance_amount) }}</el-tag></header><p v-if="selectedSettlement.dispute_reason" class="dispute-copy">{{ selectedSettlement.dispute_source_label }}：{{ selectedSettlement.dispute_reason }}</p><p v-else>当前无争议冻结。活动完成后先经过24小时履约确认，再进入7天风险冻结；到期且无售后时自动入账。</p></section>
+        <section class="rule-note"><strong>核算口径</strong><p>入账金额 = 发起人AA本金 + 有效参与者AA本金 + 明确归发起人的取消扣留本金；平台服务费单独核算，不进入发起人余额。</p></section>
+      </div>
+      <template #footer>
+        <div v-if="selectedSettlement && canManageSettlement && selectedSettlement.status !== 'settled'" class="case-actions">
+          <el-button v-if="selectedSettlement.dispute_source === 'admin'" :loading="handling" @click="handleSettlement('release_dispute')">解除风控冻结</el-button>
+          <el-button v-else type="danger" plain :loading="handling" @click="handleSettlement('freeze_dispute')">争议冻结</el-button>
+          <el-button type="primary" :disabled="selectedSettlement.dispute_source === 'admin'" :loading="handling" @click="handleSettlement('retry_settlement')">重新核算</el-button>
+        </div>
+        <el-button v-else @click="settlementDrawerVisible = false">关闭</el-button>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
 <style scoped>
 .finance-workspace{display:flex;flex-direction:column;gap:14px}.finance-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.finance-summary article{display:flex;align-items:center;gap:11px;min-height:80px;padding:13px 14px;border:1px solid var(--line);border-radius:8px;background:#fff}.finance-summary .el-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px;font-size:19px}.finance-summary .cyan{color:#039aa1;background:#e4f8f8}.finance-summary .orange{color:#e97825;background:#fff0e6}.finance-summary .blue{color:#2679e9;background:#e9f1ff}.finance-summary .purple{color:#7957d7;background:#f1edff}.finance-summary .red{color:#dc5c4b;background:#fff0ed}.finance-summary article>div{display:flex;min-width:0;flex-direction:column;gap:4px}.finance-summary span{color:var(--muted);font-size:11px}.finance-summary strong{color:#172033;font-size:21px;white-space:nowrap}.finance-summary small{margin-left:3px;font-size:10px;font-weight:500}.finance-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.finance-toolbar{display:grid;grid-template-columns:auto minmax(210px,1fr) 120px 120px 64px 32px;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line)}.record-tabs{display:flex;padding:3px;border-radius:6px;background:#f2f5f6}.record-tabs button{padding:7px 13px;border:0;border-radius:5px;color:#64717c;background:transparent;font-size:12px}.record-tabs button.active{color:#087f84;background:#fff;box-shadow:0 1px 5px rgba(30,55,65,.12);font-weight:700}.primary-cell{display:flex;min-width:0;flex-direction:column;gap:4px}.primary-cell strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.primary-cell small{overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.money{color:#ef6d2e!important}.finance-footer{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 16px;color:var(--muted);font-size:12px}.drawer-heading{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}.case-detail{display:flex;flex-direction:column;gap:12px}.case-hero{padding:2px 0 14px;border-bottom:1px solid var(--line)}.case-hero small{color:var(--muted);font-size:11px}.case-hero h2{margin:6px 0 8px;font-size:18px}.case-hero p{margin:0;color:#67737d;font-size:12px}.case-card{padding:15px;border:1px solid #e3e9ec;border-radius:8px}.case-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.case-card h3{margin:0;font-size:13px}.case-card header span{color:var(--muted);font-size:11px}.case-card p{margin:0;color:#535f69;font-size:12px;line-height:1.7}.evidence-note{margin-top:12px;padding:9px 10px;border-radius:6px;color:#71808a;background:#f5f7f8;font-size:11px}.amount-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.amount-grid article{display:flex;flex-direction:column;gap:5px;padding:13px;border:1px solid #e3e9ec;border-radius:8px}.amount-grid span{color:var(--muted);font-size:10px}.amount-grid strong{font-size:17px}.amount-grid .total{grid-column:1/3;border-color:#b6e5e6;background:#f0fbfb}.amount-grid .total strong{color:#078f94;font-size:20px}.approved-refund{display:flex;justify-content:space-between;margin-top:12px;padding:10px;border-radius:6px;color:#078f74;background:#ecfaf5;font-size:12px;font-weight:700}.approved-refund small{font-weight:400}.rule-note{padding:13px;border-left:3px solid #14b9bd;border-radius:4px;background:#f0fafa}.rule-note strong{font-size:12px}.rule-note p{margin:5px 0 0;color:#617079;font-size:11px;line-height:1.65}.case-actions{display:flex;justify-content:flex-end;gap:7px;width:100%}@media(max-width:1280px){.finance-summary{grid-template-columns:repeat(3,1fr)}.finance-toolbar{grid-template-columns:auto minmax(190px,1fr) 110px 110px 60px 32px}.record-tabs button{padding:7px 9px}}@media(prefers-reduced-motion:reduce){.record-tabs button{transition:none}}
+.settlement-flow{display:flex;align-items:center;padding:16px;border:1px solid #e3e9ec;border-radius:8px}
+.settlement-flow>div{display:flex;align-items:center;gap:8px}.settlement-flow>div i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:#7d8992;background:#e8edef;font-size:11px;font-style:normal}.settlement-flow>div.done i{color:#fff;background:#10aeb3}.settlement-flow>div span{display:flex;flex-direction:column;gap:3px;white-space:nowrap}.settlement-flow>div strong{font-size:11px}.settlement-flow>div small{color:var(--muted);font-size:9px}.settlement-flow>b{flex:1;height:2px;margin:0 8px;background:#dfe7e8}.settlement-amounts{grid-template-columns:1fr 1fr}.dispute-copy{padding:10px;border-radius:6px;color:#a34f2a!important;background:#fff3e9}
 </style>

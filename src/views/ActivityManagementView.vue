@@ -28,6 +28,7 @@ const props = defineProps<{
   canManageReport: boolean
   canViewFinance: boolean
   canManageAfterSales: boolean
+  canManageSettlement: boolean
 }>()
 
 const rows = ref<AdminActivity[]>([])
@@ -48,7 +49,7 @@ const panels = computed(() => [
   { key: 'list', label: '活动列表' },
   ...(props.canViewCategory ? [{ key: 'categories', label: '分类配置' }] : []),
   ...(props.canViewReport ? [{ key: 'reports', label: '举报与处置' }] : []),
-  ...(props.canViewFinance ? [{ key: 'finance', label: '支付 / 退款 / 售后' }] : []),
+  ...(props.canViewFinance ? [{ key: 'finance', label: '活动账务' }] : []),
 ] as Array<{ key: 'list' | 'categories' | 'reports' | 'finance'; label: string }>)
 
 const statusOptions: Array<{ label: string; value: ActivityStatus }> = [
@@ -407,6 +408,7 @@ onMounted(load)
           <article class="detail-card"><header><h3>活动与报名</h3></header><dl><div><dt>活动分类</dt><dd>{{ selected.category_name }}</dd></div><div><dt>报名人数</dt><dd>{{ selected.participant_count }} / {{ selected.capacity }} 人</dd></div><div><dt>最少成局</dt><dd>{{ selected.min_participants }} 人</dd></div><div><dt>成局截止</dt><dd>{{ formatDate(selected.formation_deadline) }}</dd></div></dl></article>
           <article class="detail-card"><header><h3>发布支付</h3><el-tag :type="selected.publish_order?.status === 'paid' ? 'success' : 'info'" size="small">{{ selected.publish_order?.status_label || '无支付单' }}</el-tag></header><dl><div><dt>AA 本金</dt><dd>{{ money(selected.publish_order?.aa_principal_amount) }}</dd></div><div><dt>平台服务费</dt><dd>{{ money(selected.publish_order?.platform_service_fee_amount) }}</dd></div><div class="total"><dt>实付合计</dt><dd>{{ money(selected.publish_order?.payable_amount) }}</dd></div><div><dt>支付单号</dt><dd class="order-no">{{ selected.publish_order?.order_no || '—' }}</dd></div></dl></article>
         </section>
+        <section v-if="selected.settlement" class="detail-card settlement-card"><header><h3>履约与结算</h3><el-tag :type="selected.settlement.status === 'settled' ? 'success' : selected.settlement.status === 'dispute_frozen' ? 'danger' : 'warning'" size="small">{{ selected.settlement.status_label }}</el-tag></header><dl><div><dt>结算单号</dt><dd class="order-no">{{ selected.settlement.settlement_no }}</dd></div><div><dt>预计 / 实际入账</dt><dd>{{ money(selected.settlement.settlement_amount) }}</dd></div><div><dt>履约确认截止</dt><dd>{{ formatDate(selected.settlement.confirmation_deadline) }}</dd></div><div><dt>风险冻结截止</dt><dd>{{ formatDate(selected.settlement.freeze_until) }}</dd></div><div v-if="selected.settlement.dispute_reason"><dt>冻结原因</dt><dd>{{ selected.settlement.dispute_reason }}</dd></div></dl></section>
 
         <section class="detail-card"><header><h3>集合地点</h3></header><p class="location-name">{{ selected.meeting_place_name }}</p><p class="muted">{{ selected.meeting_address }}</p><p class="coordinate">管理坐标：{{ selected.source_longitude }}, {{ selected.source_latitude }}</p></section>
         <section class="detail-card content-card"><header><h3>活动内容</h3></header><h4>活动介绍</h4><p>{{ selected.description }}</p><h4>参与规则</h4><p>{{ selected.participation_rules }}</p><h4>退款规则快照</h4><pre>{{ JSON.stringify(selected.refund_rule_snapshot, null, 2) }}</pre></section>
@@ -427,7 +429,7 @@ onMounted(load)
 
     <ActivityCategoriesPanel v-else-if="activePanel === 'categories'" :preview="preview" :can-manage="canManageCategory" />
     <ActivityReportsPanel v-else-if="activePanel === 'reports'" :preview="preview" :can-manage="canManageReport" />
-    <ActivityFinancePanel v-else :preview="preview" :can-manage="canManageAfterSales" />
+    <ActivityFinancePanel v-else :preview="preview" :can-manage-after-sales="canManageAfterSales" :can-manage-settlement="canManageSettlement" />
   </div>
 </template>
 

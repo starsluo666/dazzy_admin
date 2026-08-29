@@ -73,6 +73,7 @@ export type ActivityPaymentChannel = 'mock_wechat' | 'mock_alipay' | 'wechat' | 
 export type ActivityParticipationPaymentStatus = 'pending_payment' | 'paid' | 'closed' | 'partially_refunded' | 'refunded'
 export type ActivityParticipationRefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed'
 export type ActivityAfterSalesStatus = 'pending' | 'processing' | 'approved' | 'rejected'
+export type ActivitySettlementStatus = 'confirming' | 'risk_frozen' | 'dispute_frozen' | 'settled'
 
 export interface ActivityParticipationRefundSummary {
   refund_no: string
@@ -162,6 +163,40 @@ export interface AdminActivityFinanceSummary {
   refund_count: number
   refunded_amount: number
   open_after_sales_count: number
+  confirming_settlement_count: number
+  frozen_settlement_count: number
+  disputed_settlement_count: number
+  settled_count: number
+  settled_amount: number
+}
+
+export interface AdminActivitySettlement {
+  settlement_no: string
+  activity_id: number
+  activity_title: string
+  city_code: string
+  city_name: string
+  beneficiary_name: string
+  beneficiary_phone_masked: string
+  status: ActivitySettlementStatus
+  status_label: string
+  organizer_principal_amount: number
+  participant_principal_amount: number
+  retained_participant_principal_amount: number
+  settlement_amount: number
+  platform_service_fee_amount: number
+  available_balance_amount: number
+  confirmation_started_at: string
+  confirmation_deadline: string
+  risk_frozen_at: string | null
+  freeze_until: string
+  dispute_source: '' | 'after_sales' | 'admin'
+  dispute_source_label: string
+  dispute_reason: string
+  calculation_snapshot: Record<string, unknown>
+  settled_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface AdminActivity {
@@ -206,6 +241,7 @@ export interface AdminActivity {
   cancelled_at: string | null
   refund_records: AdminActivityRefundRecord[]
   report_count: number
+  settlement?: AdminActivitySettlement | null
   participants: AdminActivityParticipant[]
   created_at: string
   updated_at: string

@@ -41,6 +41,7 @@ const canViewActivityReport = hasPermission('activity_report.view')
 const canManageActivityReport = hasPermission('activity_report.manage')
 const canViewActivityFinance = hasPermission('activity_finance.view')
 const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
+const canManageActivitySettlement = hasPermission('activity_settlement.manage')
 
 async function loadSession() {
   if (preview) {
@@ -136,6 +137,7 @@ onMounted(loadSession)
       :can-manage-report="canManageActivityReport"
       :can-view-finance="canViewActivityFinance"
       :can-manage-after-sales="canManageActivityAfterSales"
+      :can-manage-settlement="canManageActivitySettlement"
     />
     <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" />
     <AfterSalesView
