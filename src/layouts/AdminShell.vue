@@ -18,6 +18,7 @@ const navigation = computed(() => [
   { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, enabled: can('provider.review'), visible: can('provider.review') },
   { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('operations.manage') },
   { key: 'services', label: '服务分类', icon: Grid, child: true, enabled: can('service_category.view'), visible: can('service_category.view') },
+  { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'activities', label: '活动管理', icon: Calendar, enabled: can('activity.view'), visible: can('activity.view') },
   { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') },
@@ -39,6 +40,7 @@ const pageLabels: Record<AdminPage, string> = {
   providers: '达人管理 / 达人列表',
   provider_reviews: '达人管理 / 入驻审核',
   services: '运营配置 / 服务分类',
+  platform_settings: '运营配置 / 平台参数',
   provider_rules: '运营配置 / 接单规则',
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
@@ -46,7 +48,7 @@ const pageLabels: Record<AdminPage, string> = {
   audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'provider_rules', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }
@@ -54,7 +56,7 @@ function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
-    || (key === 'operations-group' && ['services', 'provider_rules'].includes(props.active))
+    || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
 }
 </script>
 

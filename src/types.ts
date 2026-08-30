@@ -7,9 +7,20 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'audit_logs'
 
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
+
+export interface PlatformOperationSetting {
+  provider_order_payment_timeout_minutes: number
+  provider_order_confirmation_timeout_days: number
+  activity_payment_timeout_minutes: number
+  activity_minimum_advance_hours: number
+  activity_maximum_advance_days: number
+  activity_settlement_confirmation_hours: number
+  activity_settlement_risk_freeze_days: number
+  updated_at: string
+}
 
 export interface AdminAuditLog {
   id: number

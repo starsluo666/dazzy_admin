@@ -35,6 +35,7 @@ import type {
   ProviderOrderSummary,
   ProviderOrderSupportNote,
   ProviderOrderingSetting,
+  PlatformOperationSetting,
   UserRiskLevel,
   VerificationStatus,
   ActivityReportStatus,
@@ -216,6 +217,8 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  platformOperationSetting: () => request<PlatformOperationSetting>('/admin/operation-settings/platform/'),
+  updatePlatformOperationSetting: (payload: Partial<PlatformOperationSetting>) => request<PlatformOperationSetting>('/admin/operation-settings/platform/', { method: 'PATCH', body: JSON.stringify(payload) }),
   providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
   updateProviderOrderingSetting: (payload: Partial<ProviderOrderingSetting>) => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/', { method: 'PATCH', body: JSON.stringify(payload) }),
   async login(phone: string, password: string) {
