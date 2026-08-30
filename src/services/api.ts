@@ -13,6 +13,7 @@ import type {
   AdminActivityReport,
   AdminActivityReportSummary,
   AdminActivitySummary,
+  AdminAuditLog,
   AdminAfterSalesCase,
   AdminMe,
   AdminProvider,
@@ -409,6 +410,8 @@ export const adminApi = {
   }>(`/admin/order-after-sales/?${queryString(query)}`),
   afterSalesCase: (caseNo: string) =>
     request<AdminAfterSalesCase>(`/admin/order-after-sales/${encodeURIComponent(caseNo)}/`),
+  auditLogs: (query: { search?: string; action?: string; target_type?: string; page?: number; page_size?: number }) =>
+    request<{ items: AdminAuditLog[]; pagination: { page: number; page_size: number; total: number } }>(`/admin/audit-logs/?${queryString(query)}`),
   createAfterSalesCase: (
     orderNo: string,
     caseType: AfterSalesCaseType,

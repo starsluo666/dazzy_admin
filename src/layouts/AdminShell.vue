@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Bell, Calendar, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Menu as MenuIcon, Operation, Setting, User, UserFilled } from '@element-plus/icons-vue'
+import { Bell, Calendar, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Menu as MenuIcon, Operation, Setting, User, UserFilled, Notebook } from '@element-plus/icons-vue'
 import type { AdminMe, AdminPage } from '../types'
 
 const props = defineProps<{ active: AdminPage; session: AdminMe | null }>()
@@ -25,6 +25,7 @@ const navigation = computed(() => [
   { key: 'reports', label: '内容与举报', icon: MenuIcon, enabled: false },
   { key: 'operations', label: '运营配置', icon: Operation, enabled: false },
   { key: 'system', label: '系统管理', icon: Setting, enabled: false },
+  { key: 'audit_logs', label: '操作审计', icon: Notebook, enabled: can('audit.view'), visible: can('audit.view') },
 ].filter((item) => item.visible !== false))
 const scopeLabel = computed(() => props.session?.data_scope === 'all'
   ? '全部数据'
@@ -40,9 +41,10 @@ const pageLabels: Record<AdminPage, string> = {
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
+  audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'activities', 'orders', 'after_sales'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }

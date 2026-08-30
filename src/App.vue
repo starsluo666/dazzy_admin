@@ -10,6 +10,7 @@ import AfterSalesView from './views/AfterSalesView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
 import ActivityManagementView from './views/ActivityManagementView.vue'
+import AuditLogsView from './views/AuditLogsView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -71,6 +72,7 @@ async function loadSession() {
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+      else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
     }
   } catch {
     clearSession()
@@ -139,11 +141,12 @@ onMounted(loadSession)
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" @open-after-sales="currentPage = 'after_sales'" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
     />
+    <AuditLogsView v-else-if="currentPage === 'audit_logs'" />
   </AdminShell>
 </template>

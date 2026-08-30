@@ -7,7 +7,20 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'activities' | 'orders' | 'after_sales'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'activities' | 'orders' | 'after_sales' | 'audit_logs'
+
+export interface AdminAuditLog {
+  id: number
+  actor_name: string
+  organization_name: string | null
+  action: string
+  target_type: string
+  target_id: string
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  ip_address: string | null
+  created_at: string
+}
 
 export type ActivityStatus = 'draft' | 'pending_review' | 'rejected' | 'recruiting' | 'formed' | 'in_progress' | 'completed' | 'cancelled' | 'failed_to_form'
 
