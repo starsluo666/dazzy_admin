@@ -34,6 +34,7 @@ import type {
   ProviderOrderStatus,
   ProviderOrderSummary,
   ProviderOrderSupportNote,
+  ProviderOrderingSetting,
   UserRiskLevel,
   VerificationStatus,
   ActivityReportStatus,
@@ -215,6 +216,8 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
+  updateProviderOrderingSetting: (payload: Partial<ProviderOrderingSetting>) => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/', { method: 'PATCH', body: JSON.stringify(payload) }),
   async login(phone: string, password: string) {
     const data = await request<{ access: string; refresh: string }>('/auth/login/password/', {
       method: 'POST',

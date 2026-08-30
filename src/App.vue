@@ -11,6 +11,7 @@ import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
 import ActivityManagementView from './views/ActivityManagementView.vue'
 import AuditLogsView from './views/AuditLogsView.vue'
+import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -69,6 +70,7 @@ async function loadSession() {
       else if (permissions.includes('provider.view')) currentPage.value = 'providers'
       else if (permissions.includes('provider.review')) currentPage.value = 'provider_reviews'
       else if (permissions.includes('service_category.view')) currentPage.value = 'services'
+      else if (permissions.includes('operations.manage')) currentPage.value = 'provider_rules'
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
@@ -128,6 +130,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageServiceCategory"
     />
+    <ProviderOrderingSettingsView v-else-if="currentPage === 'provider_rules'" />
     <ActivityManagementView
       v-else-if="currentPage === 'activities'"
       :preview="preview"

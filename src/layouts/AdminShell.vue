@@ -16,14 +16,15 @@ const navigation = computed(() => [
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
   { key: 'providers', label: '达人列表', icon: List, child: true, enabled: can('provider.view'), visible: can('provider.view') },
   { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, enabled: can('provider.review'), visible: can('provider.review') },
-  { key: 'services', label: '服务分类', icon: Grid, enabled: can('service_category.view'), visible: can('service_category.view') },
+  { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('operations.manage') },
+  { key: 'services', label: '服务分类', icon: Grid, child: true, enabled: can('service_category.view'), visible: can('service_category.view') },
+  { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'activities', label: '活动管理', icon: Calendar, enabled: can('activity.view'), visible: can('activity.view') },
   { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') },
   { key: 'orders', label: '达人订单', icon: List, child: true, enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'settlements', label: '退款与结算', icon: Coin, enabled: false },
   { key: 'reports', label: '内容与举报', icon: MenuIcon, enabled: false },
-  { key: 'operations', label: '运营配置', icon: Operation, enabled: false },
   { key: 'system', label: '系统管理', icon: Setting, enabled: false },
   { key: 'audit_logs', label: '操作审计', icon: Notebook, enabled: can('audit.view'), visible: can('audit.view') },
 ].filter((item) => item.visible !== false))
@@ -37,14 +38,15 @@ const pageLabels: Record<AdminPage, string> = {
   users: '用户管理 / 用户列表',
   providers: '达人管理 / 达人列表',
   provider_reviews: '达人管理 / 入驻审核',
-  services: '服务分类',
+  services: '运营配置 / 服务分类',
+  provider_rules: '运营配置 / 接单规则',
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
   audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'provider_rules', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }
@@ -52,6 +54,7 @@ function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
+    || (key === 'operations-group' && ['services', 'provider_rules'].includes(props.active))
 }
 </script>
 
