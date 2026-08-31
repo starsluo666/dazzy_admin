@@ -13,6 +13,7 @@ import ActivityManagementView from './views/ActivityManagementView.vue'
 import AuditLogsView from './views/AuditLogsView.vue'
 import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
+import SystemManagementView from './views/SystemManagementView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -75,6 +76,7 @@ async function loadSession() {
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+      else if (permissions.includes('organization.manage')) currentPage.value = 'system'
       else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
     }
   } catch {
@@ -157,6 +159,10 @@ onMounted(loadSession)
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
+    />
+    <SystemManagementView
+      v-else-if="currentPage === 'system'"
+      @open-audit="currentPage = 'audit_logs'"
     />
     <AuditLogsView v-else-if="currentPage === 'audit_logs'" />
   </AdminShell>

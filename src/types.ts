@@ -7,7 +7,63 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'system' | 'audit_logs'
+
+export type AdminRoleDataScope = 'all' | 'organization' | 'city'
+
+export interface AdminOrganization {
+  id: number
+  name: string
+  code: string
+  organization_type: 'platform' | 'regional_agent' | 'city_agent'
+  organization_type_label: string
+  city_codes: string[]
+  status: 'active' | 'disabled'
+  status_label: string
+}
+
+export interface AdminPermissionGroup {
+  key: string
+  label: string
+  permissions: Array<{ code: string; label: string }>
+}
+
+export interface AdminRole {
+  id: number
+  organization: number | null
+  organization_name: string | null
+  name: string
+  code: string
+  permissions: string[]
+  data_scope: AdminRoleDataScope
+  data_scope_label: string
+  is_system: boolean
+  member_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminOrganizationMember {
+  id: number
+  user: number
+  user_public_id: string
+  user_name: string
+  phone: string
+  account_status: string
+  organization: number
+  organization_name: string
+  role: number
+  role_name: string
+  role_code: string
+  data_scope: AdminRoleDataScope
+  data_scope_label: string
+  is_system_role: boolean
+  city_codes: string[]
+  is_active: boolean
+  is_self: boolean
+  created_at: string
+  updated_at: string
+}
 
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
 

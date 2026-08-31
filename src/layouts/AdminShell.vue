@@ -26,8 +26,9 @@ const navigation = computed(() => [
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'settlements', label: '退款与结算', icon: Coin, enabled: false },
   { key: 'reports', label: '内容与举报', icon: MenuIcon, enabled: false },
-  { key: 'system', label: '系统管理', icon: Setting, enabled: false },
-  { key: 'audit_logs', label: '操作审计', icon: Notebook, enabled: can('audit.view'), visible: can('audit.view') },
+  { key: 'system-group', label: '系统管理', icon: Setting, group: true, visible: can('organization.manage') || can('audit.view') },
+  { key: 'system', label: '账号与权限', icon: UserFilled, child: true, enabled: can('organization.manage'), visible: can('organization.manage') },
+  { key: 'audit_logs', label: '操作审计', icon: Notebook, child: true, enabled: can('audit.view'), visible: can('audit.view') },
 ].filter((item) => item.visible !== false))
 const scopeLabel = computed(() => props.session?.data_scope === 'all'
   ? '全部数据'
@@ -45,10 +46,11 @@ const pageLabels: Record<AdminPage, string> = {
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
+  system: '系统管理 / 账号与权限',
   audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'audit_logs'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'system', 'audit_logs'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }
@@ -57,6 +59,7 @@ function groupActive(key: string) {
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
     || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
+    || (key === 'system-group' && ['system', 'audit_logs'].includes(props.active))
 }
 </script>
 

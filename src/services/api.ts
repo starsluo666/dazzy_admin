@@ -16,9 +16,14 @@ import type {
   AdminAuditLog,
   AdminAfterSalesCase,
   AdminMe,
+  AdminOrganization,
+  AdminOrganizationMember,
+  AdminPermissionGroup,
   AdminProvider,
   AdminProviderOrder,
   AdminProviderSummary,
+  AdminRole,
+  AdminRoleDataScope,
   AdminServiceCategory,
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
@@ -208,6 +213,29 @@ export interface AdminActivityFinanceQuery {
   page_size?: number
 }
 
+export interface AdminOrganizationMemberQuery {
+  search?: string
+  organization?: number | ''
+  role?: number | ''
+  status?: 'active' | 'inactive' | ''
+}
+
+export interface AdminRoleMutation {
+  organization: number
+  name: string
+  code: string
+  permissions: string[]
+  data_scope: AdminRoleDataScope
+}
+
+export interface AdminOrganizationMemberMutation {
+  phone?: string
+  organization?: number
+  role: number
+  city_codes: string[]
+  is_active: boolean
+}
+
 function queryString(query: object) {
   const params = new URLSearchParams()
   Object.entries(query).forEach(([key, value]) => {
@@ -217,6 +245,36 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  organizations: () => request<{ items: AdminOrganization[] }>('/admin/organizations/'),
+  permissionCatalog: () => request<{
+    groups: AdminPermissionGroup[]
+    data_scopes: Array<{ value: AdminRoleDataScope; label: string }>
+  }>('/admin/permissions/'),
+  adminRoles: (organization: number | '' = '') => request<{
+    items: AdminRole[]
+    summary: { total: number; system: number; custom: number }
+  }>(`/admin/roles/?${queryString({ organization })}`),
+  createAdminRole: (payload: AdminRoleMutation) => request<AdminRole>('/admin/roles/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  updateAdminRole: (roleId: number, payload: Partial<AdminRoleMutation>) => request<AdminRole>(`/admin/roles/${roleId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+  deleteAdminRole: (roleId: number) => request<void>(`/admin/roles/${roleId}/`, { method: 'DELETE' }),
+  organizationMembers: (query: AdminOrganizationMemberQuery = {}) => request<{
+    items: AdminOrganizationMember[]
+    summary: { total: number; active: number; inactive: number; organizations: number }
+  }>(`/admin/members/?${queryString(query)}`),
+  createOrganizationMember: (payload: AdminOrganizationMemberMutation & { phone: string; organization: number }) => request<AdminOrganizationMember>('/admin/members/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  updateOrganizationMember: (memberId: number, payload: Partial<AdminOrganizationMemberMutation>) => request<AdminOrganizationMember>(`/admin/members/${memberId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
   platformOperationSetting: () => request<PlatformOperationSetting>('/admin/operation-settings/platform/'),
   updatePlatformOperationSetting: (payload: Partial<PlatformOperationSetting>) => request<PlatformOperationSetting>('/admin/operation-settings/platform/', { method: 'PATCH', body: JSON.stringify(payload) }),
   providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
