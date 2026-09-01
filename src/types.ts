@@ -91,7 +91,10 @@ export interface AdminAuditLog {
   created_at: string
 }
 
-export type ScheduledTaskType = 'provider_order_payment_expiry' | 'provider_acceptance_timeout'
+export type ScheduledTaskType =
+  | 'provider_order_payment_expiry'
+  | 'provider_acceptance_timeout'
+  | 'provider_order_confirmation_timeout'
 export type ScheduledTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface AdminScheduledTask {
@@ -786,7 +789,9 @@ export interface AdminProviderOrder {
   }
   service_started_at: string | null
   completion_submitted_at: string | null
+  confirmation_expires_at: string | null
   customer_confirmed_at: string | null
+  auto_confirmed_at: string | null
   cancelled_at: string | null
   created_at: string
   updated_at: string

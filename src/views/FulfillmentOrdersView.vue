@@ -84,7 +84,10 @@ const timeline = computed(() => {
     { label: '集合照留存', value: order.arrival_photo_uploaded_at },
     { label: '开始服务', value: order.service_started_at },
     { label: '提交完成', value: order.completion_submitted_at },
-    { label: '用户确认', value: order.customer_confirmed_at },
+    {
+      label: order.auto_confirmed_at ? '系统自动确认' : '用户确认',
+      value: order.auto_confirmed_at || order.customer_confirmed_at,
+    },
   ]
 })
 
@@ -134,7 +137,9 @@ function demoOrder(
     arrival_location: { longitude: '114.5060000', latitude: '36.6200000', accuracy_m: '12.50' },
     service_started_at: orderStatus === 'departed' ? null : iso,
     completion_submitted_at: orderStatus === 'pending_confirmation' ? overdue : null,
+    confirmation_expires_at: orderStatus === 'pending_confirmation' ? iso : null,
     customer_confirmed_at: null,
+    auto_confirmed_at: null,
     cancelled_at: null,
     created_at: iso,
     updated_at: iso,
@@ -489,6 +494,7 @@ onMounted(load)
           <div><span>订单金额</span><strong class="amount">{{ formatAmount(selected.payable_amount) }}</strong></div>
           <div><span>服务时间</span><strong>{{ formatServiceTime(selected) }}</strong></div>
           <div><span>服务城市</span><strong>{{ selected.service_city_name }}</strong></div>
+          <div v-if="selected.confirmation_expires_at"><span>确认截止</span><strong>{{ formatDateTime(selected.confirmation_expires_at) }}</strong></div>
           <div class="wide"><span>集合地点</span><strong>{{ [selected.meeting_location_name, selected.meeting_address].filter(Boolean).join('，') }}</strong></div>
         </section>
 
