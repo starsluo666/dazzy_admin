@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'system' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'system' | 'tasks' | 'audit_logs'
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
@@ -89,6 +89,39 @@ export interface AdminAuditLog {
   after: Record<string, unknown>
   ip_address: string | null
   created_at: string
+}
+
+export type ScheduledTaskType = 'provider_order_payment_expiry' | 'provider_acceptance_timeout'
+export type ScheduledTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface AdminScheduledTask {
+  public_id: string
+  task_type: ScheduledTaskType
+  task_type_label: string
+  business_type: string
+  business_key: string
+  status: ScheduledTaskStatus
+  status_label: string
+  scheduled_at: string
+  available_at: string
+  attempt_count: number
+  max_attempts: number
+  started_at: string | null
+  finished_at: string | null
+  last_error: string
+  payload: Record<string, unknown>
+  result: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduledTaskSummary {
+  total: number
+  pending: number
+  running: number
+  succeeded_today: number
+  failed: number
+  overdue: number
 }
 
 export type ActivityStatus = 'draft' | 'pending_review' | 'rejected' | 'recruiting' | 'formed' | 'in_progress' | 'completed' | 'cancelled' | 'failed_to_form'

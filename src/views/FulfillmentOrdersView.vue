@@ -24,7 +24,7 @@ import type {
   ProviderOrderSummary,
 } from '../types'
 
-const props = defineProps<{ preview: boolean; canAddNote: boolean }>()
+const props = defineProps<{ preview: boolean; canAddNote: boolean; initialSearch?: string }>()
 const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
 const rows = ref<AdminProviderOrder[]>([])
@@ -34,7 +34,7 @@ const stage = ref<FulfillmentStage>('all')
 const anomaly = ref<FulfillmentAnomalyFilter>('all')
 const statusFilter = ref<ProviderOrderStatus | ''>('')
 const cityFilter = ref('')
-const search = ref('')
+const search = ref(props.initialSearch || '')
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)

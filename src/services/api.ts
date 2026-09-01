@@ -24,6 +24,7 @@ import type {
   AdminProviderSummary,
   AdminRole,
   AdminRoleDataScope,
+  AdminScheduledTask,
   AdminServiceCategory,
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
@@ -44,6 +45,9 @@ import type {
   UserRiskLevel,
   VerificationStatus,
   ActivityReportStatus,
+  ScheduledTaskStatus,
+  ScheduledTaskSummary,
+  ScheduledTaskType,
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
@@ -234,6 +238,15 @@ export interface AdminOrganizationMemberMutation {
   role: number
   city_codes: string[]
   is_active: boolean
+}
+
+export interface ScheduledTaskQuery {
+  task_type?: ScheduledTaskType | ''
+  status?: ScheduledTaskStatus | ''
+  search?: string
+  overdue?: boolean
+  page?: number
+  page_size?: number
 }
 
 function queryString(query: object) {
@@ -476,6 +489,19 @@ export const adminApi = {
     request<AdminAfterSalesCase>(`/admin/order-after-sales/${encodeURIComponent(caseNo)}/`),
   auditLogs: (query: { search?: string; action?: string; target_type?: string; page?: number; page_size?: number }) =>
     request<{ items: AdminAuditLog[]; pagination: { page: number; page_size: number; total: number } }>(`/admin/audit-logs/?${queryString(query)}`),
+  scheduledTasks: (query: ScheduledTaskQuery = {}) => request<{
+    items: AdminScheduledTask[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: ScheduledTaskSummary
+    task_types: Array<{ value: ScheduledTaskType; label: string }>
+    statuses: Array<{ value: ScheduledTaskStatus; label: string }>
+  }>(`/admin/tasks/?${queryString(query)}`),
+  scheduledTask: (publicId: string) =>
+    request<AdminScheduledTask>(`/admin/tasks/${encodeURIComponent(publicId)}/`),
+  retryScheduledTask: (publicId: string) =>
+    request<AdminScheduledTask>(`/admin/tasks/${encodeURIComponent(publicId)}/retry/`, {
+      method: 'POST',
+    }),
   createAfterSalesCase: (
     orderNo: string,
     caseType: AfterSalesCaseType,

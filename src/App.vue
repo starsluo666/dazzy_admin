@@ -14,12 +14,14 @@ import AuditLogsView from './views/AuditLogsView.vue'
 import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
 import SystemManagementView from './views/SystemManagementView.vue'
+import TaskCenterView from './views/TaskCenterView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
 const currentPage = ref<AdminPage>('dashboard')
 const session = ref<AdminMe | null>(null)
 const loading = ref(true)
+const orderSearch = ref('')
 const preview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
 
 const authenticated = computed(() => preview || Boolean(session.value))
@@ -46,6 +48,7 @@ const canManageActivityReport = hasPermission('activity_report.manage')
 const canViewActivityFinance = hasPermission('activity_finance.view')
 const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
 const canManageActivitySettlement = hasPermission('activity_settlement.manage')
+const canRetryTask = hasPermission('system.task.retry')
 
 async function loadSession() {
   if (preview) {
@@ -76,6 +79,7 @@ async function loadSession() {
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+      else if (permissions.includes('system.task.view')) currentPage.value = 'tasks'
       else if (permissions.includes('organization.manage')) currentPage.value = 'system'
       else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
     }
@@ -94,6 +98,16 @@ async function logout() {
   }
 }
 
+function navigate(page: AdminPage) {
+  if (page === 'orders') orderSearch.value = ''
+  currentPage.value = page
+}
+
+function openOrderFromTask(orderNo: string) {
+  orderSearch.value = orderNo
+  currentPage.value = 'orders'
+}
+
 onMounted(loadSession)
 </script>
 
@@ -104,7 +118,7 @@ onMounted(loadSession)
     v-else
     :active="currentPage"
     :session="session"
-    @navigate="currentPage = $event"
+    @navigate="navigate"
     @logout="logout"
   >
     <DashboardView
@@ -154,7 +168,7 @@ onMounted(loadSession)
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" @open-after-sales="currentPage = 'after_sales'" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :initial-search="orderSearch" @open-after-sales="currentPage = 'after_sales'" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
@@ -162,6 +176,13 @@ onMounted(loadSession)
     />
     <SystemManagementView
       v-else-if="currentPage === 'system'"
+      @open-audit="currentPage = 'audit_logs'"
+    />
+    <TaskCenterView
+      v-else-if="currentPage === 'tasks'"
+      :preview="preview"
+      :can-retry="canRetryTask"
+      @open-order="openOrderFromTask"
       @open-audit="currentPage = 'audit_logs'"
     />
     <AuditLogsView v-else-if="currentPage === 'audit_logs'" />
