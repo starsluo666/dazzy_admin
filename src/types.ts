@@ -798,6 +798,13 @@ export interface AdminProviderOrder {
   anomalies: FulfillmentAnomaly[]
   support_notes: ProviderOrderSupportNote[]
   after_sales_cases: AdminAfterSalesCase[]
+  review: {
+    rating: number
+    content: string
+    customer_name: string
+    created_at: string
+    is_visible: boolean
+  } | null
 }
 
 export interface ProviderOrderSummary {

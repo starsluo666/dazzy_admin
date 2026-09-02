@@ -146,6 +146,7 @@ function demoOrder(
     anomalies: [],
     support_notes: [],
     after_sales_cases: [],
+    review: null,
     ...overrides,
   }
 }
@@ -558,6 +559,11 @@ onMounted(load)
             </article>
           </div>
           <p class="after-sales-note">售后审核请前往“售后退款”模块处理，订单状态会随审核结果同步更新。</p>
+        </section>
+
+        <section class="detail-section" v-if="selected.review">
+          <h3><el-icon><CircleCheck /></el-icon> 用户评价</h3>
+          <div class="review-admin"><strong>{{ '★'.repeat(selected.review.rating) }}<span>{{ selected.review.rating }} 分</span></strong><small>{{ selected.review.customer_name }} · {{ formatDateTime(selected.review.created_at) }}</small><p>{{ selected.review.content || '用户未填写文字评价' }}</p></div>
         </section>
 
         <section class="detail-section support-section">
