@@ -802,6 +802,8 @@ export interface AdminProviderOrder {
     rating: number
     content: string
     customer_name: string
+    is_anonymous: boolean
+    image_urls: string[]
     created_at: string
     is_visible: boolean
   } | null

@@ -480,6 +480,14 @@ export const adminApi = {
       `/admin/provider-orders/${encodeURIComponent(orderNo)}/support-notes/`,
       { method: 'POST', body: JSON.stringify({ content }) },
     ),
+  moderateProviderOrderReview: (
+    orderNo: string,
+    action: 'hide' | 'restore',
+    reason = '',
+  ) => request<AdminProviderOrder>(
+    `/admin/provider-orders/${encodeURIComponent(orderNo)}/review/action/`,
+    { method: 'POST', body: JSON.stringify({ action, reason }) },
+  ),
   afterSalesCases: (query: AfterSalesQuery) => request<{
     items: AdminAfterSalesCase[]
     pagination: { page: number; page_size: number; total: number }

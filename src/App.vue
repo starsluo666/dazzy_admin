@@ -38,6 +38,7 @@ const canManageProvider = hasPermission('provider.manage')
 const canAdjustProviderCredit = hasPermission('provider.credit.adjust')
 const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
+const canManageOrderReview = hasPermission('order.review.manage')
 const canManageServiceCategory = hasPermission('service_category.manage')
 const canReviewActivity = hasPermission('activity.review')
 const canManageActivity = hasPermission('activity.manage')
@@ -168,7 +169,7 @@ onMounted(loadSession)
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :initial-search="orderSearch" @open-after-sales="currentPage = 'after_sales'" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :initial-search="orderSearch" @open-after-sales="currentPage = 'after_sales'" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
