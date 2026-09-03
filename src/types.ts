@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'support_cases' | 'system' | 'tasks' | 'audit_logs'
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
@@ -745,6 +745,59 @@ export interface AfterSalesSummary {
   pending: number
   processing: number
   approved: number
+}
+
+export type SupportCaseType = 'consultation' | 'complaint' | 'report'
+export type SupportTargetType = 'general' | 'provider' | 'provider_order' | 'activity' | 'review'
+export type SupportCaseStatus = 'pending' | 'processing' | 'reviewing' | 'resolved' | 'rejected' | 'closed'
+
+export interface AdminSupportCaseRecord {
+  id: number
+  record_type: 'created' | 'user_reply' | 'operator_reply' | 'status_changed' | 'review_requested'
+  record_type_label: string
+  actor_name: string
+  content: string
+  from_status: string
+  to_status: string
+  created_at: string
+}
+
+export interface AdminSupportCase {
+  public_id: string
+  case_no: string
+  case_type: SupportCaseType
+  case_type_label: string
+  target_type: SupportTargetType
+  target_type_label: string
+  target_id: string
+  target_title: string
+  target_subtitle: string
+  reason: string
+  reason_label: string
+  description: string
+  attachment_urls: string[]
+  city_code: string
+  city_name: string
+  status: SupportCaseStatus
+  status_label: string
+  assignee_name: string | null
+  result_note: string
+  resolved_at: string | null
+  review_requested_at: string | null
+  review_reason: string
+  records: AdminSupportCaseRecord[]
+  reporter_name: string
+  reporter_phone: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SupportCaseSummary {
+  total: number
+  pending: number
+  processing: number
+  reviewing: number
+  resolved: number
 }
 
 export interface AdminProviderOrder {

@@ -15,6 +15,7 @@ import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.v
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
 import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
+import SupportCasesView from './views/SupportCasesView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -50,6 +51,7 @@ const canViewActivityFinance = hasPermission('activity_finance.view')
 const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
 const canManageActivitySettlement = hasPermission('activity_settlement.manage')
 const canRetryTask = hasPermission('system.task.retry')
+const canManageSupportCase = hasPermission('support.case.manage')
 
 async function loadSession() {
   if (preview) {
@@ -80,6 +82,7 @@ async function loadSession() {
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+      else if (permissions.includes('support.case.view')) currentPage.value = 'support_cases'
       else if (permissions.includes('system.task.view')) currentPage.value = 'tasks'
       else if (permissions.includes('organization.manage')) currentPage.value = 'system'
       else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
@@ -174,6 +177,11 @@ onMounted(loadSession)
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
+    />
+    <SupportCasesView
+      v-else-if="currentPage === 'support_cases'"
+      :preview="preview"
+      :can-manage="canManageSupportCase"
     />
     <SystemManagementView
       v-else-if="currentPage === 'system'"

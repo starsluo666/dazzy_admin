@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Bell, Calendar, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Menu as MenuIcon, Operation, Setting, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
+import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
 import type { AdminMe, AdminPage } from '../types'
 
 const props = defineProps<{ active: AdminPage; session: AdminMe | null }>()
@@ -25,7 +25,8 @@ const navigation = computed(() => [
   { key: 'orders', label: '达人订单', icon: List, child: true, enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'settlements', label: '退款与结算', icon: Coin, enabled: false },
-  { key: 'reports', label: '内容与举报', icon: MenuIcon, enabled: false },
+  { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') },
+  { key: 'support_cases', label: '客服工单', icon: List, child: true, enabled: can('support.case.view'), visible: can('support.case.view') },
   { key: 'system-group', label: '系统管理', icon: Setting, group: true, visible: can('organization.manage') || can('system.task.view') || can('audit.view') },
   { key: 'system', label: '账号与权限', icon: UserFilled, child: true, enabled: can('organization.manage'), visible: can('organization.manage') },
   { key: 'tasks', label: '任务中心', icon: Timer, child: true, enabled: can('system.task.view'), visible: can('system.task.view') },
@@ -47,12 +48,13 @@ const pageLabels: Record<AdminPage, string> = {
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
+  support_cases: '客服与投诉 / 客服工单',
   system: '系统管理 / 账号与权限',
   tasks: '系统管理 / 任务中心',
   audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'system', 'tasks', 'audit_logs'].includes(key)) {
+  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'support_cases', 'system', 'tasks', 'audit_logs'].includes(key)) {
     emit('navigate', key as AdminPage)
   }
 }
@@ -60,6 +62,7 @@ function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
+    || (key === 'support-group' && props.active === 'support_cases')
     || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))
 }

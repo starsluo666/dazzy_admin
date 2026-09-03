@@ -25,6 +25,7 @@ import type {
   AdminRole,
   AdminRoleDataScope,
   AdminScheduledTask,
+  AdminSupportCase,
   AdminServiceCategory,
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
@@ -48,6 +49,10 @@ import type {
   ScheduledTaskStatus,
   ScheduledTaskSummary,
   ScheduledTaskType,
+  SupportCaseStatus,
+  SupportCaseSummary,
+  SupportCaseType,
+  SupportTargetType,
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
@@ -164,6 +169,17 @@ export interface AdminProviderQuery {
   city_code?: string
   verification_status?: VerificationStatus | ''
   search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface SupportCaseQuery {
+  search?: string
+  case_type?: SupportCaseType | ''
+  target_type?: SupportTargetType | ''
+  status?: SupportCaseStatus | ''
+  status_group?: 'terminal' | ''
+  city_code?: string
   page?: number
   page_size?: number
 }
@@ -539,5 +555,25 @@ export const adminApi = {
         ...(approvedAmount !== undefined ? { approved_amount: approvedAmount } : {}),
       }),
     },
+  ),
+  supportCases: (query: SupportCaseQuery = {}) => request<{
+    items: AdminSupportCase[]
+    pagination: { page: number; page_size: number; total: number }
+    summary: SupportCaseSummary
+  }>(`/admin/support-cases/?${queryString(query)}`),
+  supportCase: (caseNo: string) => request<AdminSupportCase>(
+    `/admin/support-cases/${encodeURIComponent(caseNo)}/`,
+  ),
+  reviewSupportCase: (
+    caseNo: string,
+    action: 'start_review' | 'resolve' | 'reject' | 'close',
+    resultNote = '',
+  ) => request<AdminSupportCase>(
+    `/admin/support-cases/${encodeURIComponent(caseNo)}/action/`,
+    { method: 'POST', body: JSON.stringify({ action, result_note: resultNote }) },
+  ),
+  replySupportCase: (caseNo: string, content: string) => request<AdminSupportCase>(
+    `/admin/support-cases/${encodeURIComponent(caseNo)}/reply/`,
+    { method: 'POST', body: JSON.stringify({ content }) },
   ),
 }
