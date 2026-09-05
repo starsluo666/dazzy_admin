@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'support_cases' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'support_cases' | 'system' | 'tasks' | 'audit_logs'
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
@@ -70,6 +70,7 @@ export interface ProviderOrderingSetting { location_report_interval_seconds: num
 export interface PlatformOperationSetting {
   provider_order_payment_timeout_minutes: number
   provider_order_confirmation_timeout_days: number
+  provider_order_settlement_freeze_days: number
   activity_payment_timeout_minutes: number
   activity_minimum_advance_hours: number
   activity_maximum_advance_days: number
@@ -95,6 +96,7 @@ export type ScheduledTaskType =
   | 'provider_order_payment_expiry'
   | 'provider_acceptance_timeout'
   | 'provider_order_confirmation_timeout'
+  | 'provider_order_settlement'
 export type ScheduledTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface AdminScheduledTask {
@@ -453,6 +455,7 @@ export interface AdminServiceCategory {
   city_codes: string[]
   sort_order: number
   is_active: boolean
+  platform_commission_rate: string
   service_count: number
   active_service_count: number
   provider_count: number
@@ -474,6 +477,7 @@ export interface AdminServiceCategoryMutation {
   city_codes: string[]
   sort_order: number
   is_active: boolean
+  platform_commission_rate: number
 }
 
 export type ProviderApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
@@ -710,7 +714,99 @@ export interface ProviderOrderSupportNote {
 }
 
 export type AfterSalesCaseType = 'refund' | 'service_dispute' | 'provider_cancel' | 'other'
-export type AfterSalesCaseStatus = 'pending' | 'processing' | 'approved' | 'rejected'
+export type AfterSalesCaseStatus = 'pending' | 'processing' | 'approved' | 'refunded' | 'rejected'
+
+export type ProviderPaymentStatus = 'pending_payment' | 'paid' | 'closed' | 'partially_refunded' | 'refunded'
+export type ProviderRefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed'
+export type ProviderSettlementStatus = 'risk_frozen' | 'dispute_frozen' | 'settled' | 'cancelled'
+
+export interface ProviderOrderPaymentRecord {
+  payment_no: string
+  order_no: string
+  customer_name: string
+  provider_name: string
+  service_name: string
+  city_code: string
+  city_name: string
+  channel: string
+  channel_label: string
+  status: ProviderPaymentStatus
+  status_label: string
+  service_fee_amount: number
+  transport_fee_amount: number
+  other_fee_amount: number
+  discount_amount: number
+  payable_amount: number
+  gateway_trade_no: string
+  expires_at: string
+  paid_at: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProviderOrderRefundRecord {
+  refund_no: string
+  order_no: string
+  payment_no: string
+  customer_name: string
+  provider_name: string
+  service_name: string
+  city_code: string
+  city_name: string
+  source_type: string
+  source_type_label: string
+  source_reference: string
+  status: ProviderRefundStatus
+  status_label: string
+  service_fee_refund_amount: number
+  transport_fee_refund_amount: number
+  other_fee_refund_amount: number
+  refund_amount: number
+  gateway_refund_no: string
+  reason: string
+  operator_name: string | null
+  requested_at: string
+  refunded_at: string | null
+  failure_reason: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProviderOrderSettlementRecord {
+  settlement_no: string
+  order_no: string
+  provider_name: string
+  service_name: string
+  city_code: string
+  city_name: string
+  status: ProviderSettlementStatus
+  status_label: string
+  paid_amount: number
+  refunded_amount: number
+  net_service_fee_amount: number
+  net_transport_fee_amount: number
+  net_other_fee_amount: number
+  platform_commission_rate: string
+  platform_commission_amount: number
+  provider_service_income_amount: number
+  provider_settlement_amount: number
+  frozen_at: string
+  freeze_until: string
+  dispute_reason: string
+  settled_at: string | null
+  cancelled_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProviderOrderFinanceSummary {
+  paid_amount: number
+  refunded_amount: number
+  pending_settlement_amount: number
+  settled_amount: number
+  exception_count: number
+}
 
 export interface AdminAfterSalesCase {
   public_id: string
@@ -738,6 +834,7 @@ export interface AdminAfterSalesCase {
   reviewed_at: string | null
   created_at: string
   updated_at: string
+  refund_order: ProviderOrderRefundRecord | null
 }
 
 export interface AfterSalesSummary {
@@ -745,6 +842,7 @@ export interface AfterSalesSummary {
   pending: number
   processing: number
   approved: number
+  refunded: number
 }
 
 export type SupportCaseType = 'consultation' | 'complaint' | 'report'

@@ -33,6 +33,7 @@ const dialogVisible = ref(false)
 const editing = ref<AdminServiceCategory | null>(null)
 const form = reactive<AdminServiceCategoryMutation>({
   name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
+  platform_commission_rate: 20,
 })
 
 const cityOptions = [
@@ -67,6 +68,7 @@ function demoCategory(
   return {
     id, name, slug, icon_object_key: '', icon_url: null, city_codes: cityCodes,
     sort_order: sortOrder, is_active: active, service_count: serviceCount,
+    platform_commission_rate: '20.00',
     active_service_count: active ? serviceCount : 0, provider_count: providerCount,
     created_at: now, updated_at: now,
   }
@@ -131,8 +133,10 @@ function resetForm(category?: AdminServiceCategory) {
     city_codes: [...category.city_codes],
     sort_order: category.sort_order,
     is_active: category.is_active,
+    platform_commission_rate: Number(category.platform_commission_rate),
   } : {
     name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
+    platform_commission_rate: 20,
   })
 }
 
@@ -181,13 +185,17 @@ async function save() {
   }
   try {
     if (props.preview) {
+      const previewPayload = {
+        ...payload,
+        platform_commission_rate: payload.platform_commission_rate.toFixed(2),
+      }
       if (editing.value) {
         const index = demoCategories.findIndex((item) => item.id === editing.value?.id)
-        if (index >= 0) demoCategories[index] = { ...demoCategories[index], ...payload, updated_at: new Date().toISOString() }
+        if (index >= 0) demoCategories[index] = { ...demoCategories[index], ...previewPayload, updated_at: new Date().toISOString() }
       } else {
         demoCategories.push({
           id: Math.max(...demoCategories.map((item) => item.id), 0) + 1,
-          ...payload,
+          ...previewPayload,
           icon_url: null,
           service_count: 0,
           active_service_count: 0,
@@ -300,6 +308,9 @@ onMounted(load)
             <div class="relation-count provider-count"><strong>{{ row.provider_count }}</strong><span>位达人</span></div>
           </template>
         </el-table-column>
+        <el-table-column label="平台抽成" width="110" align="center">
+          <template #default="{ row }"><strong>{{ Number(row.platform_commission_rate).toFixed(2) }}%</strong></template>
+        </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" effect="light">{{ row.is_active ? '已启用' : '已停用' }}</el-tag></template>
         </el-table-column>
@@ -330,8 +341,9 @@ onMounted(load)
         </div>
         <div class="form-grid compact-grid">
           <el-form-item label="前台排序"><el-input-number v-model="form.sort_order" :min="0" :max="9999" controls-position="right" /></el-form-item>
-          <el-form-item label="启用状态"><el-switch v-model="form.is_active" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item>
+          <el-form-item label="平台抽成比例"><el-input-number v-model="form.platform_commission_rate" :min="0" :max="100" :step="0.5" :precision="2" controls-position="right" /></el-form-item>
         </div>
+        <el-form-item label="启用状态"><el-switch v-model="form.is_active" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item>
         <el-form-item label="展示城市">
           <el-select v-model="form.city_codes" multiple filterable allow-create default-first-option collapse-tags :max-collapse-tags="3" placeholder="留空表示全部城市">
             <el-option v-for="city in cityOptions" :key="city.value" :label="city.label" :value="city.value" />

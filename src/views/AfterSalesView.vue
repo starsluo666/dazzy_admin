@@ -28,7 +28,7 @@ const props = defineProps<{ preview: boolean; canReview: boolean }>()
 
 const rows = ref<AdminAfterSalesCase[]>([])
 const selected = ref<AdminAfterSalesCase | null>(null)
-const summary = ref<AfterSalesSummary>({ total: 0, pending: 0, processing: 0, approved: 0 })
+const summary = ref<AfterSalesSummary>({ total: 0, pending: 0, processing: 0, approved: 0, refunded: 0 })
 const statusFilter = ref<AfterSalesCaseStatus | ''>('')
 const typeFilter = ref<AfterSalesCaseType | ''>('')
 const cityFilter = ref('')
@@ -55,6 +55,7 @@ const statusOptions: Array<{ value: AfterSalesCaseStatus; label: string }> = [
   { value: 'pending', label: '待处理' },
   { value: 'processing', label: '处理中' },
   { value: 'approved', label: '已同意·待退款' },
+  { value: 'refunded', label: '退款成功' },
   { value: 'rejected', label: '已驳回' },
 ]
 const typeOptions: Array<{ value: AfterSalesCaseType; label: string }> = [
@@ -68,6 +69,7 @@ const summaryCards = computed(() => [
   { key: 'pending', label: '待处理', value: summary.value.pending, icon: Clock, tone: 'orange' },
   { key: 'processing', label: '处理中', value: summary.value.processing, icon: Service, tone: 'cyan' },
   { key: 'approved', label: '待退款', value: summary.value.approved, icon: Money, tone: 'red' },
+  { key: 'refunded', label: '退款成功', value: summary.value.refunded, icon: CircleCheck, tone: 'cyan' },
 ])
 
 function demoCase(
@@ -105,6 +107,7 @@ function demoCase(
     reviewed_at: ['approved', 'rejected'].includes(status) ? created : null,
     created_at: created,
     updated_at: created,
+    refund_order: null,
     ...overrides,
   }
 }
@@ -115,6 +118,7 @@ function demoRows() {
     demoCase(1, 'processing'),
     demoCase(2, 'approved'),
     demoCase(3, 'rejected'),
+    demoCase(4, 'refunded', { order_status: 'refunded', order_status_label: '已退款' }),
   ]
 }
 
@@ -143,6 +147,7 @@ function formatDateTime(value: string | null) {
 }
 
 function statusType(status: AfterSalesCaseStatus) {
+  if (status === 'refunded') return 'success'
   if (status === 'approved') return 'warning'
   if (status === 'rejected') return 'info'
   if (status === 'processing') return 'primary'
@@ -161,6 +166,7 @@ async function load() {
         pending: all.filter((item) => item.status === 'pending').length,
         processing: all.filter((item) => item.status === 'processing').length,
         approved: all.filter((item) => item.status === 'approved').length,
+        refunded: all.filter((item) => item.status === 'refunded').length,
       }
       return
     }
@@ -287,7 +293,7 @@ function openAction(mode: 'approve' | 'reject') {
 async function submitAction() {
   if (!selected.value) return
   if (actionForm.value.resultNote.trim().length < 5) return ElMessage.warning('审核结论至少填写 5 个字')
-  if (actionMode.value === 'approve' && selected.value.case_type === 'refund' && actionForm.value.approvedAmountYuan <= 0) {
+  if (actionMode.value === 'approve' && actionForm.value.approvedAmountYuan <= 0) {
     return ElMessage.warning('退款申请的核准金额必须大于 0')
   }
   saving.value = true
@@ -310,7 +316,7 @@ async function submitAction() {
         actionMode.value === 'approve' ? approvedAmount : undefined,
       )
     actionVisible.value = false
-    ElMessage.success(actionMode.value === 'approve' ? '审核通过，已进入待退款状态' : '售后申请已驳回')
+    ElMessage.success(actionMode.value === 'approve' ? '审核通过，退款已发起' : '售后申请已驳回')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '审核提交失败')
@@ -327,7 +333,7 @@ onMounted(load)
     <header class="page-heading after-sales-heading">
       <div>
         <h1>退款与售后</h1>
-        <p>登记服务争议、审核退款申请；审核通过后等待支付系统执行真实退款</p>
+        <p>登记服务争议、审核退款申请；审核通过后自动生成退款单并执行原路退款</p>
       </div>
       <div class="heading-actions">
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button>
@@ -341,7 +347,7 @@ onMounted(load)
       :closable="false"
       show-icon
       title="当前阶段仅完成售后审核闭环"
-      description="“已同意”代表审核通过并进入待退款，不代表资金已经原路退回；真实退款将在支付适配阶段接入。"
+      description="退款审核、退款单和订单状态分别留痕；只有渠道退款成功后，订单才会更新为已退款。"
     />
 
     <section class="after-sales-summary" aria-label="退款售后概况">
@@ -422,7 +428,8 @@ onMounted(load)
           <button aria-label="关闭退款售后详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button>
         </header>
 
-        <el-alert v-if="selected.status === 'approved'" class="drawer-message" type="warning" :closable="false" show-icon title="审核已通过，等待真实退款" description="后续支付模块接入后，将由退款回调把订单更新为已退款。" />
+        <el-alert v-if="selected.status === 'approved'" class="drawer-message" type="warning" :closable="false" show-icon title="审核已通过，退款处理中" description="退款完成后系统会自动更新售后单、支付单与订单状态。" />
+        <el-alert v-if="selected.status === 'refunded'" class="drawer-message" type="success" :closable="false" show-icon title="退款已完成" :description="`退款单 ${selected.refund_order?.refund_no || '已生成'} 已按原支付路径处理。`" />
 
         <section class="case-section case-overview">
           <div><span>售后类型</span><strong>{{ selected.case_type_label }}</strong></div>
@@ -453,6 +460,11 @@ onMounted(load)
           <div class="review-meta">{{ selected.reviewed_by_name || '平台管理员' }} · {{ formatDateTime(selected.reviewed_at) }}</div>
         </section>
 
+        <section v-if="selected.refund_order" class="case-section">
+          <h3><el-icon><Money /></el-icon> 退款执行</h3>
+          <div class="order-card"><header><strong>{{ selected.refund_order.refund_no }}</strong><el-tag :type="selected.refund_order.status === 'succeeded' ? 'success' : selected.refund_order.status === 'failed' ? 'danger' : 'warning'" size="small">{{ selected.refund_order.status_label }}</el-tag></header><p>原路退款 {{ formatAmount(selected.refund_order.refund_amount) }}</p><div><span>渠道退款号 {{ selected.refund_order.gateway_refund_no || '尚未生成' }}</span></div></div>
+        </section>
+
         <footer v-if="canReview && ['pending', 'processing'].includes(selected.status)" class="case-actions">
           <el-button v-if="selected.status === 'pending'" :icon="EditPen" :loading="saving" @click="startReview">开始处理</el-button>
           <div><el-button type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button type="primary" @click="openAction('approve')">审核通过</el-button></div>
@@ -474,7 +486,7 @@ onMounted(load)
     </el-dialog>
 
     <el-dialog v-model="actionVisible" :title="actionMode === 'approve' ? '审核通过' : '驳回申请'" width="500px" destroy-on-close>
-      <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="通过后仅进入待退款，不会直接发起资金操作" />
+      <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="通过后将创建退款单并立即发起原路退款" />
       <el-form label-position="top">
         <el-form-item v-if="actionMode === 'approve'" label="核准退款金额（元）" required><el-input-number v-model="actionForm.approvedAmountYuan" :min="0" :max="(selected?.requested_amount || 0) / 100" :precision="2" :step="10" controls-position="right" /></el-form-item>
         <el-form-item label="审核结论" required><el-input v-model="actionForm.resultNote" type="textarea" :rows="4" maxlength="1000" show-word-limit placeholder="说明核查依据、处理结论及后续动作" /></el-form-item>
@@ -486,4 +498,5 @@ onMounted(load)
 
 <style scoped>
 .after-sales-page{min-height:calc(100vh - 76px)}.after-sales-heading{margin-bottom:14px}.heading-actions{display:flex;gap:10px}.payment-boundary{margin-bottom:14px}.after-sales-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:14px}.after-sales-summary button{position:relative;display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;min-height:92px;padding:16px 18px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.after-sales-summary button:hover{border-color:#9cdfe0;box-shadow:0 10px 28px rgba(29,72,87,.08);transform:translateY(-1px)}.after-sales-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.after-sales-summary button.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(8,184,189,.1)}.after-sales-summary .el-icon{grid-row:1/3;width:44px;height:44px;border-radius:12px;font-size:23px}.after-sales-summary .el-icon.cyan{background:#e4f8f8}.after-sales-summary .el-icon.blue{color:#2679e9!important;background:#e9f1ff}.after-sales-summary .el-icon.orange{background:#fff0e6}.after-sales-summary .el-icon.red{color:#d9485f;background:#fff0f2}.after-sales-summary span{color:var(--muted);font-size:13px}.after-sales-summary strong{font-size:27px}.after-sales-summary small{position:absolute;right:16px;bottom:16px;color:#9aa1ab}.after-sales-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.after-sales-filters{display:grid;grid-template-columns:minmax(250px,1.5fr) 130px 140px 145px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.case-identity{display:flex;flex-direction:column;gap:5px}.case-identity strong{font-size:13px}.case-identity span{color:var(--muted);font-size:12px}.refund-amount{color:var(--orange);font-size:14px}.after-sales-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.after-sales-drawer{min-height:100%;padding-bottom:96px;background:#f7f9fb}.after-sales-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.after-sales-drawer>header div{margin-right:auto}.after-sales-drawer>header h2{margin:0;font-size:20px}.after-sales-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.after-sales-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.after-sales-drawer>header button:hover{background:#f0f4f5}.drawer-message{margin:16px 20px 0;width:auto}.case-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.case-section h3{display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:15px}.case-section h3 .el-icon{color:var(--brand);font-size:18px}.case-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.case-overview div{display:flex;flex-direction:column;gap:6px}.case-overview span{color:var(--muted);font-size:12px}.case-overview strong{font-size:14px}.case-overview .amount{color:var(--orange);font-size:17px}.order-card{padding:14px;border:1px solid #e5eaed;border-radius:7px;background:#fbfcfd}.order-card header{display:flex;align-items:center;justify-content:space-between}.order-card p{margin:8px 0;color:#4f5967;font-size:13px}.order-card div{display:flex;gap:14px;color:var(--muted);font-size:12px}.order-card b{margin-left:auto;color:#394351}.reason-copy{margin:0;color:#3d4755;font-size:14px;line-height:1.75;white-space:pre-wrap}.review-meta{margin-top:12px;color:var(--muted);font-size:12px}.case-actions{position:fixed;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;width:600px;padding:14px 20px;border-top:1px solid var(--line);background:#fff;box-shadow:0 -8px 24px rgba(32,45,55,.06)}.form-alert{margin-bottom:16px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form-grid :deep(.el-select),.form-grid :deep(.el-input-number),:deep(.el-input-number){width:100%}:deep(.after-sales-row){cursor:pointer}:deep(.el-drawer__body){padding:0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1360px){.after-sales-filters{grid-template-columns:minmax(220px,1fr) 120px 130px 135px 66px 66px}.after-sales-summary button{padding:14px}.after-sales-summary small{display:none}}@media(prefers-reduced-motion:reduce){.after-sales-summary button{transition:none}.after-sales-summary button:hover{transform:none}}
+.after-sales-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
 </style>

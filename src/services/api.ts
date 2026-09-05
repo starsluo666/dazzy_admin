@@ -42,6 +42,10 @@ import type {
   ProviderOrderSummary,
   ProviderOrderSupportNote,
   ProviderOrderingSetting,
+  ProviderOrderFinanceSummary,
+  ProviderOrderPaymentRecord,
+  ProviderOrderRefundRecord,
+  ProviderOrderSettlementRecord,
   PlatformOperationSetting,
   UserRiskLevel,
   VerificationStatus,
@@ -187,6 +191,15 @@ export interface SupportCaseQuery {
 export interface AfterSalesQuery {
   status?: AfterSalesCaseStatus | ''
   case_type?: AfterSalesCaseType | ''
+  city_code?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface ProviderOrderFinanceQuery {
+  record_type: 'payment' | 'refund' | 'settlement' | 'exception'
+  status?: string
   city_code?: string
   search?: string
   page?: number
@@ -511,6 +524,15 @@ export const adminApi = {
   }>(`/admin/order-after-sales/?${queryString(query)}`),
   afterSalesCase: (caseNo: string) =>
     request<AdminAfterSalesCase>(`/admin/order-after-sales/${encodeURIComponent(caseNo)}/`),
+  providerOrderFinance: (query: ProviderOrderFinanceQuery) => request<{
+    items: Array<ProviderOrderPaymentRecord | ProviderOrderRefundRecord | ProviderOrderSettlementRecord>
+    pagination: { page: number; page_size: number; total: number }
+    summary: ProviderOrderFinanceSummary
+  }>(`/admin/provider-order-finance/?${queryString(query)}`),
+  retryProviderOrderRefund: (refundNo: string) => request<ProviderOrderRefundRecord>(
+    `/admin/provider-order-refunds/${encodeURIComponent(refundNo)}/retry/`,
+    { method: 'POST' },
+  ),
   auditLogs: (query: { search?: string; action?: string; target_type?: string; page?: number; page_size?: number }) =>
     request<{ items: AdminAuditLog[]; pagination: { page: number; page_size: number; total: number } }>(`/admin/audit-logs/?${queryString(query)}`),
   scheduledTasks: (query: ScheduledTaskQuery = {}) => request<{
@@ -542,7 +564,7 @@ export const adminApi = {
   }),
   reviewAfterSalesCase: (
     caseNo: string,
-    action: 'start_review' | 'approve' | 'reject',
+    action: 'start_review' | 'approve' | 'reject' | 'retry_refund',
     resultNote = '',
     approvedAmount?: number,
   ) => request<AdminAfterSalesCase>(

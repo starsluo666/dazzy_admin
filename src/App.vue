@@ -16,6 +16,7 @@ import PlatformOperationSettingsView from './views/PlatformOperationSettingsView
 import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
+import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import { adminApi, clearSession, getAccessToken } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
@@ -39,6 +40,7 @@ const canManageProvider = hasPermission('provider.manage')
 const canAdjustProviderCredit = hasPermission('provider.credit.adjust')
 const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
+const canManageOrderFinance = hasPermission('order.finance.manage')
 const canManageOrderReview = hasPermission('order.review.manage')
 const canManageServiceCategory = hasPermission('service_category.manage')
 const canReviewActivity = hasPermission('activity.review')
@@ -82,6 +84,7 @@ async function loadSession() {
       else if (permissions.includes('activity.view')) currentPage.value = 'activities'
       else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
       else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
+      else if (permissions.includes('order.finance.view')) currentPage.value = 'settlements'
       else if (permissions.includes('support.case.view')) currentPage.value = 'support_cases'
       else if (permissions.includes('system.task.view')) currentPage.value = 'tasks'
       else if (permissions.includes('organization.manage')) currentPage.value = 'system'
@@ -177,6 +180,11 @@ onMounted(loadSession)
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
+    />
+    <ProviderOrderFinanceView
+      v-else-if="currentPage === 'settlements'"
+      :preview="preview"
+      :can-manage="canManageOrderFinance"
     />
     <SupportCasesView
       v-else-if="currentPage === 'support_cases'"

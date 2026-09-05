@@ -42,6 +42,7 @@ interface RuleDefinition {
 const defaults: Record<FieldKey, number> = {
   provider_order_payment_timeout_minutes: 15,
   provider_order_confirmation_timeout_days: 3,
+  provider_order_settlement_freeze_days: 1,
   activity_payment_timeout_minutes: 30,
   activity_minimum_advance_hours: 48,
   activity_maximum_advance_days: 30,
@@ -75,6 +76,19 @@ const rules: RuleDefinition[] = [
     impact: '待确认达人订单',
     scope: '当前及后续待确认订单',
     risk: '缩短时限会更早标记异常订单，需确保客服处理能力匹配。',
+  },
+  {
+    key: 'provider_order_settlement_freeze_days',
+    group: 'provider',
+    label: '订单资金冻结期',
+    unit: '天',
+    min: 0,
+    max: 30,
+    step: 1,
+    help: '确认完成后冻结，到期自动结算',
+    impact: '达人收入、平台抽成',
+    scope: '新生成的达人订单结算单',
+    risk: '冻结期过短会压缩退款售后的风险处理窗口。',
   },
   {
     key: 'activity_minimum_advance_hours',
@@ -333,6 +347,19 @@ onMounted(() => {
                   :selected="selectedRuleKey === 'provider_order_confirmation_timeout_days'"
                   @update:model-value="updateRule('provider_order_confirmation_timeout_days', $event)"
                   @select="selectRule('provider_order_confirmation_timeout_days')"
+                />
+                <el-icon class="flow-arrow"><ArrowRight /></el-icon>
+                <FlowRuleCard
+                  label="订单资金冻结期"
+                  :model-value="form.provider_order_settlement_freeze_days"
+                  unit="天"
+                  :min="0"
+                  :max="30"
+                  help="到期自动结算"
+                  :icon="Lock"
+                  :selected="selectedRuleKey === 'provider_order_settlement_freeze_days'"
+                  @update:model-value="updateRule('provider_order_settlement_freeze_days', $event)"
+                  @select="selectRule('provider_order_settlement_freeze_days')"
                 />
               </div>
             </section>
