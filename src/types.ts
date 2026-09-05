@@ -97,6 +97,11 @@ export type ScheduledTaskType =
   | 'provider_acceptance_timeout'
   | 'provider_order_confirmation_timeout'
   | 'provider_order_settlement'
+  | 'activity_participation_payment_expiry'
+  | 'activity_formation_deadline'
+  | 'activity_start'
+  | 'activity_completion'
+  | 'activity_settlement'
 export type ScheduledTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface AdminScheduledTask {

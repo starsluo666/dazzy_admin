@@ -33,6 +33,12 @@ const taskTypes = ref<Array<{ value: ScheduledTaskType; label: string }>>([
   { value: 'provider_order_payment_expiry', label: '达人订单支付超时' },
   { value: 'provider_acceptance_timeout', label: '达人接单超时' },
   { value: 'provider_order_confirmation_timeout', label: '达人订单确认超时' },
+  { value: 'provider_order_settlement', label: '达人订单资金结算' },
+  { value: 'activity_participation_payment_expiry', label: '活动报名支付超时' },
+  { value: 'activity_formation_deadline', label: '活动成局截止' },
+  { value: 'activity_start', label: '活动开始' },
+  { value: 'activity_completion', label: '活动结束' },
+  { value: 'activity_settlement', label: '活动资金结算' },
 ])
 const statuses = ref<Array<{ value: ScheduledTaskStatus; label: string }>>([
   { value: 'pending', label: '待执行' },
@@ -67,6 +73,8 @@ function demoTask(
   taskStatus: ScheduledTaskStatus,
   orderNo: string,
   minutesOffset: number,
+  businessType = 'provider_order',
+  payload: Record<string, unknown> = { order_no: orderNo },
 ): AdminScheduledTask {
   const scheduled = new Date(Date.now() + minutesOffset * 60000).toISOString()
   const finished = ['succeeded', 'failed', 'cancelled'].includes(taskStatus)
@@ -76,7 +84,7 @@ function demoTask(
     public_id: id,
     task_type: type,
     task_type_label: taskTypes.value.find((item) => item.value === type)?.label || type,
-    business_type: 'provider_order',
+    business_type: businessType,
     business_key: orderNo,
     status: taskStatus,
     status_label: statuses.value.find((item) => item.value === taskStatus)?.label || taskStatus,
@@ -87,7 +95,7 @@ function demoTask(
     started_at: taskStatus === 'running' ? new Date().toISOString() : null,
     finished_at: finished,
     last_error: taskStatus === 'failed' ? 'DatabaseError: connection temporarily unavailable' : '',
-    payload: { order_no: orderNo },
+    payload,
     result: taskStatus === 'succeeded' ? { action: 'cancelled', source: 'task_worker' } : {},
     created_at: new Date(Date.now() - 20 * 60000).toISOString(),
     updated_at: new Date().toISOString(),
@@ -101,6 +109,8 @@ function demoRows() {
     demoTask('10000000-0000-0000-0000-000000000003', 'provider_order_payment_expiry', 'succeeded', 'DZY202609010003', -15),
     demoTask('10000000-0000-0000-0000-000000000004', 'provider_acceptance_timeout', 'failed', 'DZY202609010004', -10),
     demoTask('10000000-0000-0000-0000-000000000005', 'provider_order_confirmation_timeout', 'pending', 'DZY202609010005', 60),
+    demoTask('10000000-0000-0000-0000-000000000006', 'activity_formation_deadline', 'pending', '23', 120, 'activity', { activity_id: 23, activity_title: '邯郸周边轻徒步交友' }),
+    demoTask('10000000-0000-0000-0000-000000000007', 'activity_participation_payment_expiry', 'succeeded', 'APO202609010001', -8, 'activity_participation', { activity_id: 23, activity_title: '邯郸周边轻徒步交友', payment_order_no: 'APO202609010001' }),
   ]
 }
 
@@ -125,6 +135,16 @@ function formatDateTime(value: string | null) {
 
 function formatJson(value: Record<string, unknown>) {
   return Object.keys(value).length ? JSON.stringify(value, null, 2) : '暂无数据'
+}
+
+function businessLabel(task: AdminScheduledTask) {
+  if (task.business_type === 'activity') {
+    return `${String(task.payload.activity_title || '活动')} · #${task.business_key}`
+  }
+  if (task.business_type === 'activity_participation') {
+    return `${String(task.payload.activity_title || '活动报名')} · ${task.business_key}`
+  }
+  return task.business_key
 }
 
 function statusType(status: ScheduledTaskStatus) {
@@ -220,7 +240,7 @@ async function retryTask(task: AdminScheduledTask) {
   if (!props.canRetry || retryingId.value) return
   try {
     await ElMessageBox.confirm(
-      `确认重新执行“${task.task_type_label}”吗？重试仍会校验订单当前状态，不会强制覆盖业务状态。`,
+      `确认重新执行“${task.task_type_label}”吗？重试仍会校验关联业务当前状态，不会强制覆盖业务状态。`,
       '重试失败任务',
       { confirmButtonText: '确认重试', cancelButtonText: '取消', type: 'warning' },
     )
@@ -255,7 +275,7 @@ onMounted(load)
     <header class="page-heading task-heading">
       <div>
         <h1>任务中心</h1>
-        <p>监控订单自动流转任务；失败任务可人工重试，所有操作均保留审计记录</p>
+        <p>监控订单与活动自动流转任务；失败任务可人工重试，所有操作均保留审计记录</p>
       </div>
       <div class="heading-actions">
         <el-button @click="emit('openAudit')">操作审计</el-button>
@@ -284,7 +304,7 @@ onMounted(load)
           v-model="search"
           clearable
           :prefix-icon="Search"
-          placeholder="订单号 / 业务标识"
+          placeholder="订单号 / 活动 / 业务标识"
           @keyup.enter="page = 1; load()"
         />
         <el-select v-model="taskType" clearable placeholder="任务类型">
@@ -314,7 +334,7 @@ onMounted(load)
                 class="business-link"
                 @click.stop="emit('openOrder', scope.row.business_key)"
               ><el-icon><Connection /></el-icon>{{ scope.row.business_key }}</button>
-              <span v-else>{{ scope.row.business_key }}</span>
+              <span v-else>{{ businessLabel(scope.row) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -380,12 +400,12 @@ onMounted(load)
           :closable="false"
           show-icon
           title="任务执行失败"
-          description="请先核查错误和关联订单状态；人工重试不会绕过业务状态校验。"
+          description="请先核查错误和关联业务状态；人工重试不会绕过业务状态校验。"
         />
 
         <section class="task-detail-grid">
           <div><span>任务类型</span><strong>{{ selected.task_type_label }}</strong></div>
-          <div><span>关联业务</span><strong>{{ selected.business_key }}</strong></div>
+          <div><span>关联业务</span><strong>{{ businessLabel(selected) }}</strong></div>
           <div><span>计划执行</span><strong>{{ formatDateTime(selected.scheduled_at) }}</strong></div>
           <div><span>下次执行</span><strong>{{ formatDateTime(selected.available_at) }}</strong></div>
           <div><span>最近开始</span><strong>{{ formatDateTime(selected.started_at) }}</strong></div>
