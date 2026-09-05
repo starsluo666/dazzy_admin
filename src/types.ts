@@ -827,6 +827,7 @@ export interface AdminAfterSalesCase {
   requested_amount: number
   approved_amount: number | null
   reason: string
+  evidence_urls: string[]
   result_note: string
   creator_name: string
   organization_name: string | null

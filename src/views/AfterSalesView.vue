@@ -100,6 +100,7 @@ function demoCase(
     requested_amount: index === 1 ? 0 : 34600,
     approved_amount: status === 'approved' ? 28600 : null,
     reason: index === 1 ? '用户对实际服务时长存在争议，申请平台复核履约记录。' : '用户反馈服务内容与约定存在差异，申请平台核查并处理退款。',
+    evidence_urls: [],
     result_note: status === 'approved' ? '履约资料核查完成，同意部分退款，等待支付系统执行。' : status === 'rejected' ? '订单履约时间线和集合照完整，本次售后申请不成立。' : '',
     creator_name: '运营管理员',
     organization_name: '乐搭伴运营平台',
@@ -454,6 +455,21 @@ onMounted(load)
           <p class="reason-copy">{{ selected.reason }}</p>
         </section>
 
+        <section v-if="selected.evidence_urls.length" class="case-section">
+          <h3><el-icon><Document /></el-icon> 用户凭证</h3>
+          <div class="evidence-grid">
+            <el-image
+              v-for="(url, index) in selected.evidence_urls"
+              :key="url"
+              :src="url"
+              fit="cover"
+              :preview-src-list="selected.evidence_urls"
+              :initial-index="index"
+              preview-teleported
+            />
+          </div>
+        </section>
+
         <section v-if="selected.result_note" class="case-section">
           <h3><el-icon><CircleCheck /></el-icon> 审核结论</h3>
           <p class="reason-copy">{{ selected.result_note }}</p>
@@ -499,4 +515,5 @@ onMounted(load)
 <style scoped>
 .after-sales-page{min-height:calc(100vh - 76px)}.after-sales-heading{margin-bottom:14px}.heading-actions{display:flex;gap:10px}.payment-boundary{margin-bottom:14px}.after-sales-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:14px}.after-sales-summary button{position:relative;display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;min-height:92px;padding:16px 18px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.after-sales-summary button:hover{border-color:#9cdfe0;box-shadow:0 10px 28px rgba(29,72,87,.08);transform:translateY(-1px)}.after-sales-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.after-sales-summary button.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(8,184,189,.1)}.after-sales-summary .el-icon{grid-row:1/3;width:44px;height:44px;border-radius:12px;font-size:23px}.after-sales-summary .el-icon.cyan{background:#e4f8f8}.after-sales-summary .el-icon.blue{color:#2679e9!important;background:#e9f1ff}.after-sales-summary .el-icon.orange{background:#fff0e6}.after-sales-summary .el-icon.red{color:#d9485f;background:#fff0f2}.after-sales-summary span{color:var(--muted);font-size:13px}.after-sales-summary strong{font-size:27px}.after-sales-summary small{position:absolute;right:16px;bottom:16px;color:#9aa1ab}.after-sales-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.after-sales-filters{display:grid;grid-template-columns:minmax(250px,1.5fr) 130px 140px 145px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.case-identity{display:flex;flex-direction:column;gap:5px}.case-identity strong{font-size:13px}.case-identity span{color:var(--muted);font-size:12px}.refund-amount{color:var(--orange);font-size:14px}.after-sales-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.after-sales-drawer{min-height:100%;padding-bottom:96px;background:#f7f9fb}.after-sales-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.after-sales-drawer>header div{margin-right:auto}.after-sales-drawer>header h2{margin:0;font-size:20px}.after-sales-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.after-sales-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.after-sales-drawer>header button:hover{background:#f0f4f5}.drawer-message{margin:16px 20px 0;width:auto}.case-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.case-section h3{display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:15px}.case-section h3 .el-icon{color:var(--brand);font-size:18px}.case-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.case-overview div{display:flex;flex-direction:column;gap:6px}.case-overview span{color:var(--muted);font-size:12px}.case-overview strong{font-size:14px}.case-overview .amount{color:var(--orange);font-size:17px}.order-card{padding:14px;border:1px solid #e5eaed;border-radius:7px;background:#fbfcfd}.order-card header{display:flex;align-items:center;justify-content:space-between}.order-card p{margin:8px 0;color:#4f5967;font-size:13px}.order-card div{display:flex;gap:14px;color:var(--muted);font-size:12px}.order-card b{margin-left:auto;color:#394351}.reason-copy{margin:0;color:#3d4755;font-size:14px;line-height:1.75;white-space:pre-wrap}.review-meta{margin-top:12px;color:var(--muted);font-size:12px}.case-actions{position:fixed;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;width:600px;padding:14px 20px;border-top:1px solid var(--line);background:#fff;box-shadow:0 -8px 24px rgba(32,45,55,.06)}.form-alert{margin-bottom:16px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form-grid :deep(.el-select),.form-grid :deep(.el-input-number),:deep(.el-input-number){width:100%}:deep(.after-sales-row){cursor:pointer}:deep(.el-drawer__body){padding:0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1360px){.after-sales-filters{grid-template-columns:minmax(220px,1fr) 120px 130px 135px 66px 66px}.after-sales-summary button{padding:14px}.after-sales-summary small{display:none}}@media(prefers-reduced-motion:reduce){.after-sales-summary button{transition:none}.after-sales-summary button:hover{transform:none}}
 .after-sales-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
+.evidence-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.evidence-grid :deep(.el-image){width:100%;aspect-ratio:1;border:1px solid var(--line);border-radius:7px;background:#f3f6f7;cursor:zoom-in}
 </style>
