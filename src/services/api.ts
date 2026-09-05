@@ -71,6 +71,19 @@ export const clearSession = () => {
   localStorage.removeItem(REFRESH_KEY)
 }
 
+let sessionExpiredHandler: (() => void) | null = null
+let sessionExpiryNotified = false
+
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  sessionExpiredHandler = handler
+}
+
+function notifySessionExpired() {
+  if (sessionExpiryNotified) return
+  sessionExpiryNotified = true
+  sessionExpiredHandler?.()
+}
+
 function errorMessage(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return '请求失败'
   const record = payload as Record<string, unknown>
@@ -122,6 +135,7 @@ async function refreshAccessToken(): Promise<boolean> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
+  const hadSession = Boolean(getAccessToken() || getRefreshToken())
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -131,8 +145,12 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     },
   })
   const payload = await parseResponse(response) as { data?: T } | null
-  if (response.status === 401 && !retried && await refreshAccessToken()) {
-    return request<T>(path, options, true)
+  if (response.status === 401 && hadSession) {
+    if (!retried && await refreshAccessToken()) {
+      return request<T>(path, options, true)
+    }
+    clearSession()
+    notifySessionExpired()
   }
   if (!response.ok) throw new Error(errorMessage(payload))
   return payload?.data as T
@@ -328,6 +346,7 @@ export const adminApi = {
     })
     localStorage.setItem(ACCESS_KEY, data.access)
     localStorage.setItem(REFRESH_KEY, data.refresh)
+    sessionExpiryNotified = false
   },
   async logout() {
     const refresh = getRefreshToken()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import LoginView from './views/LoginView.vue'
 import AdminShell from './layouts/AdminShell.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -17,7 +18,7 @@ import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
-import { adminApi, clearSession, getAccessToken } from './services/api'
+import { adminApi, clearSession, getAccessToken, setSessionExpiredHandler } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
 const currentPage = ref<AdminPage>('dashboard')
@@ -54,6 +55,13 @@ const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
 const canManageActivitySettlement = hasPermission('activity_settlement.manage')
 const canRetryTask = hasPermission('system.task.retry')
 const canManageSupportCase = hasPermission('support.case.manage')
+
+setSessionExpiredHandler(() => {
+  session.value = null
+  loading.value = false
+  currentPage.value = 'dashboard'
+  ElMessage.warning('登录已过期，请重新登录')
+})
 
 async function loadSession() {
   if (preview) {

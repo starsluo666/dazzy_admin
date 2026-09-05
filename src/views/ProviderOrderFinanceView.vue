@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Coin, CreditCard, Refresh, Search, SuccessFilled, Tickets, WarningFilled } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
@@ -142,6 +142,20 @@ function resetFilters() { search.value = ''; cityCode.value = ''; statusFilter.v
 function openDetail(row: FinanceRecord) { selected.value = row; drawerVisible.value = true }
 async function retryRefund(row: ProviderOrderRefundRecord) {
   if (!props.canManage || retrying.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确认重新执行退款单 ${row.refund_no}（${formatAmount(row.refund_amount)}）？${row.failure_reason ? ` 上次失败原因：${row.failure_reason}` : ''}`,
+      '确认重试退款',
+      {
+        confirmButtonText: '确认重试',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
   retrying.value = row.refund_no
   try {
     if (!props.preview) await adminApi.retryProviderOrderRefund(row.refund_no)
