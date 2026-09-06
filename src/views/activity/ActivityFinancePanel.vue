@@ -6,6 +6,7 @@ import { CircleCheck, Clock, Lock, Money, Refresh, Search, Tickets, WalletFilled
 import { adminApi } from '../../services/api'
 import type {
   ActivityAfterSalesStatus,
+  ActivityParticipationRefundSummary,
   AdminActivityAfterSales,
   AdminActivityFinanceSummary,
   AdminActivityParticipationPayment,
@@ -38,6 +39,7 @@ const pageSize = 20
 const total = ref(0)
 const loading = ref(false)
 const handling = ref(false)
+const retryingRefund = ref('')
 const drawerVisible = ref(false)
 const selectedCase = ref<AdminActivityAfterSales | null>(null)
 const settlementDrawerVisible = ref(false)
@@ -238,6 +240,37 @@ function openSettlement(item: AdminActivitySettlement) {
   settlementDrawerVisible.value = true
 }
 
+async function retryActivityRefund(item: ActivityParticipationRefundSummary) {
+  if (!props.canManageAfterSales || retryingRefund.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确认重新执行退款单 ${item.refund_no}（${money(item.refund_amount)}）？${item.failure_reason ? ` 上次失败原因：${item.failure_reason}` : ''}`,
+      '确认重试活动退款',
+      {
+        confirmButtonText: '确认重试', cancelButtonText: '取消', type: 'warning',
+      },
+    )
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
+  retryingRefund.value = item.refund_no
+  try {
+    const refund = props.preview
+      ? { ...item, status: 'succeeded' as const, status_label: '退款成功', failure_reason: '', refunded_at: new Date().toISOString() }
+      : await adminApi.retryActivityRefund(item.refund_no)
+    if (selectedCase.value?.refund_order?.refund_no === item.refund_no) {
+      selectedCase.value = { ...selectedCase.value, refund_order: refund }
+    }
+    ElMessage.success('活动退款已重试成功')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '活动退款重试失败')
+  } finally {
+    retryingRefund.value = ''
+  }
+}
+
 async function handleCase(action: 'start_review' | 'approve' | 'reject') {
   if (!selectedCase.value || !props.canManageAfterSales) return
   let note = ''
@@ -405,6 +438,7 @@ onMounted(load)
         <el-table-column label="扣留 / 归属" min-width="150"><template #default="{ row }"><div class="primary-cell"><strong>{{ money(row.retained_principal_amount + row.retained_service_fee_amount) }}</strong><small>{{ row.retained_principal_destination_label || '无扣除' }}</small></div></template></el-table-column>
         <el-table-column label="状态" min-width="150"><template #default="{ row }"><div class="primary-cell"><el-tag :type="caseTag(row.status)" effect="light">{{ row.status_label }}</el-tag><small v-if="row.failure_reason" class="failure-copy">{{ row.failure_reason }}</small></div></template></el-table-column>
         <el-table-column label="完成时间" min-width="135"><template #default="{ row }">{{ formatDate(row.refunded_at) }}</template></el-table-column>
+        <el-table-column v-if="canManageAfterSales" label="操作" width="86" fixed="right"><template #default="{ row }"><el-button v-if="row.status === 'failed'" link type="primary" :loading="retryingRefund === row.refund_no" @click="retryActivityRefund(row)">重试</el-button><span v-else>—</span></template></el-table-column>
       </el-table>
 
       <el-table v-else-if="recordType === 'after_sales'" v-loading="loading" :data="rows" height="calc(100vh - 424px)" empty-text="暂无退款售后记录">
@@ -445,6 +479,7 @@ onMounted(load)
           <el-button :disabled="handling" @click="handleCase('reject')">驳回申请</el-button>
           <el-button type="primary" :loading="handling" @click="handleCase('approve')">同意并退款</el-button>
         </div>
+        <div v-else-if="selectedCase?.refund_order?.status === 'failed' && canManageAfterSales" class="case-actions"><el-button @click="drawerVisible = false">关闭</el-button><el-button type="primary" :loading="retryingRefund === selectedCase.refund_order.refund_no" @click="retryActivityRefund(selectedCase.refund_order)">重试退款</el-button></div>
         <el-button v-else @click="drawerVisible = false">关闭</el-button>
       </template>
     </el-drawer>

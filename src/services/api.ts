@@ -432,6 +432,10 @@ export const adminApi = {
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivityFinanceSummary
   }>(`/admin/activity-finance/?${queryString(query)}`),
+  retryActivityRefund: (refundNo: string) => request<AdminActivityParticipationRefund>(
+    `/admin/activity-refunds/${encodeURIComponent(refundNo)}/retry/`,
+    { method: 'POST' },
+  ),
   reviewActivityAfterSales: (
     caseNo: string,
     action: 'start_review' | 'approve' | 'reject',

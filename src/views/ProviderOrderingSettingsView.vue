@@ -81,14 +81,14 @@ const rules: RuleDefinition[] = [
     group: 'presence',
     label: '定位失效时间',
     unit: '分钟',
-    min: 10,
+    min: 0,
     max: 120,
-    step: 5,
-    help: '超过该时间未上报定位，达人自动离线',
-    impact: '达人在线状态、用户端达人列表',
+    step: 10,
+    help: '超过该时间未上报定位则离线；设为 0 时不自动离线',
+    impact: '达人在线状态、用户端预约能力',
     scope: '所有正在接单的达人',
-    logic: '最后有效定位时间超过阈值后，不再视为在线',
-    risk: '时限过短会造成网络波动下频繁离线，过长可能展示已经停止接单的达人。',
+    logic: '非 0 时按最后有效定位时间判断；0 表示仅手动停止接单才离线',
+    risk: '设置为 0 后不会自动剔除长时间未上报的达人，位置可能不够新，请谨慎使用。',
   },
   {
     key: 'acceptance_timeout_minutes',
@@ -319,10 +319,10 @@ onMounted(() => {
                   label="定位失效时间"
                   :model-value="form.location_timeout_minutes"
                   unit="分钟"
-                  :min="10"
+                  :min="0"
                   :max="120"
-                  :step="5"
-                  help="超时未上报则自动离线"
+                  :step="10"
+                  help="0 表示不自动离线"
                   :icon="Clock"
                   :selected="selectedRuleKey === 'location_timeout_minutes'"
                   @update:model-value="updateRule('location_timeout_minutes', $event)"
@@ -330,8 +330,8 @@ onMounted(() => {
                 />
                 <el-icon class="flow-arrow"><ArrowRight /></el-icon>
                 <div class="presence-outcome">
-                  <span class="online"><i></i><strong>在线</strong><small>用户端可发现</small></span>
-                  <span class="offline"><i></i><strong>离线</strong><small>不参与距离排序</small></span>
+                  <span class="online"><i></i><strong>在线</strong><small>用户端可预约</small></span>
+                  <span class="offline"><i></i><strong>离线</strong><small>仍展示，不可预约</small></span>
                 </div>
               </div>
             </section>
@@ -425,7 +425,7 @@ onMounted(() => {
         <section class="decision-summary">
           <header><strong>当前判定关系</strong><span>实时规则摘要</span></header>
           <div><span>有效位置</span><b>精度 ≤ {{ form.max_location_accuracy_m }} 米</b></div>
-          <div><span>在线状态</span><b>最后定位 ≤ {{ form.location_timeout_minutes }} 分钟</b></div>
+          <div><span>在线状态</span><b>{{ form.location_timeout_minutes === 0 ? '不按定位时间自动离线' : `最后定位 ≤ ${form.location_timeout_minutes} 分钟` }}</b></div>
           <div><span>接单截止</span><b>支付后 {{ form.acceptance_timeout_minutes }} 分钟</b></div>
         </section>
 
