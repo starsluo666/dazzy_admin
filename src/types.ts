@@ -97,7 +97,10 @@ export type ScheduledTaskType =
   | 'provider_acceptance_timeout'
   | 'provider_order_confirmation_timeout'
   | 'provider_order_settlement'
+  | 'provider_order_refund'
+  | 'activity_publish_payment_expiry'
   | 'activity_participation_payment_expiry'
+  | 'activity_participation_refund'
   | 'activity_formation_deadline'
   | 'activity_start'
   | 'activity_completion'
@@ -214,6 +217,7 @@ export interface ActivityParticipationRefundSummary {
   retained_principal_destination: 'none' | 'organizer' | 'platform'
   retained_principal_destination_label?: string
   reason: string
+  failure_reason: string
   requested_at: string
   refunded_at: string | null
 }
