@@ -73,13 +73,14 @@ export const clearSession = () => {
 
 let sessionExpiredHandler: (() => void) | null = null
 let sessionExpiryNotified = false
+let sessionExpiryNotificationSuppressed = false
 
 export function setSessionExpiredHandler(handler: (() => void) | null) {
   sessionExpiredHandler = handler
 }
 
 function notifySessionExpired() {
-  if (sessionExpiryNotified) return
+  if (sessionExpiryNotified || sessionExpiryNotificationSuppressed) return
   sessionExpiryNotified = true
   sessionExpiredHandler?.()
 }
@@ -104,12 +105,17 @@ async function parseResponse(response: Response): Promise<unknown> {
   return contentType.includes('application/json') ? response.json() : null
 }
 
-let refreshPromise: Promise<boolean> | null = null
+type RefreshResult =
+  | { status: 'refreshed' }
+  | { status: 'expired' }
+  | { status: 'unavailable'; message: string }
 
-async function refreshAccessToken(): Promise<boolean> {
+let refreshPromise: Promise<RefreshResult> | null = null
+
+async function refreshAccessToken(): Promise<RefreshResult> {
   if (refreshPromise) return refreshPromise
   const refresh = getRefreshToken()
-  if (!refresh) return false
+  if (!refresh) return { status: 'expired' }
   refreshPromise = (async () => {
     try {
       const response = await fetch(`${API_BASE}/auth/token/refresh/`, {
@@ -118,15 +124,23 @@ async function refreshAccessToken(): Promise<boolean> {
         body: JSON.stringify({ refresh }),
       })
       const payload = await parseResponse(response) as { access?: string; refresh?: string } | null
-      if (!response.ok || !payload?.access) {
-        clearSession()
-        return false
+      if (response.ok && payload?.access) {
+        localStorage.setItem(ACCESS_KEY, payload.access)
+        if (payload.refresh) localStorage.setItem(REFRESH_KEY, payload.refresh)
+        return { status: 'refreshed' } as const
       }
-      localStorage.setItem(ACCESS_KEY, payload.access)
-      if (payload.refresh) localStorage.setItem(REFRESH_KEY, payload.refresh)
-      return true
+      if (response.status === 401 || response.status === 403) {
+        return { status: 'expired' } as const
+      }
+      return {
+        status: 'unavailable',
+        message: errorMessage(payload),
+      } as const
     } catch {
-      return false
+      return {
+        status: 'unavailable',
+        message: '网络连接失败，暂时无法刷新登录状态',
+      } as const
     } finally {
       refreshPromise = null
     }
@@ -146,11 +160,18 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
   })
   const payload = await parseResponse(response) as { data?: T } | null
   if (response.status === 401 && hadSession) {
-    if (!retried && await refreshAccessToken()) {
-      return request<T>(path, options, true)
+    if (!retried) {
+      const refreshResult = await refreshAccessToken()
+      if (refreshResult.status === 'refreshed') {
+        return request<T>(path, options, true)
+      }
+      if (refreshResult.status === 'unavailable') {
+        throw new Error(refreshResult.message)
+      }
     }
     clearSession()
     notifySessionExpired()
+    throw new Error('登录已过期，请重新登录')
   }
   if (!response.ok) throw new Error(errorMessage(payload))
   return payload?.data as T
@@ -350,6 +371,7 @@ export const adminApi = {
   },
   async logout() {
     const refresh = getRefreshToken()
+    sessionExpiryNotificationSuppressed = true
     try {
       if (refresh) {
         await request<void>('/auth/logout/', {
@@ -359,6 +381,7 @@ export const adminApi = {
       }
     } finally {
       clearSession()
+      sessionExpiryNotificationSuppressed = false
     }
   },
   me: () => request<AdminMe>('/admin/me/'),

@@ -18,7 +18,7 @@ import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
-import { adminApi, clearSession, getAccessToken, setSessionExpiredHandler } from './services/api'
+import { adminApi, getAccessToken, setSessionExpiredHandler } from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
 const currentPage = ref<AdminPage>('dashboard')
@@ -60,7 +60,10 @@ setSessionExpiredHandler(() => {
   session.value = null
   loading.value = false
   currentPage.value = 'dashboard'
-  ElMessage.warning('登录已过期，请重新登录')
+  setTimeout(() => {
+    ElMessage.closeAll()
+    ElMessage.warning('登录已过期，请重新登录')
+  }, 50)
 })
 
 async function loadSession() {
@@ -98,8 +101,10 @@ async function loadSession() {
       else if (permissions.includes('organization.manage')) currentPage.value = 'system'
       else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
     }
-  } catch {
-    clearSession()
+  } catch (error) {
+    if (getAccessToken()) {
+      ElMessage.error(error instanceof Error ? error.message : '网络异常，登录状态加载失败')
+    }
   } finally {
     loading.value = false
   }
