@@ -5,6 +5,7 @@ import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 
 import { adminApi } from '../../services/api'
 import type { AdminActivityCategory, AdminActivityCategoryMutation, AdminActivityCategorySummary } from '../../types'
+import { formatMoney as money } from '../../utils/format'
 
 const props = defineProps<{ preview: boolean; canManage: boolean }>()
 const rows = ref<AdminActivityCategory[]>([])
@@ -121,7 +122,6 @@ async function toggle(item: AdminActivityCategory) {
     ElMessage.success('分类状态已更新'); await load()
   } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '更新失败') }
 }
-function money(cents: number) { return `¥${(cents / 100).toFixed(2)}` }
 function cityLabel(code: string) { return cityOptions.find((item) => item.value === code)?.label.split(' · ')[0] || code }
 onMounted(load)
 </script>

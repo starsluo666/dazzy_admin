@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
+import { isAdminPage } from '../navigation'
 import type { AdminMe, AdminPage } from '../types'
 
 const props = defineProps<{ active: AdminPage; session: AdminMe | null }>()
@@ -55,9 +56,7 @@ const pageLabels: Record<AdminPage, string> = {
   audit_logs: '系统管理 / 操作审计',
 }
 function navigate(key: string, enabled: boolean) {
-  if (enabled && ['dashboard', 'users', 'providers', 'provider_reviews', 'services', 'platform_settings', 'provider_rules', 'activities', 'orders', 'after_sales', 'settlements', 'support_cases', 'system', 'tasks', 'audit_logs'].includes(key)) {
-    emit('navigate', key as AdminPage)
-  }
+  if (enabled && isAdminPage(key)) emit('navigate', key)
 }
 function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')

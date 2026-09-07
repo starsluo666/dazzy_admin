@@ -60,15 +60,21 @@ import type {
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-const ACCESS_KEY = 'dazzy_admin_access_token'
-const REFRESH_KEY = 'dazzy_admin_refresh_token'
+const LEGACY_ACCESS_KEY = 'dazzy_admin_access_token'
+const LEGACY_REFRESH_KEY = 'dazzy_admin_refresh_token'
+let accessToken: string | null = null
 
-export const getAccessToken = () => localStorage.getItem(ACCESS_KEY)
-const getRefreshToken = () => localStorage.getItem(REFRESH_KEY)
+// Remove tokens written by older admin builds. Refresh tokens now live only in
+// the scoped HttpOnly cookie and access tokens stay in this tab's memory.
+localStorage.removeItem(LEGACY_ACCESS_KEY)
+localStorage.removeItem(LEGACY_REFRESH_KEY)
+
+export const getAccessToken = () => accessToken
 
 export const clearSession = () => {
-  localStorage.removeItem(ACCESS_KEY)
-  localStorage.removeItem(REFRESH_KEY)
+  accessToken = null
+  localStorage.removeItem(LEGACY_ACCESS_KEY)
+  localStorage.removeItem(LEGACY_REFRESH_KEY)
 }
 
 let sessionExpiredHandler: (() => void) | null = null
@@ -114,19 +120,17 @@ let refreshPromise: Promise<RefreshResult> | null = null
 
 async function refreshAccessToken(): Promise<RefreshResult> {
   if (refreshPromise) return refreshPromise
-  const refresh = getRefreshToken()
-  if (!refresh) return { status: 'expired' }
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_BASE}/auth/token/refresh/`, {
+      const response = await fetch(`${API_BASE}/admin/auth/refresh/`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh }),
       })
-      const payload = await parseResponse(response) as { access?: string; refresh?: string } | null
-      if (response.ok && payload?.access) {
-        localStorage.setItem(ACCESS_KEY, payload.access)
-        if (payload.refresh) localStorage.setItem(REFRESH_KEY, payload.refresh)
+      const payload = await parseResponse(response) as { data?: { access?: string } } | null
+      if (response.ok && payload?.data?.access) {
+        accessToken = payload.data.access
+        sessionExpiryNotified = false
         return { status: 'refreshed' } as const
       }
       if (response.status === 401 || response.status === 403) {
@@ -148,10 +152,17 @@ async function refreshAccessToken(): Promise<RefreshResult> {
   return refreshPromise
 }
 
+export async function restoreAdminSession(): Promise<RefreshResult> {
+  const result = await refreshAccessToken()
+  if (result.status === 'expired') clearSession()
+  return result
+}
+
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
-  const hadSession = Boolean(getAccessToken() || getRefreshToken())
+  const hadSession = Boolean(getAccessToken())
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
@@ -175,6 +186,45 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
   }
   if (!response.ok) throw new Error(errorMessage(payload))
   return payload?.data as T
+}
+
+type LatestRequestEntry = {
+  controller: AbortController
+  promise: Promise<unknown>
+  successor?: LatestRequestEntry
+}
+
+const latestRequests = new Map<string, LatestRequestEntry>()
+
+function isAbortError(error: unknown) {
+  return Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError')
+}
+
+/**
+ * Keep one active request for each list surface. Superseded callers resolve with
+ * the newest response as well, so older view loads can never overwrite newer filters.
+ */
+function requestLatest<T>(key: string, path: string, options: RequestInit = {}): Promise<T> {
+  const previous = latestRequests.get(key)
+  const controller = new AbortController()
+  const entry: LatestRequestEntry = { controller, promise: Promise.resolve() }
+  const latestPromise = request<T>(path, { ...options, signal: controller.signal })
+    .catch((error) => {
+      if (isAbortError(error) && entry.successor) {
+        return entry.successor.promise as Promise<T>
+      }
+      throw error
+    })
+    .finally(() => {
+      if (latestRequests.get(key) === entry) latestRequests.delete(key)
+    })
+  entry.promise = latestPromise
+  latestRequests.set(key, entry)
+  if (previous) {
+    previous.successor = entry
+    previous.controller.abort()
+  }
+  return latestPromise
 }
 
 export interface ProviderApplicationQuery {
@@ -331,10 +381,10 @@ export const adminApi = {
     groups: AdminPermissionGroup[]
     data_scopes: Array<{ value: AdminRoleDataScope; label: string }>
   }>('/admin/permissions/'),
-  adminRoles: (organization: number | '' = '') => request<{
+  adminRoles: (organization: number | '' = '') => requestLatest<{
     items: AdminRole[]
     summary: { total: number; system: number; custom: number }
-  }>(`/admin/roles/?${queryString({ organization })}`),
+  }>('admin-roles', `/admin/roles/?${queryString({ organization })}`),
   createAdminRole: (payload: AdminRoleMutation) => request<AdminRole>('/admin/roles/', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -344,10 +394,10 @@ export const adminApi = {
     body: JSON.stringify(payload),
   }),
   deleteAdminRole: (roleId: number) => request<void>(`/admin/roles/${roleId}/`, { method: 'DELETE' }),
-  organizationMembers: (query: AdminOrganizationMemberQuery = {}) => request<{
+  organizationMembers: (query: AdminOrganizationMemberQuery = {}) => requestLatest<{
     items: AdminOrganizationMember[]
     summary: { total: number; active: number; inactive: number; organizations: number }
-  }>(`/admin/members/?${queryString(query)}`),
+  }>('admin-members', `/admin/members/?${queryString(query)}`),
   createOrganizationMember: (payload: AdminOrganizationMemberMutation & { phone: string; organization: number }) => request<AdminOrganizationMember>('/admin/members/', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -361,43 +411,36 @@ export const adminApi = {
   providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
   updateProviderOrderingSetting: (payload: Partial<ProviderOrderingSetting>) => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/', { method: 'PATCH', body: JSON.stringify(payload) }),
   async login(phone: string, password: string) {
-    const data = await request<{ access: string; refresh: string }>('/auth/login/password/', {
+    const data = await request<{ access: string }>('/admin/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ phone, password }),
     })
-    localStorage.setItem(ACCESS_KEY, data.access)
-    localStorage.setItem(REFRESH_KEY, data.refresh)
+    accessToken = data.access
     sessionExpiryNotified = false
   },
   async logout() {
-    const refresh = getRefreshToken()
     sessionExpiryNotificationSuppressed = true
     try {
-      if (refresh) {
-        await request<void>('/auth/logout/', {
-          method: 'POST',
-          body: JSON.stringify({ refresh }),
-        })
-      }
+      await request<void>('/admin/auth/logout/', { method: 'POST' })
     } finally {
       clearSession()
       sessionExpiryNotificationSuppressed = false
     }
   },
   me: () => request<AdminMe>('/admin/me/'),
-  overview: (days: 7 | 30 = 7) => request<{
+  overview: (days: 7 | 30 = 7) => requestLatest<{
     metrics: Record<string, number | null>
     trend: {
       days: 7 | 30
       points: Array<{ date: string; transaction_amount: number; order_count: number }>
     }
     todos: Array<{ key: string; label: string; count: number; priority: string }>
-  }>(`/admin/overview/?days=${days}`),
-  serviceCategories: (query: ServiceCategoryQuery) => request<{
+  }>('admin-overview', `/admin/overview/?days=${days}`),
+  serviceCategories: (query: ServiceCategoryQuery) => requestLatest<{
     items: AdminServiceCategory[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminServiceCategorySummary
-  }>(`/admin/service-categories/?${queryString(query)}`),
+  }>('admin-service-categories', `/admin/service-categories/?${queryString(query)}`),
   createServiceCategory: (payload: AdminServiceCategoryMutation) =>
     request<AdminServiceCategory>('/admin/service-categories/', {
       method: 'POST',
@@ -408,11 +451,11 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
-  activities: (query: AdminActivityQuery) => request<{
+  activities: (query: AdminActivityQuery) => requestLatest<{
     items: AdminActivity[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivitySummary
-  }>(`/admin/activities/?${queryString(query)}`),
+  }>('admin-activities', `/admin/activities/?${queryString(query)}`),
   activity: (id: number) => request<AdminActivity>(`/admin/activities/${id}/`),
   reviewActivity: (id: number, decision: 'approve' | 'reject', reason = '') =>
     request<AdminActivity>(`/admin/activities/${id}/review/`, {
@@ -424,11 +467,11 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ action: 'cancel', reason }),
     }),
-  activityCategories: (query: AdminActivityCategoryQuery) => request<{
+  activityCategories: (query: AdminActivityCategoryQuery) => requestLatest<{
     items: AdminActivityCategory[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivityCategorySummary
-  }>(`/admin/activity-categories/?${queryString(query)}`),
+  }>('admin-activity-categories', `/admin/activity-categories/?${queryString(query)}`),
   createActivityCategory: (payload: AdminActivityCategoryMutation) =>
     request<AdminActivityCategory>('/admin/activity-categories/', {
       method: 'POST', body: JSON.stringify(payload),
@@ -437,11 +480,11 @@ export const adminApi = {
     request<AdminActivityCategory>(`/admin/activity-categories/${id}/`, {
       method: 'PATCH', body: JSON.stringify(payload),
     }),
-  activityReports: (query: AdminActivityReportQuery) => request<{
+  activityReports: (query: AdminActivityReportQuery) => requestLatest<{
     items: AdminActivityReport[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivityReportSummary
-  }>(`/admin/activity-reports/?${queryString(query)}`),
+  }>('admin-activity-reports', `/admin/activity-reports/?${queryString(query)}`),
   reviewActivityReport: (
     caseNo: string,
     action: 'start_review' | 'resolve' | 'reject',
@@ -450,11 +493,11 @@ export const adminApi = {
     `/admin/activity-reports/${encodeURIComponent(caseNo)}/action/`,
     { method: 'POST', body: JSON.stringify({ action, result_note: resultNote }) },
   ),
-  activityFinance: (query: AdminActivityFinanceQuery) => request<{
+  activityFinance: (query: AdminActivityFinanceQuery) => requestLatest<{
     items: Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales | AdminActivitySettlement>
     pagination: { page: number; page_size: number; total: number }
     summary: AdminActivityFinanceSummary
-  }>(`/admin/activity-finance/?${queryString(query)}`),
+  }>('admin-activity-finance', `/admin/activity-finance/?${queryString(query)}`),
   retryActivityRefund: (refundNo: string) => request<AdminActivityParticipationRefund>(
     `/admin/activity-refunds/${encodeURIComponent(refundNo)}/retry/`,
     { method: 'POST' },
@@ -487,21 +530,21 @@ export const adminApi = {
   ),
   providers: (query: ProviderApplicationQuery) => {
     const params = queryString(query)
-    return request<{
+    return requestLatest<{
       items: ProviderApplication[]
       pagination: { page: number; page_size: number; total: number }
-    }>(`/admin/provider-applications/?${params}`)
+    }>('admin-provider-applications', `/admin/provider-applications/?${params}`)
   },
   reviewProvider: (id: number, decision: 'approve' | 'reject', reason = '') =>
     request<ProviderApplication>(`/admin/provider-applications/${id}/review/`, {
       method: 'POST',
       body: JSON.stringify({ decision, reason }),
     }),
-  users: (query: AdminUserQuery) => request<{
+  users: (query: AdminUserQuery) => requestLatest<{
     items: AdminUser[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminUserSummary
-  }>(`/admin/users/?${queryString(query)}`),
+  }>('admin-users', `/admin/users/?${queryString(query)}`),
   user: (publicId: string) => request<AdminUser>(`/admin/users/${publicId}/`),
   changeUserAccount: (
     publicId: string,
@@ -520,11 +563,11 @@ export const adminApi = {
     method: 'POST',
     body: JSON.stringify({ action, reason, ...(level ? { level } : {}) }),
   }),
-  managedProviders: (query: AdminProviderQuery) => request<{
+  managedProviders: (query: AdminProviderQuery) => requestLatest<{
     items: AdminProvider[]
     pagination: { page: number; page_size: number; total: number }
     summary: AdminProviderSummary
-  }>(`/admin/providers/?${queryString(query)}`),
+  }>('admin-providers', `/admin/providers/?${queryString(query)}`),
   managedProvider: (id: number) => request<AdminProvider>(`/admin/providers/${id}/`),
   changeProviderStatus: (
     id: number,
@@ -539,11 +582,11 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ delta, reason }),
     }),
-  providerOrders: (query: ProviderOrderQuery) => request<{
+  providerOrders: (query: ProviderOrderQuery) => requestLatest<{
     items: AdminProviderOrder[]
     pagination: { page: number; page_size: number; total: number }
     summary: ProviderOrderSummary
-  }>(`/admin/provider-orders/?${queryString(query)}`),
+  }>('admin-provider-orders', `/admin/provider-orders/?${queryString(query)}`),
   providerOrder: (orderNo: string) =>
     request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/`),
   providerOrderEvidence: (orderNo: string) =>
@@ -563,31 +606,31 @@ export const adminApi = {
     `/admin/provider-orders/${encodeURIComponent(orderNo)}/review/action/`,
     { method: 'POST', body: JSON.stringify({ action, reason }) },
   ),
-  afterSalesCases: (query: AfterSalesQuery) => request<{
+  afterSalesCases: (query: AfterSalesQuery) => requestLatest<{
     items: AdminAfterSalesCase[]
     pagination: { page: number; page_size: number; total: number }
     summary: AfterSalesSummary
-  }>(`/admin/order-after-sales/?${queryString(query)}`),
+  }>('admin-order-after-sales', `/admin/order-after-sales/?${queryString(query)}`),
   afterSalesCase: (caseNo: string) =>
     request<AdminAfterSalesCase>(`/admin/order-after-sales/${encodeURIComponent(caseNo)}/`),
-  providerOrderFinance: (query: ProviderOrderFinanceQuery) => request<{
+  providerOrderFinance: (query: ProviderOrderFinanceQuery) => requestLatest<{
     items: Array<ProviderOrderPaymentRecord | ProviderOrderRefundRecord | ProviderOrderSettlementRecord>
     pagination: { page: number; page_size: number; total: number }
     summary: ProviderOrderFinanceSummary
-  }>(`/admin/provider-order-finance/?${queryString(query)}`),
+  }>('admin-provider-order-finance', `/admin/provider-order-finance/?${queryString(query)}`),
   retryProviderOrderRefund: (refundNo: string) => request<ProviderOrderRefundRecord>(
     `/admin/provider-order-refunds/${encodeURIComponent(refundNo)}/retry/`,
     { method: 'POST' },
   ),
   auditLogs: (query: { search?: string; action?: string; target_type?: string; page?: number; page_size?: number }) =>
-    request<{ items: AdminAuditLog[]; pagination: { page: number; page_size: number; total: number } }>(`/admin/audit-logs/?${queryString(query)}`),
-  scheduledTasks: (query: ScheduledTaskQuery = {}) => request<{
+    requestLatest<{ items: AdminAuditLog[]; pagination: { page: number; page_size: number; total: number } }>('admin-audit-logs', `/admin/audit-logs/?${queryString(query)}`),
+  scheduledTasks: (query: ScheduledTaskQuery = {}) => requestLatest<{
     items: AdminScheduledTask[]
     pagination: { page: number; page_size: number; total: number }
     summary: ScheduledTaskSummary
     task_types: Array<{ value: ScheduledTaskType; label: string }>
     statuses: Array<{ value: ScheduledTaskStatus; label: string }>
-  }>(`/admin/tasks/?${queryString(query)}`),
+  }>('admin-scheduled-tasks', `/admin/tasks/?${queryString(query)}`),
   scheduledTask: (publicId: string) =>
     request<AdminScheduledTask>(`/admin/tasks/${encodeURIComponent(publicId)}/`),
   retryScheduledTask: (publicId: string) =>
@@ -624,11 +667,11 @@ export const adminApi = {
       }),
     },
   ),
-  supportCases: (query: SupportCaseQuery = {}) => request<{
+  supportCases: (query: SupportCaseQuery = {}) => requestLatest<{
     items: AdminSupportCase[]
     pagination: { page: number; page_size: number; total: number }
     summary: SupportCaseSummary
-  }>(`/admin/support-cases/?${queryString(query)}`),
+  }>('admin-support-cases', `/admin/support-cases/?${queryString(query)}`),
   supportCase: (caseNo: string) => request<AdminSupportCase>(
     `/admin/support-cases/${encodeURIComponent(caseNo)}/`,
   ),

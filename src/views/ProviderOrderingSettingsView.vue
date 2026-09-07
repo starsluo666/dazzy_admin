@@ -20,6 +20,7 @@ import {
 import FlowRuleCard from '../components/operation-settings/FlowRuleCard.vue'
 import { adminApi } from '../services/api'
 import type { AdminAuditLog, ProviderOrderingSetting } from '../types'
+import { formatDateTime } from '../utils/format'
 
 type FieldKey = Exclude<keyof ProviderOrderingSetting, 'updated_at'>
 type GroupKey = 'all' | 'reporting' | 'presence' | 'response'
@@ -127,7 +128,7 @@ const showPresence = computed(() => activeGroup.value === 'all' || activeGroup.v
 const showResponse = computed(() => activeGroup.value === 'all' || activeGroup.value === 'response')
 
 function formatDate(value: string) {
-  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '尚未保存'
+  return formatDateTime(value, '尚未保存')
 }
 
 function groupLabel(group: RuleDefinition['group']) {

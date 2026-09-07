@@ -17,6 +17,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime, formatMoney } from '../utils/format'
 import type {
   AdminAfterSalesCase,
   AfterSalesCaseStatus,
@@ -136,15 +137,7 @@ function filteredDemoRows() {
 }
 
 function formatAmount(amount: number | null) {
-  if (amount === null) return '—'
-  return `¥${(amount / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
+  return amount === null ? '—' : formatMoney(amount)
 }
 
 function statusType(status: AfterSalesCaseStatus) {

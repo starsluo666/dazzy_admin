@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Coin, CreditCard, Refresh, Search, SuccessFilled, Tickets, WarningFilled } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime, formatMoney as formatAmount } from '../utils/format'
 import type {
   ProviderOrderFinanceSummary,
   ProviderOrderPaymentRecord,
@@ -92,11 +93,6 @@ const demoSettlement: ProviderOrderSettlementRecord = {
 function paymentRow(row: FinanceRecord): row is ProviderOrderPaymentRecord { return 'payment_no' in row }
 function refundRow(row: FinanceRecord): row is ProviderOrderRefundRecord { return 'refund_no' in row }
 function settlementRow(row: FinanceRecord): row is ProviderOrderSettlementRecord { return 'settlement_no' in row }
-function formatAmount(value: number | undefined) { return `¥${((value || 0) / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}` }
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
 function statusType(status: string) {
   if (['paid', 'succeeded', 'settled'].includes(status)) return 'success'
   if (['failed', 'dispute_frozen'].includes(status)) return 'danger'

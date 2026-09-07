@@ -14,6 +14,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime } from '../utils/format'
 import type {
   AdminScheduledTask,
   ScheduledTaskStatus,
@@ -126,14 +127,6 @@ function filteredDemoRows() {
     items = items.filter((item) => item.business_key.toLowerCase().includes(keyword))
   }
   return items
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  })
 }
 
 function formatJson(value: Record<string, unknown>) {

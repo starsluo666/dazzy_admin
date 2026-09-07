@@ -12,6 +12,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime } from '../utils/format'
 import type {
   AdminServiceCategory,
   AdminServiceCategoryMutation,
@@ -158,12 +159,6 @@ function selectSummary(key: string) {
   statusFilter.value = key as 'all' | 'active' | 'inactive'
   page.value = 1
   load()
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
 }
 
 function cityLabel(code: string) {

@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { adminApi } from '../services/api'
 import type { AdminSupportCase, SupportCaseStatus, SupportCaseSummary } from '../types'
+import { formatDateTime as format } from '../utils/format'
 
 const props = defineProps<{ preview?: boolean; canManage: boolean }>()
 const rows = ref<AdminSupportCase[]>([])
@@ -129,10 +130,6 @@ function statusTag(status: SupportCaseStatus) {
   if (status === 'processing') return 'primary'
   if (status === 'resolved' || status === 'closed') return 'success'
   return 'info'
-}
-function format(value: string | null) {
-  if (!value) return '--'
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short', hour12: false }).format(new Date(value))
 }
 async function runAction(action: 'start_review' | 'resolve' | 'reject' | 'close') {
   if (!selected.value || saving.value) return

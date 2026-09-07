@@ -13,6 +13,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime, formatMoney as formatAmount } from '../utils/format'
 import type {
   AccountStatus,
   AdminUser,
@@ -155,13 +156,6 @@ function filteredDemoRows() {
   return items
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-}
-function formatAmount(amount: number) { return `¥${(amount / 100).toLocaleString()}` }
 function formatCoordinate(value: string | number) {
   const number = Number(value)
   return Number.isFinite(number) ? number.toFixed(7) : '—'

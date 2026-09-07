@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import LoginView from './views/LoginView.vue'
 import AdminShell from './layouts/AdminShell.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -18,16 +19,41 @@ import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
-import { adminApi, getAccessToken, setSessionExpiredHandler } from './services/api'
+import {
+  canAccessAdminPage,
+  firstAccessibleAdminPage,
+  isAdminPage,
+} from './navigation'
+import {
+  adminApi,
+  getAccessToken,
+  restoreAdminSession,
+  setSessionExpiredHandler,
+} from './services/api'
 import type { AdminMe, AdminPage } from './types'
 
-const currentPage = ref<AdminPage>('dashboard')
+const route = useRoute()
+const router = useRouter()
 const session = ref<AdminMe | null>(null)
 const loading = ref(true)
 const orderSearch = ref('')
-const preview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
+const preview = import.meta.env.DEV && (
+  new URLSearchParams(location.search).has('preview') || route.query.preview !== undefined
+)
 
 const authenticated = computed(() => preview || Boolean(session.value))
+const requestedPage = computed<AdminPage>(() => (
+  isAdminPage(route.name) ? route.name : 'dashboard'
+))
+const firstAccessiblePage = computed(() => firstAccessibleAdminPage(
+  session.value?.permissions,
+  preview,
+))
+const currentPage = computed(() => (
+  canAccessAdminPage(requestedPage.value, session.value?.permissions, preview)
+    ? requestedPage.value
+    : firstAccessiblePage.value ?? requestedPage.value
+))
 const canAddOrderNote = computed(() => preview || Boolean(
   session.value?.permissions.includes('*')
   || session.value?.permissions.includes('order.support_note.add'),
@@ -59,12 +85,20 @@ const canManageSupportCase = hasPermission('support.case.manage')
 setSessionExpiredHandler(() => {
   session.value = null
   loading.value = false
-  currentPage.value = 'dashboard'
   setTimeout(() => {
     ElMessage.closeAll()
     ElMessage.warning('登录已过期，请重新登录')
   }, 50)
 })
+
+async function ensureCurrentPageAllowed(notify = false) {
+  if (!authenticated.value) return
+  if (canAccessAdminPage(requestedPage.value, session.value?.permissions, preview)) return
+  const fallback = firstAccessiblePage.value
+  if (!fallback) return
+  await router.replace({ name: fallback, query: route.query })
+  if (notify) ElMessage.warning('当前账号无权访问该页面，已为你切换到可用页面')
+}
 
 async function loadSession() {
   if (preview) {
@@ -76,31 +110,25 @@ async function loadSession() {
       data_scope: 'all',
       city_codes: [],
     }
+    await ensureCurrentPageAllowed()
     loading.value = false
     return
   }
   if (!getAccessToken()) {
-    loading.value = false
-    return
+    const restored = await restoreAdminSession()
+    if (restored.status === 'expired') {
+      loading.value = false
+      return
+    }
+    if (restored.status === 'unavailable') {
+      ElMessage.error(restored.message)
+      loading.value = false
+      return
+    }
   }
   try {
     session.value = await adminApi.me()
-    const permissions = session.value.permissions
-    if (!permissions.includes('*') && !permissions.includes('dashboard.view')) {
-      if (permissions.includes('user.view')) currentPage.value = 'users'
-      else if (permissions.includes('provider.view')) currentPage.value = 'providers'
-      else if (permissions.includes('provider.review')) currentPage.value = 'provider_reviews'
-      else if (permissions.includes('service_category.view')) currentPage.value = 'services'
-      else if (permissions.includes('operations.manage')) currentPage.value = 'platform_settings'
-      else if (permissions.includes('activity.view')) currentPage.value = 'activities'
-      else if (permissions.includes('order.fulfillment.view')) currentPage.value = 'orders'
-      else if (permissions.includes('order.after_sales.view')) currentPage.value = 'after_sales'
-      else if (permissions.includes('order.finance.view')) currentPage.value = 'settlements'
-      else if (permissions.includes('support.case.view')) currentPage.value = 'support_cases'
-      else if (permissions.includes('system.task.view')) currentPage.value = 'tasks'
-      else if (permissions.includes('organization.manage')) currentPage.value = 'system'
-      else if (permissions.includes('audit.view')) currentPage.value = 'audit_logs'
-    }
+    await ensureCurrentPageAllowed()
   } catch (error) {
     if (getAccessToken()) {
       ElMessage.error(error instanceof Error ? error.message : '网络异常，登录状态加载失败')
@@ -119,14 +147,22 @@ async function logout() {
 }
 
 function navigate(page: AdminPage) {
+  if (!canAccessAdminPage(page, session.value?.permissions, preview)) {
+    ElMessage.warning('当前账号无权访问该页面')
+    return
+  }
   if (page === 'orders') orderSearch.value = ''
-  currentPage.value = page
+  void router.push({ name: page, query: route.query })
 }
 
 function openOrderFromTask(orderNo: string) {
   orderSearch.value = orderNo
-  currentPage.value = 'orders'
+  navigate('orders')
 }
+
+watch(requestedPage, () => {
+  if (!loading.value && authenticated.value) void ensureCurrentPageAllowed(true)
+})
 
 onMounted(loadSession)
 </script>
@@ -141,11 +177,15 @@ onMounted(loadSession)
     @navigate="navigate"
     @logout="logout"
   >
+    <el-empty
+      v-if="!firstAccessiblePage"
+      description="当前账号尚未配置管理端页面权限，请联系平台管理员"
+    />
     <DashboardView
-      v-if="currentPage === 'dashboard'"
+      v-else-if="currentPage === 'dashboard'"
       :preview="preview"
-      @review-provider="currentPage = 'provider_reviews'"
-      @review-activity="currentPage = 'activities'"
+      @review-provider="navigate('provider_reviews')"
+      @review-activity="navigate('activities')"
     />
     <UserManagementView
       v-else-if="currentPage === 'users'"
@@ -159,7 +199,7 @@ onMounted(loadSession)
       :can-manage="canManageProvider"
       :can-adjust-credit="canAdjustProviderCredit"
       :can-review="canReviewProvider"
-      @review="currentPage = 'provider_reviews'"
+      @review="navigate('provider_reviews')"
     />
     <ProviderReviewView v-else-if="currentPage === 'provider_reviews'" :preview="preview" />
     <ServiceCategoriesView
@@ -169,11 +209,11 @@ onMounted(loadSession)
     />
     <ProviderOrderingSettingsView
       v-else-if="currentPage === 'provider_rules'"
-      @open-audit="currentPage = 'audit_logs'"
+      @open-audit="navigate('audit_logs')"
     />
     <PlatformOperationSettingsView
       v-else-if="currentPage === 'platform_settings'"
-      @open-audit="currentPage = 'audit_logs'"
+      @open-audit="navigate('audit_logs')"
     />
     <ActivityManagementView
       v-else-if="currentPage === 'activities'"
@@ -188,7 +228,7 @@ onMounted(loadSession)
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :initial-search="orderSearch" @open-after-sales="currentPage = 'after_sales'" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
@@ -206,14 +246,14 @@ onMounted(loadSession)
     />
     <SystemManagementView
       v-else-if="currentPage === 'system'"
-      @open-audit="currentPage = 'audit_logs'"
+      @open-audit="navigate('audit_logs')"
     />
     <TaskCenterView
       v-else-if="currentPage === 'tasks'"
       :preview="preview"
       :can-retry="canRetryTask"
       @open-order="openOrderFromTask"
-      @open-audit="currentPage = 'audit_logs'"
+      @open-audit="navigate('audit_logs')"
     />
     <AuditLogsView v-else-if="currentPage === 'audit_logs'" />
   </AdminShell>

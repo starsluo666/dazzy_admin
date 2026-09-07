@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Download, Refresh } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatLongDate, formatMoney } from '../utils/format'
 
 type TrendDays = 7 | 30
 type TrendPoint = { date: string; transaction_amount: number; order_count: number }
@@ -25,14 +26,12 @@ const demoMetrics = {
 const demoAmounts = [420000, 690000, 440000, 850000, 910000, 620000, 880000]
 const demoOrders = [18, 24, 12, 29, 34, 21, 36]
 
-const dateLabel = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-}).format(new Date())
+const dateLabel = formatLongDate(new Date())
 const cards = computed(() => [
   { label: '今日新增用户', value: metrics.value.today_new_users ?? '—', trend: props.preview ? '+12.6% ↗' : '实时数据', tone: 'cyan', icon: '人' },
   { label: '待审核达人', value: metrics.value.pending_providers ?? 0, trend: props.preview ? '较昨日 +6' : '实时待办', tone: 'orange', icon: '审' },
   { label: '进行中订单', value: metrics.value.active_orders ?? 0, trend: props.preview ? '+8.2% ↗' : '实时数据', tone: 'blue', icon: '单' },
-  { label: '近7日交易额', value: `¥${((metrics.value.week_transaction_amount ?? 0) / 100).toLocaleString()}`, trend: props.preview ? '+15.3% ↗' : '已支付订单', tone: 'orange', icon: '¥' },
+  { label: '近7日交易额', value: formatMoney(metrics.value.week_transaction_amount), trend: props.preview ? '+15.3% ↗' : '已支付订单', tone: 'orange', icon: '¥' },
 ])
 
 function demoTrend(days: TrendDays): TrendPoint[] {
@@ -79,10 +78,6 @@ const axisPoints = computed(() => {
 
 function formatAxisDate(date: string) {
   return date.slice(5).replace('-', '/')
-}
-
-function formatAmount(amount: number) {
-  return `¥${(amount / 100).toLocaleString()}`
 }
 
 async function load() {
@@ -166,7 +161,7 @@ function handleTodo(key: string) {
             <g v-if="trendDays === 7" class="chart-dots">
               <template v-for="point in chartPoints" :key="point.date">
                 <circle class="cyan-dot" :cx="point.x" :cy="point.transactionY" r="4">
-                  <title>{{ point.date }} 交易额 {{ formatAmount(point.transaction_amount) }}</title>
+                  <title>{{ point.date }} 交易额 {{ formatMoney(point.transaction_amount) }}</title>
                 </circle>
                 <circle class="blue-dot" :cx="point.x" :cy="point.orderY" r="4">
                   <title>{{ point.date }} 订单量 {{ point.order_count }} 单</title>

@@ -15,6 +15,7 @@ import {
   UserFilled,
 } from '@element-plus/icons-vue'
 import { adminApi } from '../services/api'
+import { formatDateTime } from '../utils/format'
 import type {
   AdminOrganization,
   AdminOrganizationMember,
@@ -99,10 +100,6 @@ const roleDrawerTitle = computed(() => editingRole.value
   : copySource.value
     ? '复制角色'
     : '新建角色')
-
-function formatDateTime(value: string) {
-  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—'
-}
 
 function permissionName(code: string) {
   for (const group of permissionGroups.value) {

@@ -16,6 +16,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import { formatDateTime, formatMoney as formatAmount, formatServiceWindow } from '../utils/format'
 import type {
   AdminProviderOrder,
   FulfillmentAnomalyFilter,
@@ -196,22 +197,9 @@ function filteredDemoRows() {
   return items
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return '尚未发生'
-  return new Date(value).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-}
-
 function formatServiceTime(order: AdminProviderOrder) {
-  const start = new Date(order.starts_at)
-  const end = new Date(order.ends_at)
-  const date = `${start.getMonth() + 1}月${start.getDate()}日`
-  const time = (value: Date) => `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
-  return `${date} ${time(start)}–${time(end)}`
+  return formatServiceWindow(order.starts_at, order.ends_at)
 }
-
-function formatAmount(amount: number) { return `¥${(amount / 100).toLocaleString()}` }
 
 function statusType(orderStatus: ProviderOrderStatus) {
   if (['completed', 'pending_review'].includes(orderStatus)) return 'success'

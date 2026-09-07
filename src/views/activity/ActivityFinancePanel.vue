@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Clock, Lock, Money, Refresh, Search, Tickets, WalletFilled, WarningFilled } from '@element-plus/icons-vue'
 
 import { adminApi } from '../../services/api'
+import { formatDateTime as formatDate, formatMoney as money } from '../../utils/format'
 import type {
   ActivityAfterSalesStatus,
   ActivityParticipationRefundSummary,
@@ -42,8 +43,17 @@ const handling = ref(false)
 const retryingRefund = ref('')
 const drawerVisible = ref(false)
 const selectedCase = ref<AdminActivityAfterSales | null>(null)
+const approvalDialogVisible = ref(false)
+const approvalPrincipalYuan = ref(0)
+const approvalServiceFeeYuan = ref(0)
+const approvalNote = ref('')
 const settlementDrawerVisible = ref(false)
 const selectedSettlement = ref<AdminActivitySettlement | null>(null)
+
+const yuanToCents = (value: number) => Number.isFinite(value) ? Math.round(value * 100) : 0
+const approvalPrincipalCents = computed(() => yuanToCents(approvalPrincipalYuan.value))
+const approvalServiceFeeCents = computed(() => yuanToCents(approvalServiceFeeYuan.value))
+const approvalTotalCents = computed(() => approvalPrincipalCents.value + approvalServiceFeeCents.value)
 
 const tabs: Array<{ key: RecordType; label: string }> = [
   { key: 'payment', label: '参与支付' },
@@ -235,6 +245,14 @@ function openCase(item: AdminActivityAfterSales) {
   drawerVisible.value = true
 }
 
+function openApproval() {
+  if (!selectedCase.value || !props.canManageAfterSales) return
+  approvalPrincipalYuan.value = selectedCase.value.requested_principal_amount / 100
+  approvalServiceFeeYuan.value = selectedCase.value.requested_service_fee_amount / 100
+  approvalNote.value = ''
+  approvalDialogVisible.value = true
+}
+
 function openSettlement(item: AdminActivitySettlement) {
   selectedSettlement.value = item
   settlementDrawerVisible.value = true
@@ -271,7 +289,7 @@ async function retryActivityRefund(item: ActivityParticipationRefundSummary) {
   }
 }
 
-async function handleCase(action: 'start_review' | 'approve' | 'reject') {
+async function handleCase(action: 'start_review' | 'reject') {
   if (!selectedCase.value || !props.canManageAfterSales) return
   let note = ''
   try {
@@ -280,15 +298,13 @@ async function handleCase(action: 'start_review' | 'approve' | 'reject') {
         confirmButtonText: '确认领取', cancelButtonText: '取消', type: 'info',
       })
     } else {
-      const approving = action === 'approve'
       const result = await ElMessageBox.prompt(
-        approving ? `同意后将按申请金额 ${money(selectedCase.value.requested_amount)} 原路退款。` : '驳回后不会生成退款单。',
-        approving ? '同意退款申请' : '驳回售后申请',
+        '驳回后不会生成退款单。',
+        '驳回售后申请',
         {
           inputPlaceholder: '请填写处理结论（至少 5 个字）',
           inputValidator: (value) => value.trim().length >= 5 || '至少填写 5 个字',
-          confirmButtonText: approving ? '确认退款' : '确认驳回', cancelButtonText: '取消',
-          type: approving ? 'warning' : 'info',
+          confirmButtonText: '确认驳回', cancelButtonText: '取消', type: 'info',
         },
       )
       note = result.value.trim()
@@ -303,26 +319,80 @@ async function handleCase(action: 'start_review' | 'approve' | 'reject') {
     if (props.preview) {
       const item = demoCases.value.find((entry) => entry.case_no === selectedCase.value?.case_no)
       if (item) {
-        item.status = (action === 'start_review' ? 'processing' : action === 'approve' ? 'approved' : 'rejected') as ActivityAfterSalesStatus
-        item.status_label = action === 'start_review' ? '处理中' : action === 'approve' ? '已同意' : '已驳回'
+        item.status = (action === 'start_review' ? 'processing' : 'rejected') as ActivityAfterSalesStatus
+        item.status_label = action === 'start_review' ? '处理中' : '已驳回'
         item.result_note = note
         item.reviewed_by_name = '运营管理员'
         item.reviewed_at = action === 'start_review' ? null : new Date().toISOString()
-        if (action === 'approve') {
-          item.approved_principal_amount = item.requested_principal_amount
-          item.approved_service_fee_amount = item.requested_service_fee_amount
-          item.approved_amount = item.requested_amount
-        }
         selectedCase.value = { ...item }
       }
     } else {
       selectedCase.value = await adminApi.reviewActivityAfterSales(selectedCase.value.case_no, action, note)
     }
-    ElMessage.success(action === 'start_review' ? '售后单已领取' : action === 'approve' ? '退款已处理完成' : '售后申请已驳回')
+    ElMessage.success(action === 'start_review' ? '售后单已领取' : '售后申请已驳回')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '售后操作失败')
   } finally { handling.value = false }
+}
+
+async function submitApproval() {
+  const current = selectedCase.value
+  if (!current || !props.canManageAfterSales || handling.value) return
+  if (approvalPrincipalCents.value < 0 || approvalServiceFeeCents.value < 0) {
+    ElMessage.warning('核准退款金额不能小于 0 元')
+    return
+  }
+  if (approvalPrincipalCents.value > current.requested_principal_amount) {
+    ElMessage.warning('核准 AA 本金不能超过用户申请金额')
+    return
+  }
+  if (approvalServiceFeeCents.value > current.requested_service_fee_amount) {
+    ElMessage.warning('核准平台服务费不能超过用户申请金额')
+    return
+  }
+  if (approvalTotalCents.value <= 0) {
+    ElMessage.warning('核准退款合计不能为 0 元')
+    return
+  }
+  const note = approvalNote.value.trim()
+  if (note.length < 5) {
+    ElMessage.warning('处理结论至少填写 5 个字')
+    return
+  }
+
+  handling.value = true
+  try {
+    if (props.preview) {
+      const item = demoCases.value.find((entry) => entry.case_no === current.case_no)
+      if (item) {
+        item.status = 'approved'
+        item.status_label = '已同意'
+        item.approved_principal_amount = approvalPrincipalCents.value
+        item.approved_service_fee_amount = approvalServiceFeeCents.value
+        item.approved_amount = approvalTotalCents.value
+        item.result_note = note
+        item.reviewed_by_name = '运营管理员'
+        item.reviewed_at = new Date().toISOString()
+        selectedCase.value = { ...item }
+      }
+    } else {
+      selectedCase.value = await adminApi.reviewActivityAfterSales(
+        current.case_no,
+        'approve',
+        note,
+        approvalPrincipalCents.value,
+        approvalServiceFeeCents.value,
+      )
+    }
+    approvalDialogVisible.value = false
+    ElMessage.success(`退款审批已提交，核准金额 ${money(approvalTotalCents.value)}`)
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '退款审批失败')
+  } finally {
+    handling.value = false
+  }
 }
 
 async function handleSettlement(action: 'freeze_dispute' | 'release_dispute' | 'retry_settlement') {
@@ -366,11 +436,6 @@ async function handleSettlement(action: 'freeze_dispute' | 'release_dispute' | '
   } finally { handling.value = false }
 }
 
-function money(value = 0) { return `¥${(value / 100).toFixed(2)}` }
-function formatDate(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-}
 function paymentTag(status: string) {
   if (status === 'paid') return 'success'
   if (status === 'pending_payment') return 'warning'
@@ -470,19 +535,77 @@ onMounted(load)
         <section class="case-hero"><small>{{ selectedCase.case_no }}</small><h2>{{ selectedCase.activity_title }}</h2><p>{{ selectedCase.applicant_name }} · {{ selectedCase.applicant_phone_masked }} · {{ selectedCase.city_name }}</p></section>
         <section class="case-card"><header><h3>用户诉求</h3><el-tag effect="plain">{{ selectedCase.reason_label }}</el-tag></header><p>{{ selectedCase.description }}</p><div class="evidence-note">已提交 {{ selectedCase.evidence_count }} 份证明材料，材料查看需走受控访问链路</div></section>
         <section class="amount-grid"><article><span>申请退 AA 本金</span><strong>{{ money(selectedCase.requested_principal_amount) }}</strong></article><article><span>申请退平台服务费</span><strong>{{ money(selectedCase.requested_service_fee_amount) }}</strong></article><article class="total"><span>申请退款合计</span><strong>{{ money(selectedCase.requested_amount) }}</strong></article></section>
-        <section v-if="selectedCase.result_note" class="case-card"><header><h3>处理结论</h3><span>{{ selectedCase.reviewed_by_name }}</span></header><p>{{ selectedCase.result_note }}</p><div v-if="selectedCase.status === 'approved'" class="approved-refund">已批准退款 {{ money(selectedCase.approved_amount ?? 0) }}<small>{{ selectedCase.refund_order?.refund_no }} · {{ selectedCase.refund_order?.status_label || '等待创建退款单' }}</small><small v-if="selectedCase.refund_order?.failure_reason" class="failure-copy">失败原因：{{ selectedCase.refund_order.failure_reason }}</small></div></section>
+        <section v-if="selectedCase.result_note" class="case-card"><header><h3>处理结论</h3><span>{{ selectedCase.reviewed_by_name }}</span></header><p>{{ selectedCase.result_note }}</p><div v-if="selectedCase.status === 'approved'" class="approved-refund">已批准退款 {{ money(selectedCase.approved_amount ?? 0) }}<small>AA 本金 {{ money(selectedCase.approved_principal_amount) }} · 平台服务费 {{ money(selectedCase.approved_service_fee_amount) }}</small><small>{{ selectedCase.refund_order?.refund_no }} · {{ selectedCase.refund_order?.status_label || '等待创建退款单' }}</small><small v-if="selectedCase.refund_order?.failure_reason" class="failure-copy">失败原因：{{ selectedCase.refund_order.failure_reason }}</small></div></section>
         <section class="rule-note"><strong>处理原则</strong><p>常规取消优先按活动退款规则自动计算；不可抗力、信息不实或未履约等特殊情形进入人工售后。批准后由统一退款服务生成退款单，避免重复退款。</p></section>
       </div>
       <template #footer>
         <div v-if="selectedCase && canManageAfterSales && ['pending','processing'].includes(selectedCase.status)" class="case-actions">
           <el-button v-if="selectedCase.status === 'pending'" :loading="handling" @click="handleCase('start_review')">领取处理</el-button>
           <el-button :disabled="handling" @click="handleCase('reject')">驳回申请</el-button>
-          <el-button type="primary" :loading="handling" @click="handleCase('approve')">同意并退款</el-button>
+          <el-button type="primary" :loading="handling" @click="openApproval">核准退款</el-button>
         </div>
         <div v-else-if="selectedCase?.refund_order?.status === 'failed' && canManageAfterSales" class="case-actions"><el-button @click="drawerVisible = false">关闭</el-button><el-button type="primary" :loading="retryingRefund === selectedCase.refund_order.refund_no" @click="retryActivityRefund(selectedCase.refund_order)">重试退款</el-button></div>
         <el-button v-else @click="drawerVisible = false">关闭</el-button>
       </template>
     </el-drawer>
+
+    <el-dialog v-model="approvalDialogVisible" title="核准活动退款" width="520px" append-to-body destroy-on-close>
+      <div v-if="selectedCase" class="approval-form">
+        <el-alert
+          title="可按实际责任分别核准 AA 本金和平台服务费，退款将原路退回。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+        <section class="approval-limit">
+          <span>用户申请合计</span>
+          <strong>{{ money(selectedCase.requested_amount) }}</strong>
+          <small>本金 {{ money(selectedCase.requested_principal_amount) }} · 服务费 {{ money(selectedCase.requested_service_fee_amount) }}</small>
+        </section>
+        <el-form label-position="top">
+          <div class="approval-amounts">
+            <el-form-item label="核准 AA 本金（元）" required>
+              <el-input-number
+                v-model="approvalPrincipalYuan"
+                :min="0"
+                :max="selectedCase.requested_principal_amount / 100"
+                :precision="2"
+                :step="10"
+                controls-position="right"
+              />
+            </el-form-item>
+            <el-form-item label="核准平台服务费（元）" required>
+              <el-input-number
+                v-model="approvalServiceFeeYuan"
+                :min="0"
+                :max="selectedCase.requested_service_fee_amount / 100"
+                :precision="2"
+                :step="10"
+                controls-position="right"
+              />
+            </el-form-item>
+          </div>
+          <el-form-item label="处理结论" required>
+            <el-input
+              v-model="approvalNote"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              placeholder="请说明核准依据，至少 5 个字"
+            />
+          </el-form-item>
+        </el-form>
+        <div class="approval-total">
+          <span>本次核准退款</span>
+          <strong>{{ money(approvalTotalCents) }}</strong>
+        </div>
+      </div>
+      <template #footer>
+        <el-button :disabled="handling" @click="approvalDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="handling" @click="submitApproval">确认并原路退款</el-button>
+      </template>
+    </el-dialog>
 
     <el-drawer v-model="settlementDrawerVisible" size="580px" destroy-on-close>
       <template #header><div class="drawer-heading"><span>活动结算详情</span><el-tag v-if="selectedSettlement" :type="settlementTag(selectedSettlement.status)">{{ selectedSettlement.status_label }}</el-tag></div></template>
@@ -509,4 +632,5 @@ onMounted(load)
 .finance-workspace{display:flex;flex-direction:column;gap:14px}.finance-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.finance-summary article{display:flex;align-items:center;gap:11px;min-height:80px;padding:13px 14px;border:1px solid var(--line);border-radius:8px;background:#fff}.finance-summary .el-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px;font-size:19px}.finance-summary .cyan{color:#039aa1;background:#e4f8f8}.finance-summary .orange{color:#e97825;background:#fff0e6}.finance-summary .blue{color:#2679e9;background:#e9f1ff}.finance-summary .purple{color:#7957d7;background:#f1edff}.finance-summary .red{color:#dc5c4b;background:#fff0ed}.finance-summary article>div{display:flex;min-width:0;flex-direction:column;gap:4px}.finance-summary span{color:var(--muted);font-size:11px}.finance-summary strong{color:#172033;font-size:21px;white-space:nowrap}.finance-summary small{margin-left:3px;font-size:10px;font-weight:500}.finance-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.finance-toolbar{display:grid;grid-template-columns:auto minmax(210px,1fr) 120px 120px 64px 32px;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line)}.record-tabs{display:flex;padding:3px;border-radius:6px;background:#f2f5f6}.record-tabs button{padding:7px 13px;border:0;border-radius:5px;color:#64717c;background:transparent;font-size:12px}.record-tabs button.active{color:#087f84;background:#fff;box-shadow:0 1px 5px rgba(30,55,65,.12);font-weight:700}.primary-cell{display:flex;min-width:0;flex-direction:column;gap:4px}.primary-cell strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.primary-cell small{overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.failure-copy{color:#d45145!important}.money{color:#ef6d2e!important}.finance-footer{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 16px;color:var(--muted);font-size:12px}.drawer-heading{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}.case-detail{display:flex;flex-direction:column;gap:12px}.case-hero{padding:2px 0 14px;border-bottom:1px solid var(--line)}.case-hero small{color:var(--muted);font-size:11px}.case-hero h2{margin:6px 0 8px;font-size:18px}.case-hero p{margin:0;color:#67737d;font-size:12px}.case-card{padding:15px;border:1px solid #e3e9ec;border-radius:8px}.case-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.case-card h3{margin:0;font-size:13px}.case-card header span{color:var(--muted);font-size:11px}.case-card p{margin:0;color:#535f69;font-size:12px;line-height:1.7}.evidence-note{margin-top:12px;padding:9px 10px;border-radius:6px;color:#71808a;background:#f5f7f8;font-size:11px}.amount-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.amount-grid article{display:flex;flex-direction:column;gap:5px;padding:13px;border:1px solid #e3e9ec;border-radius:8px}.amount-grid span{color:var(--muted);font-size:10px}.amount-grid strong{font-size:17px}.amount-grid .total{grid-column:1/3;border-color:#b6e5e6;background:#f0fbfb}.amount-grid .total strong{color:#078f94;font-size:20px}.approved-refund{display:flex;flex-direction:column;gap:4px;margin-top:12px;padding:10px;border-radius:6px;color:#078f74;background:#ecfaf5;font-size:12px;font-weight:700}.approved-refund small{font-weight:400}.rule-note{padding:13px;border-left:3px solid #14b9bd;border-radius:4px;background:#f0fafa}.rule-note strong{font-size:12px}.rule-note p{margin:5px 0 0;color:#617079;font-size:11px;line-height:1.65}.case-actions{display:flex;justify-content:flex-end;gap:7px;width:100%}@media(max-width:1280px){.finance-summary{grid-template-columns:repeat(3,1fr)}.finance-toolbar{grid-template-columns:auto minmax(190px,1fr) 110px 110px 60px 32px}.record-tabs button{padding:7px 9px}}@media(prefers-reduced-motion:reduce){.record-tabs button{transition:none}}
 .settlement-flow{display:flex;align-items:center;padding:16px;border:1px solid #e3e9ec;border-radius:8px}
 .settlement-flow>div{display:flex;align-items:center;gap:8px}.settlement-flow>div i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:#7d8992;background:#e8edef;font-size:11px;font-style:normal}.settlement-flow>div.done i{color:#fff;background:#10aeb3}.settlement-flow>div span{display:flex;flex-direction:column;gap:3px;white-space:nowrap}.settlement-flow>div strong{font-size:11px}.settlement-flow>div small{color:var(--muted);font-size:9px}.settlement-flow>b{flex:1;height:2px;margin:0 8px;background:#dfe7e8}.settlement-amounts{grid-template-columns:1fr 1fr}.dispute-copy{padding:10px;border-radius:6px;color:#a34f2a!important;background:#fff3e9}
+.approval-form{display:flex;flex-direction:column;gap:14px}.approval-limit{display:grid;grid-template-columns:1fr auto;align-items:center;padding:13px 14px;border:1px solid #dce7e9;border-radius:8px;background:#f7fafb}.approval-limit span{color:var(--muted);font-size:12px}.approval-limit strong{color:#ef6d2e;font-size:20px}.approval-limit small{grid-column:1/3;margin-top:5px;color:#78858e;font-size:11px}.approval-amounts{display:grid;grid-template-columns:1fr 1fr;gap:12px}.approval-amounts .el-input-number{width:100%}.approval-total{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:8px;color:#087f84;background:#ecfafa}.approval-total span{font-size:12px}.approval-total strong{font-size:22px}
 </style>

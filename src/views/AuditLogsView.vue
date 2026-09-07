@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Close, Document, Refresh, Search } from '@element-plus/icons-vue'
 import { adminApi } from '../services/api'
 import type { AdminAuditLog } from '../types'
+import { formatDateTime as formatDate } from '../utils/format'
 
 const rows = ref<AdminAuditLog[]>([]), loading = ref(false), page = ref(1), total = ref(0)
 const search = ref(''), action = ref(''), targetType = ref(''), selected = ref<AdminAuditLog | null>(null)
@@ -42,7 +43,6 @@ const selectedChanges = computed(() => {
   return [...keys].map((key) => ({ key, before: selected.value!.before?.[key], after: selected.value!.after?.[key] }))
     .filter((item) => JSON.stringify(item.before) !== JSON.stringify(item.after))
 })
-function formatDate(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
 function pretty(value: Record<string, unknown>) { return JSON.stringify(value, null, 2) }
 function actionLabel(value: string) { return actionNames[value] || value.split('.').slice(-1)[0] || '操作记录' }
 function targetLabel(value: string) { return targetNames[value] || value }

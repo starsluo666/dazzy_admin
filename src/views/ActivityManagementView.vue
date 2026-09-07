@@ -14,6 +14,7 @@ import {
 
 import { adminApi } from '../services/api'
 import type { ActivityStatus, AdminActivity, AdminActivitySummary } from '../types'
+import { formatDateTime as formatDate, formatMoney as money } from '../utils/format'
 import ActivityCategoriesPanel from './activity/ActivityCategoriesPanel.vue'
 import ActivityFinancePanel from './activity/ActivityFinancePanel.vue'
 import ActivityReportsPanel from './activity/ActivityReportsPanel.vue'
@@ -308,14 +309,6 @@ function resetFilters() {
   load()
 }
 
-function formatDate(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-}
-
-function money(value = 0) { return `¥${(value / 100).toFixed(2)}` }
 function statusType(status: ActivityStatus) {
   if (status === 'pending_review') return 'warning'
   if (['recruiting', 'formed', 'completed'].includes(status)) return 'success'

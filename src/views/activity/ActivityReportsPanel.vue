@@ -5,6 +5,7 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 
 import { adminApi } from '../../services/api'
 import type { ActivityReportStatus, AdminActivityReport, AdminActivityReportSummary } from '../../types'
+import { formatDateTime as format } from '../../utils/format'
 
 const props = defineProps<{ preview: boolean; canManage: boolean }>()
 const rows = ref<AdminActivityReport[]>([])
@@ -32,7 +33,6 @@ async function action(type:'start_review'|'resolve'|'reject'){
   saving.value=true
   try{if(props.preview){const item=demoRows.value.find(row=>row.case_no===selected.value?.case_no);if(item){item.status=type==='start_review'?'processing':type==='resolve'?'resolved':'rejected';item.status_label=type==='start_review'?'处理中':type==='resolve'?'已处理':'不予受理';item.result_note=note;item.reviewed_by_name='运营管理员';item.reviewed_at=new Date().toISOString();selected.value={...item}}}else selected.value=await adminApi.reviewActivityReport(selected.value.case_no,type,note);ElMessage.success(type==='start_review'?'已开始处理':'举报处理结果已保存');await load()}catch(error){ElMessage.error(error instanceof Error?error.message:'处理失败')}finally{saving.value=false}
 }
-function format(value:string|null){return value?new Date(value).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):'—'}
 function tag(status:ActivityReportStatus){return status==='pending'?'warning':status==='processing'?'primary':status==='resolved'?'success':'info'}
 onMounted(load)
 </script>
