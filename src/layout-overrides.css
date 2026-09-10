@@ -7,3 +7,53 @@
   scrollbar-color: #d6dfe3 transparent;
   scrollbar-width: thin;
 }
+
+.sidebar nav .nav-group {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar nav .nav-group > span {
+  flex: 1;
+}
+
+.sidebar nav .nav-group:hover {
+  background: #f3fbfb;
+}
+
+/* 二级菜单选中时，一级分组保持默认颜色；仅悬停提供轻量反馈。 */
+.sidebar nav .nav-group.active {
+  color: #252f3d;
+  background: transparent;
+}
+
+.sidebar nav .nav-group.active:hover {
+  background: #f3fbfb;
+}
+
+.sidebar nav .nav-caret {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 180ms ease-out;
+}
+
+.sidebar nav .nav-group.collapsed .nav-caret {
+  transform: rotate(-45deg) translate(-1px, -1px);
+}
+
+.sidebar nav .nav-group:focus-visible {
+  outline: 3px solid rgba(8, 184, 189, .22);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar nav .nav-caret {
+    transition: none;
+  }
+}

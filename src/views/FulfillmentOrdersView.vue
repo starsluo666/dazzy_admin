@@ -47,7 +47,21 @@ const evidenceUrl = ref('')
 const evidenceExpiresIn = ref(0)
 const noteContent = ref('')
 const noteSaving = ref(false)
+const marksCustomerContact = ref(false)
 const reviewSaving = ref(false)
+
+const supportContactDeadlinePassed = computed(() => Boolean(
+  selected.value?.support_contact_deadline_at
+  && Date.parse(selected.value.support_contact_deadline_at) <= Date.now(),
+))
+const canMarkCustomerContact = computed(() => Boolean(
+  selected.value?.status === 'pending_support'
+  && selected.value.provider_rejected_at
+  && selected.value.support_contact_deadline_at
+  && !selected.value.support_contacted_at
+  && !selected.value.provider_rejection_refund
+  && !supportContactDeadlinePassed.value,
+))
 
 const statusLabels: Record<ProviderOrderStatus, string> = {
   pending_payment: '待支付',
@@ -133,6 +147,11 @@ function demoOrder(
     payable_amount: 34600,
     paid_at: iso,
     accepted_at: iso,
+    provider_rejected_at: null,
+    support_contact_deadline_at: null,
+    support_contacted_at: null,
+    support_contacted_by_name: null,
+    provider_rejection_refund: null,
     departed_at: iso,
     arrival_photo_available: true,
     arrival_photo_uploaded_at: iso,
@@ -175,6 +194,11 @@ function demoRows() {
     demoOrder('DZY202608230304', 'pending_review', {
       completion_submitted_at: new Date().toISOString(),
       customer_confirmed_at: new Date().toISOString(),
+    }),
+    demoOrder('DZY202608230305', 'pending_support', {
+      accepted_at: null,
+      provider_rejected_at: new Date(Date.now() - 5 * 60000).toISOString(),
+      support_contact_deadline_at: new Date(Date.now() + 10 * 60000).toISOString(),
     }),
   ]
 }
@@ -273,6 +297,7 @@ async function openDetail(row: AdminProviderOrder) {
   evidenceUrl.value = ''
   evidenceExpiresIn.value = 0
   noteContent.value = ''
+  marksCustomerContact.value = false
   if (props.preview) return
   detailLoading.value = true
   try {
@@ -323,15 +348,31 @@ async function addSupportNote() {
   }
   noteSaving.value = true
   try {
+    const markContact = marksCustomerContact.value && canMarkCustomerContact.value
     const note = props.preview
       ? {
         id: Date.now(), author_name: '运营管理员', organization_name: '乐搭伴运营平台',
         content, created_at: new Date().toISOString(),
       }
-      : await adminApi.addProviderOrderSupportNote(selected.value.order_no, content)
-    selected.value.support_notes = [...selected.value.support_notes, note]
+      : await adminApi.addProviderOrderSupportNote(
+        selected.value.order_no,
+        content,
+        markContact,
+      )
+    if (props.preview) {
+      selected.value.support_notes = [...selected.value.support_notes, note]
+      if (markContact) {
+        selected.value.support_contacted_at = new Date().toISOString()
+        selected.value.support_contacted_by_name = '运营管理员'
+      }
+    } else {
+      const updated = await adminApi.providerOrder(selected.value.order_no)
+      selected.value = updated
+      rows.value = rows.value.map(item => item.order_no === updated.order_no ? updated : item)
+    }
     noteContent.value = ''
-    ElMessage.success('客服备注已添加并记录审计日志')
+    marksCustomerContact.value = false
+    ElMessage.success(markContact ? '已记录有效联系并停止自动退款' : '客服备注已添加并记录审计日志')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '客服备注添加失败')
   } finally {
@@ -419,6 +460,7 @@ onMounted(load)
           <el-option label="缺少集合照" value="missing_evidence" />
           <el-option label="履约时间线缺失" value="timeline_gap" />
           <el-option label="待确认超时" value="confirmation_overdue" />
+          <el-option label="拒单客服超时" value="support_contact_overdue" />
         </el-select>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="page = 1; load()">查询</el-button>
@@ -508,12 +550,26 @@ onMounted(load)
           description="请结合履约时间线和客服备注核查；当前页面不提供直接修改订单状态。"
         />
 
+        <el-alert
+          v-if="selected.provider_rejected_at"
+          class="drawer-alert"
+          :type="selected.support_contacted_at ? 'success' : selected.provider_rejection_refund?.status === 'failed' ? 'error' : 'warning'"
+          :closable="false"
+          show-icon
+          :title="selected.support_contacted_at ? '客服已完成有效联系' : selected.provider_rejection_refund ? `系统退款${selected.provider_rejection_refund.status_label}` : '达人主动拒单，等待客服有效联系'"
+          :description="selected.support_contacted_at ? `${selected.support_contacted_by_name || '客服'}于 ${formatDateTime(selected.support_contacted_at)} 完成登记，自动退款任务已停止。` : selected.provider_rejection_refund ? `退款单 ${selected.provider_rejection_refund.refund_no}，金额 ${formatAmount(selected.provider_rejection_refund.refund_amount)}。${selected.provider_rejection_refund.failure_reason || ''}` : `请在 ${formatDateTime(selected.support_contact_deadline_at)} 前完成有效联系，否则系统自动发起全额退款。`"
+        />
+
         <section class="detail-section order-overview">
           <div><span>服务项目</span><strong>{{ selected.service_name }}</strong></div>
           <div><span>订单金额</span><strong class="amount">{{ formatAmount(selected.payable_amount) }}</strong></div>
           <div><span>服务时间</span><strong>{{ formatServiceTime(selected) }}</strong></div>
           <div><span>服务城市</span><strong>{{ selected.service_city_name }}</strong></div>
           <div v-if="selected.confirmation_expires_at"><span>确认截止</span><strong>{{ formatDateTime(selected.confirmation_expires_at) }}</strong></div>
+          <div v-if="selected.provider_rejected_at"><span>达人拒单时间</span><strong>{{ formatDateTime(selected.provider_rejected_at) }}</strong></div>
+          <div v-if="selected.support_contact_deadline_at"><span>客服联系截止</span><strong>{{ formatDateTime(selected.support_contact_deadline_at) }}</strong></div>
+          <div v-if="selected.support_contacted_at"><span>有效联系记录</span><strong>{{ selected.support_contacted_by_name || '客服' }} · {{ formatDateTime(selected.support_contacted_at) }}</strong></div>
+          <div v-if="selected.provider_rejection_refund"><span>自动退款结果</span><strong>{{ selected.provider_rejection_refund.status_label }} · {{ formatAmount(selected.provider_rejection_refund.refund_amount) }}</strong></div>
           <div class="wide"><span>集合地点</span><strong>{{ [selected.meeting_location_name, selected.meeting_address].filter(Boolean).join('，') }}</strong></div>
         </section>
 
@@ -604,6 +660,13 @@ onMounted(load)
               show-word-limit
               placeholder="记录联系结果、异常核查情况或后续处理建议"
             />
+            <div v-if="selected.provider_rejected_at && !selected.support_contacted_at && !selected.provider_rejection_refund" class="support-contact-choice">
+              <el-checkbox v-model="marksCustomerContact" :disabled="!canMarkCustomerContact">
+                已完成有效联系，停止15分钟自动退款
+              </el-checkbox>
+              <span v-if="supportContactDeadlinePassed">客服联系截止时间已到，系统将按任务状态处理退款</span>
+              <span v-else>仅在已实际联系用户后勾选，操作会写入审计日志</span>
+            </div>
             <div class="note-submit"><span>提交后不可编辑或删除</span><el-button type="primary" :loading="noteSaving" @click="addSupportNote">添加备注</el-button></div>
           </template>
         </section>
@@ -618,4 +681,5 @@ onMounted(load)
 .section-heading{display:flex;align-items:center;justify-content:space-between}.section-heading h3{margin-bottom:16px}
 .review-admin{display:flex;flex-direction:column;gap:9px;margin-bottom:14px;padding:14px;border-radius:8px;background:#f7fbfb}.review-admin>strong{color:#f2a11b;font-size:18px;letter-spacing:1px}.review-admin>strong span{margin-left:10px;color:#273342;font-size:13px;letter-spacing:0}.review-admin>small{color:var(--muted);font-size:12px}.review-admin>p{margin:0;color:#3f4958;font-size:13px;line-height:1.65}.review-images{display:grid;grid-template-columns:repeat(3,88px);gap:8px;margin-top:3px}.review-images :deep(.el-image){width:88px;height:88px;border-radius:7px;background:#eaf0f1}
 .after-sales-list{display:flex;flex-direction:column;gap:8px}.after-sales-list article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #e8ecef;border-radius:7px;background:#fbfcfc}.after-sales-list article>div{display:flex;align-items:flex-end;gap:8px}.after-sales-list article>div:first-child{min-width:0;flex-direction:column;align-items:flex-start;gap:4px}.after-sales-list strong{font-size:13px}.after-sales-list span{color:var(--muted);font-size:11px}.after-sales-list b{color:var(--orange);font-size:13px}.after-sales-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+.support-contact-choice{display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:10px 12px;border-radius:7px;background:#fff8e8}.support-contact-choice>span{color:var(--muted);font-size:11px}
 </style>

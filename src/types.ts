@@ -95,6 +95,7 @@ export interface AdminAuditLog {
 export type ScheduledTaskType =
   | 'provider_order_payment_expiry'
   | 'provider_acceptance_timeout'
+  | 'provider_rejection_support_timeout'
   | 'provider_order_confirmation_timeout'
   | 'provider_order_settlement'
   | 'provider_order_refund'
@@ -708,6 +709,7 @@ export type FulfillmentAnomalyFilter =
   | 'missing_evidence'
   | 'timeline_gap'
   | 'confirmation_overdue'
+  | 'support_contact_overdue'
 
 export interface FulfillmentAnomaly {
   code: Exclude<FulfillmentAnomalyFilter, 'all' | 'any'>
@@ -940,6 +942,19 @@ export interface AdminProviderOrder {
   payable_amount: number
   paid_at: string | null
   accepted_at: string | null
+  provider_rejected_at: string | null
+  support_contact_deadline_at: string | null
+  support_contacted_at: string | null
+  support_contacted_by_name: string | null
+  provider_rejection_refund: null | {
+    refund_no: string
+    status: ProviderRefundStatus
+    status_label: string
+    refund_amount: number
+    failure_reason: string
+    requested_at: string
+    refunded_at: string | null
+  }
   departed_at: string | null
   arrival_photo_available: boolean
   arrival_photo_uploaded_at: string | null

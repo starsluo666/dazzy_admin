@@ -680,10 +680,11 @@ onMounted(() => {
 .flow-track :deep(.flow-rule-card .rule-title) { gap: 7px; font-size: 12px; }
 .flow-track :deep(.flow-rule-card .rule-title .el-icon) { font-size: 17px; }
 .flow-track :deep(.flow-rule-card .rule-value) { gap: 7px; margin-top: 9px; }
-.flow-track :deep(.flow-rule-card .rule-value .el-input-number) { width: 104px; }
+.flow-track :deep(.flow-rule-card .rule-value .el-input-number) { width: 118px; }
 .flow-track :deep(.flow-rule-card small) { margin-top: 8px; font-size: 9px; }
 .dual-rule-card {
-  flex: 0 0 197px;
+  box-sizing: border-box;
+  flex: 0 0 236px;
   min-height: 126px;
   padding: 12px 13px;
   border: 1px solid var(--settings-accent);
@@ -693,9 +694,9 @@ onMounted(() => {
 .dual-rule-card.selected { background: #f6fdfd; box-shadow: 0 7px 18px rgb(8 184 189 / 8%); }
 .dual-rule-card > strong { display: flex; align-items: center; gap: 7px; font-size: 12px; }
 .dual-rule-card > strong .el-icon { color: #08aeb4; font-size: 17px; }
-.dual-rule-card label { display: grid; grid-template-columns: 48px 89px 24px; align-items: center; gap: 4px; margin-top: 8px; color: #656f7c; font-size: 9px; cursor: pointer; }
-.dual-rule-card :deep(.el-input-number) { width: 89px; }
-.dual-rule-card :deep(.el-input__wrapper) { padding: 0 22px 0 5px; }
+.dual-rule-card label { display: grid; grid-template-columns: 48px 118px 24px; align-items: center; gap: 5px; margin-top: 8px; color: #656f7c; font-size: 9px; cursor: pointer; }
+.dual-rule-card :deep(.el-input-number) { width: 118px; }
+.dual-rule-card :deep(.el-input__inner) { font-size: 14px; }
 .dual-rule-card em { color: #434d59; font-style: normal; }
 .rule-list-view { flex: 1; padding: 18px; }
 .rule-list-view > header { display: flex; align-items: center; justify-content: space-between; min-height: 46px; }

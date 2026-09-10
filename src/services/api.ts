@@ -593,10 +593,17 @@ export const adminApi = {
     request<{ url: string; expires_in: number }>(
       `/admin/provider-orders/${encodeURIComponent(orderNo)}/evidence/`,
     ),
-  addProviderOrderSupportNote: (orderNo: string, content: string) =>
+  addProviderOrderSupportNote: (
+    orderNo: string,
+    content: string,
+    marksCustomerContact = false,
+  ) =>
     request<ProviderOrderSupportNote>(
       `/admin/provider-orders/${encodeURIComponent(orderNo)}/support-notes/`,
-      { method: 'POST', body: JSON.stringify({ content }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ content, marks_customer_contact: marksCustomerContact }),
+      },
     ),
   moderateProviderOrderReview: (
     orderNo: string,

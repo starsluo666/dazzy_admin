@@ -33,6 +33,7 @@ const summary = ref<ScheduledTaskSummary>({
 const taskTypes = ref<Array<{ value: ScheduledTaskType; label: string }>>([
   { value: 'provider_order_payment_expiry', label: '达人订单支付超时' },
   { value: 'provider_acceptance_timeout', label: '达人接单超时' },
+  { value: 'provider_rejection_support_timeout', label: '达人拒单客服处理超时' },
   { value: 'provider_order_confirmation_timeout', label: '达人订单确认超时' },
   { value: 'provider_order_settlement', label: '达人订单资金结算' },
   { value: 'provider_order_refund', label: '达人订单退款' },
@@ -110,6 +111,7 @@ function demoRows() {
   return [
     demoTask('10000000-0000-0000-0000-000000000001', 'provider_order_payment_expiry', 'pending', 'DZY202609010001', 8),
     demoTask('10000000-0000-0000-0000-000000000002', 'provider_acceptance_timeout', 'running', 'DZY202609010002', -1),
+    demoTask('10000000-0000-0000-0000-000000000008', 'provider_rejection_support_timeout', 'pending', 'DZY202609010008', 10),
     demoTask('10000000-0000-0000-0000-000000000003', 'provider_order_payment_expiry', 'succeeded', 'DZY202609010003', -15),
     demoTask('10000000-0000-0000-0000-000000000004', 'provider_acceptance_timeout', 'failed', 'DZY202609010004', -10),
     demoTask('10000000-0000-0000-0000-000000000005', 'provider_order_confirmation_timeout', 'pending', 'DZY202609010005', 60),

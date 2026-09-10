@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
 import { isAdminPage } from '../navigation'
 import type { AdminMe, AdminPage } from '../types'
@@ -7,31 +7,44 @@ import type { AdminMe, AdminPage } from '../types'
 const props = defineProps<{ active: AdminPage; session: AdminMe | null }>()
 const emit = defineEmits<{ navigate: [page: AdminPage]; logout: [] }>()
 
+interface NavigationItem {
+  key: string
+  label: string
+  icon: Component
+  group?: boolean
+  child?: boolean
+  parent?: string
+  enabled?: boolean
+  visible?: boolean
+}
+
+const collapsedGroups = ref<Set<string>>(new Set())
+
 const can = (permission: string) => Boolean(
   props.session?.permissions?.includes('*') || props.session?.permissions?.includes(permission),
 )
-const navigation = computed(() => [
+const navigation = computed<NavigationItem[]>(() => [
   { key: 'dashboard', label: '运营总览', icon: DataAnalysis, enabled: can('dashboard.view') },
   { key: 'users-group', label: '用户管理', icon: User, group: true, visible: can('user.view') },
-  { key: 'users', label: '用户列表', icon: List, child: true, enabled: can('user.view'), visible: can('user.view') },
+  { key: 'users', label: '用户列表', icon: List, child: true, parent: 'users-group', enabled: can('user.view'), visible: can('user.view') },
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
-  { key: 'providers', label: '达人列表', icon: List, child: true, enabled: can('provider.view'), visible: can('provider.view') },
-  { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, enabled: can('provider.review'), visible: can('provider.review') },
+  { key: 'providers', label: '达人列表', icon: List, child: true, parent: 'providers-group', enabled: can('provider.view'), visible: can('provider.view') },
+  { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, parent: 'providers-group', enabled: can('provider.review'), visible: can('provider.review') },
   { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('operations.manage') },
-  { key: 'services', label: '服务分类', icon: Grid, child: true, enabled: can('service_category.view'), visible: can('service_category.view') },
-  { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, enabled: can('operations.manage'), visible: can('operations.manage') },
-  { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, enabled: can('operations.manage'), visible: can('operations.manage') },
+  { key: 'services', label: '服务分类', icon: Grid, child: true, parent: 'operations-group', enabled: can('service_category.view'), visible: can('service_category.view') },
+  { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
+  { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'activities', label: '活动管理', icon: Calendar, enabled: can('activity.view'), visible: can('activity.view') },
   { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') || can('order.finance.view') },
-  { key: 'orders', label: '达人订单', icon: List, child: true, enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
-  { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
-  { key: 'settlements', label: '交易与结算', icon: Coin, child: true, enabled: can('order.finance.view'), visible: can('order.finance.view') },
+  { key: 'orders', label: '达人订单', icon: List, child: true, parent: 'orders-group', enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
+  { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
+  { key: 'settlements', label: '交易与结算', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
   { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') },
-  { key: 'support_cases', label: '客服工单', icon: List, child: true, enabled: can('support.case.view'), visible: can('support.case.view') },
+  { key: 'support_cases', label: '客服工单', icon: List, child: true, parent: 'support-group', enabled: can('support.case.view'), visible: can('support.case.view') },
   { key: 'system-group', label: '系统管理', icon: Setting, group: true, visible: can('organization.manage') || can('system.task.view') || can('audit.view') },
-  { key: 'system', label: '账号与权限', icon: UserFilled, child: true, enabled: can('organization.manage'), visible: can('organization.manage') },
-  { key: 'tasks', label: '任务中心', icon: Timer, child: true, enabled: can('system.task.view'), visible: can('system.task.view') },
-  { key: 'audit_logs', label: '操作审计', icon: Notebook, child: true, enabled: can('audit.view'), visible: can('audit.view') },
+  { key: 'system', label: '账号与权限', icon: UserFilled, child: true, parent: 'system-group', enabled: can('organization.manage'), visible: can('organization.manage') },
+  { key: 'tasks', label: '任务中心', icon: Timer, child: true, parent: 'system-group', enabled: can('system.task.view'), visible: can('system.task.view') },
+  { key: 'audit_logs', label: '操作审计', icon: Notebook, child: true, parent: 'system-group', enabled: can('audit.view'), visible: can('audit.view') },
 ].filter((item) => item.visible !== false))
 const scopeLabel = computed(() => props.session?.data_scope === 'all'
   ? '全部数据'
@@ -58,6 +71,18 @@ const pageLabels: Record<AdminPage, string> = {
 function navigate(key: string, enabled: boolean) {
   if (enabled && isAdminPage(key)) emit('navigate', key)
 }
+function toggleGroup(key: string) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsedGroups.value = next
+}
+function groupExpanded(key: string) {
+  return !collapsedGroups.value.has(key)
+}
+function childVisible(parent?: string) {
+  return !parent || groupExpanded(parent)
+}
 function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
@@ -74,11 +99,18 @@ function groupActive(key: string) {
       <div class="brand"><div class="brand-symbol">乐</div><div><strong>乐搭伴</strong><span>运营平台</span></div></div>
       <nav>
         <template v-for="item in navigation" :key="item.key">
-          <div v-if="item.group" class="nav-group" :class="{ active: groupActive(item.key) }">
-            <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span>
-          </div>
           <button
-            v-else
+            v-if="item.group"
+            class="nav-group"
+            :class="{ active: groupActive(item.key), collapsed: !groupExpanded(item.key) }"
+            :aria-expanded="groupExpanded(item.key)"
+            :aria-label="`${item.label}，${groupExpanded(item.key) ? '点击收起' : '点击展开'}`"
+            @click="toggleGroup(item.key)"
+          >
+            <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span><i class="nav-caret" />
+          </button>
+          <button
+            v-else-if="childVisible(item.parent)"
             :class="{ active: active === item.key, child: item.child, disabled: !item.enabled }"
             :disabled="!item.enabled"
             @click="navigate(item.key, Boolean(item.enabled))"
