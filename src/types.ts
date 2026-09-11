@@ -339,8 +339,6 @@ export interface AdminActivity {
   organizer_public_id: string
   organizer_name: string
   organizer_phone_masked: string
-  organizer_verification_status: VerificationStatus
-  organizer_verification_status_label: string
   organizer_account_status: AccountStatus
   organizer_account_status_label: string
   cover_url: string | null
@@ -492,6 +490,7 @@ export interface AdminServiceCategoryMutation {
 
 export type ProviderApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected'
+export type ProviderIdentityStatus = VerificationStatus
 export type Gender = 'unspecified' | 'male' | 'female'
 export type AccountStatus = 'active' | 'restricted' | 'suspended' | 'closed'
 export type UserRiskLevel = 'low' | 'medium' | 'high'
@@ -549,8 +548,6 @@ export interface AdminUser {
   gender: Gender
   gender_label: string
   birth_date: string | null
-  verification_status: VerificationStatus
-  verification_status_label: string
   account_status: AccountStatus
   account_status_label: string
   identity: 'user' | 'provider'
@@ -568,7 +565,6 @@ export interface AdminUser {
 
 export interface AdminUserSummary {
   total: number
-  verified: number
   providers: number
   flagged: number
   suspended: number
@@ -579,7 +575,6 @@ export interface ProviderApplication {
   public_id: string
   nickname: string
   phone: string
-  verification_status: VerificationStatus
   gender: Gender
   birth_date: string | null
   status: ProviderApplicationStatus
@@ -642,8 +637,8 @@ export interface AdminProvider {
   gender: Gender
   gender_label: string
   birth_date: string | null
-  verification_status: VerificationStatus
-  verification_status_label: string
+  identity_status: ProviderIdentityStatus
+  identity_status_label: string
   account_status: AccountStatus
   account_status_label: string
   status: ProviderApplicationStatus
@@ -676,6 +671,15 @@ export interface AdminProvider {
   submitted_at: string | null
   reviewed_at: string | null
   rejection_reason: string
+  identity_real_name: string
+  identity_number_masked: string
+  identity_front_photo_url: string | null
+  identity_back_photo_url: string | null
+  identity_face_photo_url: string | null
+  identity_submitted_at: string | null
+  identity_reviewed_at: string | null
+  identity_rejection_reason: string
+  is_profile_complete: boolean
   created_at: string
   updated_at: string
 }

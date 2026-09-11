@@ -87,7 +87,7 @@ async function load() {
       metrics.value = demoMetrics
       trendPoints.value = demoTrend(trendDays.value)
       todos.value = [
-        { key: 'provider_review', label: '达人实名认证', count: 24, priority: 'high' },
+        { key: 'provider_review', label: '达人入驻申请', count: 24, priority: 'high' },
         { key: 'activity_review', label: '活动发布审核', count: 18, priority: 'medium' },
         { key: 'refund', label: '退款人工复核', count: 9, priority: 'high' },
         { key: 'report', label: '违规举报', count: 7, priority: 'medium' },

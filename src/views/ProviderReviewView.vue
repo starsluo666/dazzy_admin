@@ -7,7 +7,6 @@ import type {
   Gender,
   ProviderApplication,
   ProviderApplicationStatus,
-  VerificationStatus,
 } from '../types'
 
 const props = defineProps<{ preview: boolean }>()
@@ -16,7 +15,6 @@ const rows = ref<ProviderApplication[]>([])
 const selected = ref<ProviderApplication | null>(null)
 const statusFilter = ref<ProviderApplicationStatus>('pending')
 const cityFilter = ref('')
-const verificationFilter = ref<VerificationStatus | ''>('')
 const search = ref('')
 const page = ref(1)
 const pageSize = 10
@@ -30,13 +28,6 @@ const statusTabs: Array<{ value: ProviderApplicationStatus; label: string }> = [
   { value: 'rejected', label: '已驳回' },
   { value: 'suspended', label: '已暂停' },
 ]
-
-const verificationLabels: Record<VerificationStatus, string> = {
-  unverified: '未实名',
-  pending: '认证中',
-  verified: '已实名',
-  rejected: '认证未通过',
-}
 
 const statusLabels: Record<ProviderApplicationStatus, string> = {
   draft: '草稿',
@@ -66,15 +57,6 @@ const selectedAge = computed(() => {
   ) age -= 1
   return age
 })
-const canApprove = computed(() =>
-  selected.value?.verification_status === 'verified'
-  && Boolean(props.preview || selected.value?.lifestyle_photo_url),
-)
-
-function verificationLabel(value: VerificationStatus) {
-  return verificationLabels[value]
-}
-
 function demoRows(): ProviderApplication[] {
   const names = ['林晓晓', '陈宇航', '王一然', '张子墨', '李思思', '赵天宇', '刘雨桐', '孙佳怡']
   return names.map((nickname, index) => ({
@@ -82,7 +64,6 @@ function demoRows(): ProviderApplication[] {
     public_id: String(index),
     nickname,
     phone: `1380000${String(6688 + index).slice(-4)}`,
-    verification_status: index === 4 ? 'unverified' : 'verified',
     gender: index % 2 ? 'male' : 'female',
     birth_date: index % 2 ? '1998-06-18' : '2000-03-12',
     status: 'pending',
@@ -111,7 +92,6 @@ async function load() {
     const data = await adminApi.providers({
       status: statusFilter.value,
       city_code: cityFilter.value,
-      verification_status: verificationFilter.value,
       search: search.value.trim(),
       page: page.value,
       page_size: pageSize,
@@ -141,17 +121,12 @@ function changeStatus(value: ProviderApplicationStatus) {
 function resetFilters() {
   search.value = ''
   cityFilter.value = ''
-  verificationFilter.value = ''
   page.value = 1
   load()
 }
 
 async function review(decision: 'approve' | 'reject') {
   if (!selected.value || reviewing.value) return
-  if (decision === 'approve' && !canApprove.value) {
-    ElMessage.warning('请确认实名认证和生活照均已完成')
-    return
-  }
   let reason = ''
   if (decision === 'reject') {
     try {
@@ -200,7 +175,7 @@ onMounted(load)
       <div class="review-heading">
         <p>达人管理　/　<strong>达人审核</strong></p>
         <h1>达人审核</h1>
-        <span>审核达人身份状态、生活照、服务城市和基础申请资料</span>
+        <span>审核达人入驻意向；通过后申请人进入达人端完成实名与正式资料</span>
       </div>
 
       <div class="review-tabs">
@@ -221,13 +196,6 @@ onMounted(load)
           <el-option label="邯郸市" value="130400" />
           <el-option label="北京市" value="110100" />
           <el-option label="上海市" value="310100" />
-        </el-select>
-        <el-select v-model="verificationFilter" placeholder="实名认证状态">
-          <el-option label="全部状态" value="" />
-          <el-option label="已实名" value="verified" />
-          <el-option label="认证中" value="pending" />
-          <el-option label="未实名" value="unverified" />
-          <el-option label="认证未通过" value="rejected" />
         </el-select>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="page = 1; load()">查询</el-button>
@@ -258,16 +226,6 @@ onMounted(load)
         <el-table-column label="服务配置" min-width="150">
           <template #default="scope">
             {{ scope.row.service_names.join(' / ') || '审核通过后配置' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="实名认证" width="105">
-          <template #default="scope">
-            <el-tag
-              :type="scope.row.verification_status === 'verified' ? 'success' : 'warning'"
-              effect="plain"
-            >
-              {{ verificationLabel(scope.row.verification_status) }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="提交时间" width="150">
@@ -306,12 +264,6 @@ onMounted(load)
         <div>
           <strong>{{ selected.nickname }}</strong>
           <span>{{ selectedAge == null ? '生日未填写' : `${selectedAge}岁` }}　·　{{ genderLabels[selected.gender] }}</span>
-          <el-tag
-            :type="selected.verification_status === 'verified' ? 'success' : 'warning'"
-            effect="plain"
-          >
-            {{ verificationLabel(selected.verification_status) }}
-          </el-tag>
           <p>{{ maskedPhone }}　｜　提交时间：{{ selected.submitted_at?.slice(0, 16).replace('T', ' ') || '—' }}</p>
         </div>
       </div>
@@ -319,21 +271,9 @@ onMounted(load)
       <div class="steps">
         <span>✓<b>提交申请</b></span><i />
         <span :class="{ current: selected.status === 'pending' }">2<b>平台审核</b></span><i />
-        <span :class="{ current: selected.status !== 'pending' }">3<b>{{ statusLabels[selected.status] }}</b></span>
+        <span :class="{ current: selected.status !== 'pending' }">3<b>{{ statusLabels[selected.status] }}</b></span><i />
+        <span>4<b>达人端认证</b></span>
       </div>
-
-      <section>
-        <h3>生活照</h3>
-        <el-image
-          v-if="selected.lifestyle_photo_url"
-          class="lifestyle-photo"
-          :src="selected.lifestyle_photo_url"
-          :preview-src-list="[selected.lifestyle_photo_url]"
-          fit="cover"
-          preview-teleported
-        />
-        <div v-else class="photo-missing">申请人尚未上传生活照</div>
-      </section>
 
       <section>
         <h3>基本资料</h3>
@@ -357,21 +297,14 @@ onMounted(load)
       <section>
         <h3>审核检查</h3>
         <div class="check-row">
-          <span>实名认证</span>
-          <el-tag :type="canApprove ? 'success' : 'danger'" effect="plain">
-            {{ canApprove ? '已完成' : '未完成，禁止通过' }}
-          </el-tag>
+          <span>入驻意向</span>
+          <el-tag type="success" effect="plain">基础资料已提交</el-tag>
         </div>
         <div class="check-row">
           <span>申请资料</span>
           <el-tag type="success" effect="plain">已提交</el-tag>
         </div>
-        <div class="check-row">
-          <span>生活照</span>
-          <el-tag :type="selected.lifestyle_photo_url || props.preview ? 'success' : 'danger'" effect="plain">
-            {{ selected.lifestyle_photo_url || props.preview ? '已上传' : '未上传，禁止通过' }}
-          </el-tag>
-        </div>
+        <div class="check-row"><span>实名认证与生活照</span><el-tag type="info" effect="plain">初审通过后在达人端完成</el-tag></div>
       </section>
 
       <section v-if="selected.status === 'rejected' && selected.rejection_reason">
@@ -382,7 +315,7 @@ onMounted(load)
       <footer v-if="selected.status === 'pending'">
         <span>操作将记录至审计日志</span>
         <el-button class="reject" :loading="reviewing" @click="review('reject')">驳回申请</el-button>
-        <el-button type="primary" :loading="reviewing" :disabled="!canApprove" @click="review('approve')">
+        <el-button type="primary" :loading="reviewing" @click="review('approve')">
           通过审核
         </el-button>
       </footer>

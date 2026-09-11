@@ -230,7 +230,6 @@ function requestLatest<T>(key: string, path: string, options: RequestInit = {}):
 export interface ProviderApplicationQuery {
   status: ProviderApplicationStatus
   city_code?: string
-  verification_status?: VerificationStatus | ''
   search?: string
   page?: number
   page_size?: number
@@ -247,7 +246,6 @@ export interface ProviderOrderQuery {
 }
 
 export interface AdminUserQuery {
-  verification_status?: VerificationStatus | ''
   account_status?: AccountStatus | ''
   identity?: 'all' | 'provider' | 'user'
   risk?: 'all' | 'flagged' | 'unflagged'
@@ -260,7 +258,7 @@ export interface AdminProviderQuery {
   status?: ProviderApplicationStatus | ''
   accepting?: 'all' | 'accepting' | 'paused' | 'restricted'
   city_code?: string
-  verification_status?: VerificationStatus | ''
+  identity_status?: VerificationStatus | ''
   search?: string
   page?: number
   page_size?: number
@@ -537,6 +535,11 @@ export const adminApi = {
   },
   reviewProvider: (id: number, decision: 'approve' | 'reject', reason = '') =>
     request<ProviderApplication>(`/admin/provider-applications/${id}/review/`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+    }),
+  reviewProviderIdentity: (id: number, decision: 'approve' | 'reject', reason = '') =>
+    request<AdminProvider>(`/admin/providers/${id}/identity-review/`, {
       method: 'POST',
       body: JSON.stringify({ decision, reason }),
     }),

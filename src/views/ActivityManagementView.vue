@@ -96,7 +96,6 @@ function demoActivity(
     category_slug: category === '桌球' ? 'billiards' : 'board-games',
     organizer_public_id: `00000000-0000-4000-8000-${String(id).padStart(12, '0')}`,
     organizer_name: organizer, organizer_phone_masked: `188****${String(6600 + id)}`,
-    organizer_verification_status: 'verified', organizer_verification_status_label: '已认证',
     organizer_account_status: 'active', organizer_account_status_label: '正常',
     cover_url: null, city_code: '130400', city_name: '邯郸市', starts_at: future(days),
     ends_at: future(days, 22), formation_deadline: future(Math.max(1, days - 1), 18),
@@ -394,7 +393,7 @@ onMounted(load)
 
         <section class="detail-card organizer-card">
           <header><h3>发起人与资质</h3></header>
-          <div class="organizer-profile"><el-avatar :size="44"><UserFilled /></el-avatar><div><strong>{{ selected.organizer_name }}</strong><span>{{ selected.organizer_phone_masked }}</span></div><el-tag type="success" effect="plain">{{ selected.organizer_verification_status_label }}</el-tag><el-tag effect="plain">账号{{ selected.organizer_account_status_label }}</el-tag></div>
+          <div class="organizer-profile"><el-avatar :size="44"><UserFilled /></el-avatar><div><strong>{{ selected.organizer_name }}</strong><span>{{ selected.organizer_phone_masked }}</span></div><el-tag effect="plain">账号{{ selected.organizer_account_status_label }}</el-tag></div>
         </section>
 
         <section class="detail-grid">
