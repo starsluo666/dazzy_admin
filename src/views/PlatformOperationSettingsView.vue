@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { UploadRequestOptions } from 'element-plus'
 import {
   ArrowRight,
   Calendar,
@@ -22,7 +23,7 @@ import { adminApi } from '../services/api'
 import type { AdminAuditLog, PlatformOperationSetting } from '../types'
 import { formatDateTime } from '../utils/format'
 
-type FieldKey = Exclude<keyof PlatformOperationSetting, 'updated_at'>
+type FieldKey = Exclude<keyof PlatformOperationSetting, 'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url'>
 type GroupKey = 'all' | 'provider' | 'activity' | 'settlement'
 type ViewMode = 'flow' | 'list'
 
@@ -45,6 +46,11 @@ const defaults: Record<FieldKey, number> = {
   provider_order_confirmation_timeout_days: 3,
   provider_order_settlement_freeze_days: 1,
   activity_payment_timeout_minutes: 30,
+  activity_service_fee_rate: 10,
+  activity_min_capacity: 2,
+  activity_max_capacity: 100,
+  activity_min_aa_principal_amount: 0.01,
+  activity_max_aa_principal_amount: 100000,
   activity_minimum_advance_hours: 48,
   activity_maximum_advance_days: 30,
   activity_settlement_confirmation_hours: 24,
@@ -90,6 +96,39 @@ const rules: RuleDefinition[] = [
     impact: '达人收入、平台抽成',
     scope: '新生成的达人订单结算单',
     risk: '冻结期过短会压缩退款售后的风险处理窗口。',
+  },
+  {
+    key: 'activity_service_fee_rate',
+    group: 'activity',
+    label: '活动服务费率',
+    unit: '%',
+    min: 0,
+    max: 100,
+    step: 0.5,
+    help: '同时作用于发起人发布支付和参与者报名支付',
+    impact: '活动发起人、活动参与者、活动退款与结算',
+    scope: '新创建活动，创建后按活动快照保持不变',
+    risk: '调整费率会直接影响新活动双方的支付金额。',
+  },
+  {
+    key: 'activity_min_capacity', group: 'activity', label: '活动最少人数', unit: '人',
+    min: 2, max: 100, step: 1, help: '发布活动时允许设置的人数下限',
+    impact: '新建活动', scope: '新提交的活动', risk: '下限过高会限制小型活动发布。',
+  },
+  {
+    key: 'activity_max_capacity', group: 'activity', label: '活动最多人数', unit: '人',
+    min: 2, max: 100, step: 1, help: '发布活动时允许设置的人数上限',
+    impact: '新建活动', scope: '新提交的活动', risk: '上限过高会增加组织与履约风险。',
+  },
+  {
+    key: 'activity_min_aa_principal_amount', group: 'activity', label: '最低AA本金', unit: '元',
+    min: 0.01, max: 100000, step: 1, help: '单人AA本金的全局下限',
+    impact: '活动发布与双方支付', scope: '新提交的活动', risk: '该金额不包含平台服务费。',
+  },
+  {
+    key: 'activity_max_aa_principal_amount', group: 'activity', label: '最高AA本金', unit: '元',
+    min: 0.01, max: 100000, step: 1, help: '单人AA本金的全局上限',
+    impact: '活动发布与双方支付', scope: '新提交的活动', risk: '大额活动需要更强的审核和售后能力。',
   },
   {
     key: 'activity_minimum_advance_hours',
@@ -166,6 +205,11 @@ const viewMode = ref<ViewMode>('flow')
 const activeGroup = ref<GroupKey>('all')
 const selectedRuleKey = ref<FieldKey>('activity_settlement_risk_freeze_days')
 const recentAudits = ref<AdminAuditLog[]>([])
+const defaultCoverId = ref<string | null>(null)
+const defaultCoverUrl = ref<string | null>(null)
+const savedDefaultCoverId = ref<string | null>(null)
+const savedDefaultCoverUrl = ref<string | null>(null)
+const coverUploading = ref(false)
 const form = reactive<Record<FieldKey, number>>({ ...defaults })
 const savedSnapshot = reactive<Record<FieldKey, number>>({ ...defaults })
 
@@ -173,7 +217,7 @@ const selectedRule = computed(() => rules.find((rule) => rule.key === selectedRu
 const filteredRules = computed(() => activeGroup.value === 'all'
   ? rules
   : rules.filter((rule) => rule.group === activeGroup.value))
-const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnapshot[rule.key]))
+const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnapshot[rule.key]) || defaultCoverId.value !== savedDefaultCoverId.value)
 const showProvider = computed(() => activeGroup.value === 'all' || activeGroup.value === 'provider')
 const showActivity = computed(() => activeGroup.value === 'all' || activeGroup.value === 'activity')
 const showSettlement = computed(() => activeGroup.value === 'all' || activeGroup.value === 'settlement')
@@ -199,6 +243,18 @@ function updateRule(key: FieldKey, value: number) {
   selectRule(key)
 }
 
+function toFormValue(key: FieldKey, value: number) {
+  if (key === 'activity_service_fee_rate') return value * 100
+  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount') return value / 100
+  return value
+}
+
+function toApiValue(key: FieldKey, value: number) {
+  if (key === 'activity_service_fee_rate') return value / 100
+  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount') return Math.round(value * 100)
+  return value
+}
+
 function restoreDefaults() {
   Object.assign(form, defaults)
   ElMessage.success('已恢复推荐默认值，发布后生效')
@@ -206,13 +262,33 @@ function restoreDefaults() {
 
 function cancelChanges() {
   Object.assign(form, savedSnapshot)
+  defaultCoverId.value = savedDefaultCoverId.value
+  defaultCoverUrl.value = savedDefaultCoverUrl.value
   ElMessage.info('已撤销本次未发布修改')
 }
 
 function auditDescription(log: AdminAuditLog) {
   const rule = rules.find((item) => log.before?.[item.key] !== log.after?.[item.key])
   if (!rule) return '更新平台参数'
-  return `修改 ${rule.label}：${log.before?.[rule.key]}${rule.unit} → ${log.after?.[rule.key]}${rule.unit}`
+  const before = toFormValue(rule.key, Number(log.before?.[rule.key]))
+  const after = toFormValue(rule.key, Number(log.after?.[rule.key]))
+  return `修改 ${rule.label}：${before}${rule.unit} → ${after}${rule.unit}`
+}
+
+async function uploadDefaultCover(options: UploadRequestOptions) {
+  coverUploading.value = true
+  try {
+    const uploaded = await adminApi.uploadActivityCover(options.file)
+    defaultCoverId.value = uploaded.id
+    defaultCoverUrl.value = uploaded.url
+    options.onSuccess(uploaded)
+    ElMessage.success('默认封面已上传，发布配置后生效')
+  } catch (error) {
+    options.onError(error as never)
+    ElMessage.error(error instanceof Error ? error.message : '默认封面上传失败')
+  } finally {
+    coverUploading.value = false
+  }
 }
 
 async function loadRecentAudits() {
@@ -234,9 +310,13 @@ async function load() {
   try {
     const data = await adminApi.platformOperationSetting()
     for (const rule of rules) {
-      form[rule.key] = data[rule.key]
-      savedSnapshot[rule.key] = data[rule.key]
+      form[rule.key] = toFormValue(rule.key, data[rule.key])
+      savedSnapshot[rule.key] = form[rule.key]
     }
+    defaultCoverId.value = data.default_activity_cover_id
+    savedDefaultCoverId.value = data.default_activity_cover_id
+    defaultCoverUrl.value = data.default_activity_cover_url
+    savedDefaultCoverUrl.value = data.default_activity_cover_url
     updatedAt.value = data.updated_at
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '平台参数加载失败')
@@ -248,11 +328,19 @@ async function load() {
 async function save() {
   saving.value = true
   try {
-    const data = await adminApi.updatePlatformOperationSetting({ ...form })
+    const payload = Object.fromEntries(
+      rules.map((rule) => [rule.key, toApiValue(rule.key, form[rule.key])]),
+    ) as Partial<PlatformOperationSetting>
+    payload.default_activity_cover_id = defaultCoverId.value
+    const data = await adminApi.updatePlatformOperationSetting(payload)
     for (const rule of rules) {
-      form[rule.key] = data[rule.key]
-      savedSnapshot[rule.key] = data[rule.key]
+      form[rule.key] = toFormValue(rule.key, data[rule.key])
+      savedSnapshot[rule.key] = form[rule.key]
     }
+    defaultCoverId.value = data.default_activity_cover_id
+    savedDefaultCoverId.value = data.default_activity_cover_id
+    defaultCoverUrl.value = data.default_activity_cover_url
+    savedDefaultCoverUrl.value = data.default_activity_cover_url
     updatedAt.value = data.updated_at
     await loadRecentAudits()
     ElMessage.success('平台参数已发布并写入审计日志')
@@ -293,16 +381,16 @@ onMounted(() => {
           </header>
           <nav>
             <button :class="{ active: activeGroup === 'all' }" @click="selectGroup('all')">
-              <span><el-icon><Flag /></el-icon>全部参数</span><b>7 项</b>
+              <span><el-icon><Flag /></el-icon>全部参数</span><b>{{ rules.length }} 项</b>
             </button>
             <button :class="{ active: activeGroup === 'provider' }" @click="selectGroup('provider')">
-              <span><el-icon><UserFilled /></el-icon>达人订单</span><b>2 项</b>
+              <span><el-icon><UserFilled /></el-icon>达人订单</span><b>{{ rules.filter((item) => item.group === 'provider').length }} 项</b>
             </button>
             <button :class="{ active: activeGroup === 'activity' }" @click="selectGroup('activity')">
-              <span><el-icon><Calendar /></el-icon>活动发布</span><b>3 项</b>
+              <span><el-icon><Calendar /></el-icon>活动发布</span><b>{{ rules.filter((item) => item.group === 'activity').length }} 项</b>
             </button>
             <button :class="{ active: activeGroup === 'settlement' }" @click="selectGroup('settlement')">
-              <span><el-icon><Wallet /></el-icon>活动结算</span><b>2 项</b>
+              <span><el-icon><Wallet /></el-icon>活动结算</span><b>{{ rules.filter((item) => item.group === 'settlement').length }} 项</b>
             </button>
           </nav>
           <div class="save-state" :class="{ dirty: isDirty }">
@@ -373,6 +461,20 @@ onMounted(() => {
               <div class="flow-track activity-track">
                 <div class="stage-node"><el-icon><Calendar /></el-icon><strong>发布活动</strong><small>提交活动信息</small></div>
                 <el-icon class="flow-arrow"><ArrowRight /></el-icon>
+                <FlowRuleCard
+                  label="活动服务费率"
+                  :model-value="form.activity_service_fee_rate"
+                  unit="%"
+                  :min="0"
+                  :max="100"
+                  :step="0.5"
+                  help="发布支付与报名支付共用"
+                  :icon="Money"
+                  :selected="selectedRuleKey === 'activity_service_fee_rate'"
+                  @update:model-value="updateRule('activity_service_fee_rate', $event)"
+                  @select="selectRule('activity_service_fee_rate')"
+                />
+                <el-icon class="flow-arrow"><ArrowRight /></el-icon>
                 <article
                   class="dual-rule-card"
                   :class="{ selected: selectedRuleKey === 'activity_minimum_advance_hours' || selectedRuleKey === 'activity_maximum_advance_days' }"
@@ -418,6 +520,23 @@ onMounted(() => {
                   @update:model-value="updateRule('activity_payment_timeout_minutes', $event)"
                   @select="selectRule('activity_payment_timeout_minutes')"
                 />
+              </div>
+              <div class="activity-publish-settings">
+                <section class="default-cover-setting">
+                  <div class="cover-preview">
+                    <img v-if="defaultCoverUrl" :src="defaultCoverUrl" alt="活动默认封面预览" />
+                    <span v-else>暂无默认封面</span>
+                  </div>
+                  <div><strong>活动默认封面</strong><small>用户未上传封面时使用；活动创建后固定，不随配置变更</small></div>
+                  <el-upload :show-file-list="false" accept="image/jpeg,image/png,image/webp" :http-request="uploadDefaultCover">
+                    <el-button :loading="coverUploading">上传封面</el-button>
+                  </el-upload>
+                  <el-button v-if="defaultCoverId" link type="danger" @click="defaultCoverId = null; defaultCoverUrl = null">清除</el-button>
+                </section>
+                <section class="publish-boundaries">
+                  <label><span>人数范围</span><el-input-number v-model="form.activity_min_capacity" :min="2" :max="100" @focus="selectRule('activity_min_capacity')" /><em>至</em><el-input-number v-model="form.activity_max_capacity" :min="2" :max="100" @focus="selectRule('activity_max_capacity')" /></label>
+                  <label><span>AA本金范围</span><el-input-number v-model="form.activity_min_aa_principal_amount" :min="0.01" :max="100000" :precision="2" @focus="selectRule('activity_min_aa_principal_amount')" /><em>至</em><el-input-number v-model="form.activity_max_aa_principal_amount" :min="0.01" :max="100000" :precision="2" @focus="selectRule('activity_max_aa_principal_amount')" /><b>元</b></label>
+                </section>
               </div>
             </section>
 
@@ -698,6 +817,17 @@ onMounted(() => {
 .dual-rule-card :deep(.el-input-number) { width: 118px; }
 .dual-rule-card :deep(.el-input__inner) { font-size: 14px; }
 .dual-rule-card em { color: #434d59; font-style: normal; }
+.activity-publish-settings { display: grid; grid-template-columns: minmax(310px, 1fr) minmax(360px, 1.25fr); gap: 12px; margin-top: 14px; }
+.default-cover-setting, .publish-boundaries { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 11px 13px; border: 1px solid #e2e9eb; border-radius: 8px; background: #f9fbfc; box-sizing: border-box; }
+.cover-preview { display: grid; place-items: center; overflow: hidden; flex: 0 0 92px; width: 92px; height: 58px; border-radius: 6px; color: #929aa5; background: #edf2f3; font-size: 10px; }
+.cover-preview img { width: 100%; height: 100%; object-fit: cover; }
+.default-cover-setting > div:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
+.default-cover-setting strong { font-size: 12px; }
+.default-cover-setting small { color: #899397; font-size: 9px; line-height: 1.45; }
+.publish-boundaries { align-items: stretch; flex-direction: column; justify-content: center; }
+.publish-boundaries label { display: grid; grid-template-columns: 78px 1fr 20px 1fr 20px; align-items: center; gap: 6px; color: #606a75; font-size: 10px; }
+.publish-boundaries :deep(.el-input-number) { width: 100%; }
+.publish-boundaries em, .publish-boundaries b { color: #7e8891; font-style: normal; font-weight: 500; text-align: center; }
 .rule-list-view { flex: 1; padding: 18px; }
 .rule-list-view > header { display: flex; align-items: center; justify-content: space-between; min-height: 46px; }
 .rule-list-view > header div { display: flex; flex-direction: column; }

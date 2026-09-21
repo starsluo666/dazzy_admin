@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { ElNotification } from 'element-plus'
 import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
 import { isAdminPage } from '../navigation'
+import { adminApi } from '../services/api'
 import type { AdminMe, AdminPage } from '../types'
 
-const props = defineProps<{ active: AdminPage; session: AdminMe | null }>()
+const props = defineProps<{ active: AdminPage; session: AdminMe | null; preview: boolean }>()
 const emit = defineEmits<{ navigate: [page: AdminPage]; logout: [] }>()
 
 interface NavigationItem {
@@ -19,6 +21,9 @@ interface NavigationItem {
 }
 
 const collapsedGroups = ref<Set<string>>(new Set())
+const pendingProviderReviews = ref(0)
+let previousProviderReviewCount: number | null = null
+let providerReviewPollTimer: number | undefined
 
 const can = (permission: string) => Boolean(
   props.session?.permissions?.includes('*') || props.session?.permissions?.includes(permission),
@@ -91,6 +96,44 @@ function groupActive(key: string) {
     || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))
 }
+
+function openProviderReviews() {
+  if (can('provider.review')) emit('navigate', 'provider_reviews')
+}
+
+async function refreshProviderReviewSummary() {
+  if (!can('provider.review')) return
+  try {
+    const summary = props.preview
+      ? { total: 3 }
+      : await adminApi.providerReviewSummary()
+    const previous = previousProviderReviewCount
+    pendingProviderReviews.value = summary.total
+    previousProviderReviewCount = summary.total
+    if (!props.preview && summary.total > 0 && (previous === null || summary.total > previous)) {
+      ElNotification({
+        title: previous === null ? '达人审核待办' : '有新的达人审核待办',
+        message: previous === null
+          ? `当前有 ${summary.total} 条达人审核待处理`
+          : `新增 ${summary.total - previous} 条，当前共 ${summary.total} 条待处理`,
+        type: 'warning',
+        duration: 6000,
+        onClick: openProviderReviews,
+      })
+    }
+  } catch {
+    // 顶栏提醒失败不阻断管理端的其他操作，下一个轮询周期会自动重试。
+  }
+}
+
+onMounted(() => {
+  void refreshProviderReviewSummary()
+  providerReviewPollTimer = window.setInterval(refreshProviderReviewSummary, 60_000)
+})
+
+onBeforeUnmount(() => {
+  if (providerReviewPollTimer !== undefined) window.clearInterval(providerReviewPollTimer)
+})
 </script>
 
 <template>
@@ -123,7 +166,19 @@ function groupActive(key: string) {
       <header class="topbar">
         <div class="breadcrumb">首页&nbsp;&nbsp;/&nbsp;&nbsp;<strong>{{ pageLabels[active] }}</strong></div>
         <el-input class="global-search" placeholder="搜索用户、订单、活动" clearable />
-        <el-badge is-dot><el-icon class="top-icon"><Bell /></el-icon></el-badge>
+        <el-badge
+          v-if="can('provider.review')"
+          :value="pendingProviderReviews"
+          :hidden="pendingProviderReviews === 0"
+          :max="99"
+        >
+          <button
+            class="notification-button"
+            type="button"
+            aria-label="打开达人审核待办"
+            @click="openProviderReviews"
+          ><el-icon class="top-icon"><Bell /></el-icon></button>
+        </el-badge>
         <span class="scope">{{ scopeLabel }}</span>
         <el-dropdown @command="$emit('logout')"><div class="account"><el-avatar :size="34"><UserFilled /></el-avatar><span>{{ session?.user?.nickname || 'admin' }}⌄</span></div><template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
       </header>
@@ -131,3 +186,25 @@ function groupActive(key: string) {
     </section>
   </div>
 </template>
+
+<style scoped>
+.notification-button {
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  color: #303847;
+  background: transparent;
+}
+
+.notification-button:hover {
+  color: var(--brand);
+  background: #eefafa;
+}
+
+.notification-button:focus-visible {
+  outline: 3px solid rgb(8 184 189 / 22%);
+  outline-offset: 2px;
+}
+</style>

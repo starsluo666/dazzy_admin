@@ -162,11 +162,12 @@ export async function restoreAdminSession(): Promise<RefreshResult> {
 
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const hadSession = Boolean(getAccessToken())
+  const isFormData = options.body instanceof FormData
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
       ...options.headers,
     },
@@ -408,6 +409,11 @@ export const adminApi = {
   }),
   platformOperationSetting: () => request<PlatformOperationSetting>('/admin/operation-settings/platform/'),
   updatePlatformOperationSetting: (payload: Partial<PlatformOperationSetting>) => request<PlatformOperationSetting>('/admin/operation-settings/platform/', { method: 'PATCH', body: JSON.stringify(payload) }),
+  uploadActivityCover: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ id: string; url: string }>('/media/activity-covers/', { method: 'POST', body })
+  },
   providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
   updateProviderOrderingSetting: (payload: Partial<ProviderOrderingSetting>) => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/', { method: 'PATCH', body: JSON.stringify(payload) }),
   async login(phone: string, password: string) {
@@ -556,6 +562,13 @@ export const adminApi = {
     `provider-change-reviews-${kind}`,
     `/admin/provider-change-reviews/?${queryString({ kind, status, page, page_size: 20 })}`,
   ),
+  providerReviewSummary: () => requestLatest<{
+    applications: number
+    onboarding: number
+    profile_changes: number
+    service_changes: number
+    total: number
+  }>('provider-review-summary', '/admin/provider-review-summary/'),
   reviewProviderChange: (
     kind: ProviderChangeReviewKind,
     id: number,

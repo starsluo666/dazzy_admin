@@ -72,6 +72,13 @@ export interface PlatformOperationSetting {
   provider_order_confirmation_timeout_days: number
   provider_order_settlement_freeze_days: number
   activity_payment_timeout_minutes: number
+  activity_service_fee_rate: number
+  activity_min_capacity: number
+  activity_max_capacity: number
+  activity_min_aa_principal_amount: number
+  activity_max_aa_principal_amount: number
+  default_activity_cover_id: string | null
+  default_activity_cover_url: string | null
   activity_minimum_advance_hours: number
   activity_maximum_advance_days: number
   activity_settlement_confirmation_hours: number
@@ -336,6 +343,7 @@ export interface AdminActivity {
   status_label: string
   category_name: string
   category_slug: string
+  tags: Array<{ name: string; slug: string }>
   organizer_public_id: string
   organizer_name: string
   organizer_phone_masked: string

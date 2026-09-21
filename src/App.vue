@@ -174,6 +174,7 @@ onMounted(loadSession)
     v-else
     :active="currentPage"
     :session="session"
+    :preview="preview"
     @navigate="navigate"
     @logout="logout"
   >

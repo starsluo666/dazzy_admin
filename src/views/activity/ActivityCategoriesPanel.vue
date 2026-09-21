@@ -5,7 +5,6 @@ import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 
 import { adminApi } from '../../services/api'
 import type { AdminActivityCategory, AdminActivityCategoryMutation, AdminActivityCategorySummary } from '../../types'
-import { formatMoney as money } from '../../utils/format'
 
 const props = defineProps<{ preview: boolean; canManage: boolean }>()
 const rows = ref<AdminActivityCategory[]>([])
@@ -16,8 +15,6 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editing = ref<AdminActivityCategory | null>(null)
-const minAmountYuan = ref(0.01)
-const maxAmountYuan = ref(100000)
 const form = reactive<AdminActivityCategoryMutation>({
   name: '', slug: '', icon_object_key: '', city_codes: [], min_capacity: 2,
   max_capacity: 100, min_aa_principal_amount: 1, max_aa_principal_amount: 10000000,
@@ -70,7 +67,7 @@ async function load() {
     const data = await adminApi.activityCategories({ search: search.value.trim(), status: statusFilter.value, page_size: 50 })
     rows.value = data.items; summary.value = data.summary
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '活动分类加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '活动标签加载失败')
   } finally { loading.value = false }
 }
 function resetForm(item?: AdminActivityCategory) {
@@ -86,21 +83,15 @@ function resetForm(item?: AdminActivityCategory) {
     max_capacity: 100, min_aa_principal_amount: 1, max_aa_principal_amount: 10000000,
     content_guidance: '', sort_order: 0, is_active: true,
   })
-  minAmountYuan.value = form.min_aa_principal_amount / 100
-  maxAmountYuan.value = form.max_aa_principal_amount / 100
 }
 function openEditor(item?: AdminActivityCategory) { if (props.canManage) { resetForm(item); dialogVisible.value = true } }
 async function save() {
   if (!form.name.trim()) return ElMessage.warning('请输入分类名称')
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) return ElMessage.warning('分类标识仅支持小写字母、数字和连字符')
-  if (form.min_capacity > form.max_capacity) return ElMessage.warning('人数上限不能小于人数下限')
-  if (minAmountYuan.value > maxAmountYuan.value) return ElMessage.warning('最高AA金额不能小于最低金额')
   const payload: AdminActivityCategoryMutation = {
     ...form, name: form.name.trim(), slug: form.slug.trim().toLowerCase(),
     icon_object_key: form.icon_object_key.trim(), content_guidance: form.content_guidance.trim(),
     city_codes: [...new Set(form.city_codes)],
-    min_aa_principal_amount: Math.max(1, Math.round(minAmountYuan.value * 100)),
-    max_aa_principal_amount: Math.max(1, Math.round(maxAmountYuan.value * 100)),
   }
   saving.value = true
   try {
@@ -109,14 +100,14 @@ async function save() {
       else demoRows.value.push({ id: Math.max(...demoRows.value.map((item) => item.id)) + 1, ...payload, icon_url: null, activity_count: 0, active_activity_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     } else if (editing.value) await adminApi.updateActivityCategory(editing.value.id, payload)
     else await adminApi.createActivityCategory(payload)
-    dialogVisible.value = false; ElMessage.success(editing.value ? '活动分类已更新' : '活动分类已创建'); await load()
+    dialogVisible.value = false; ElMessage.success(editing.value ? '活动标签已更新' : '活动标签已创建'); await load()
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存失败') }
   finally { saving.value = false }
 }
 async function toggle(item: AdminActivityCategory) {
   if (!props.canManage) return
   try {
-    await ElMessageBox.confirm(`确认${item.is_active ? '停用' : '启用'}“${item.name}”？已发布活动不受影响。`, '分类状态', { type: 'warning' })
+    await ElMessageBox.confirm(`确认${item.is_active ? '停用' : '启用'}“${item.name}”？已发布活动不受影响。`, '标签状态', { type: 'warning' })
     if (props.preview) { item.is_active = !item.is_active; item.updated_at = new Date().toISOString() }
     else await adminApi.updateActivityCategory(item.id, { is_active: !item.is_active })
     ElMessage.success('分类状态已更新'); await load()
@@ -129,30 +120,28 @@ onMounted(load)
 <template>
   <section class="category-wrap">
     <div class="category-toolbar">
-      <div><strong>活动分类配置</strong><span>管理发布范围、人数与AA金额边界</span></div>
-      <div><el-button :icon="Refresh" @click="load">刷新</el-button><el-button v-if="canManage" type="primary" :icon="Plus" @click="openEditor()">新增分类</el-button></div>
+      <div><strong>活动标签配置</strong><span>独立于达人服务分类，用于活动发布、搜索与筛选</span></div>
+      <div><el-button :icon="Refresh" @click="load">刷新</el-button><el-button v-if="canManage" type="primary" :icon="Plus" @click="openEditor()">新增标签</el-button></div>
     </div>
     <div class="mini-summary"><span>全部 <b>{{ summary.total }}</b></span><span>已启用 <b>{{ summary.active }}</b></span><span>已停用 <b>{{ summary.inactive }}</b></span><span>活跃活动 <b>{{ summary.active_activities }}</b></span></div>
-    <div class="filters"><el-input v-model="search" clearable :prefix-icon="Search" placeholder="搜索分类名称或标识" @keyup.enter="load"/><el-select v-model="statusFilter" @change="load"><el-option label="全部状态" value="all"/><el-option label="已启用" value="active"/><el-option label="已停用" value="inactive"/></el-select><el-button type="primary" @click="load">查询</el-button></div>
-    <el-table v-loading="loading" :data="rows" height="calc(100vh - 360px)" empty-text="暂无活动分类">
+    <div class="filters"><el-input v-model="search" clearable :prefix-icon="Search" placeholder="搜索标签名称或标识" @keyup.enter="load"/><el-select v-model="statusFilter" @change="load"><el-option label="全部状态" value="all"/><el-option label="已启用" value="active"/><el-option label="已停用" value="inactive"/></el-select><el-button type="primary" @click="load">查询</el-button></div>
+    <el-table v-loading="loading" :data="rows" height="calc(100vh - 360px)" empty-text="暂无活动标签">
       <el-table-column label="排序" prop="sort_order" width="72" align="center"/>
-      <el-table-column label="分类" min-width="180"><template #default="{ row }"><div class="name"><span>{{ row.name.slice(0,1) }}</span><div><strong>{{ row.name }}</strong><small>{{ row.slug }}</small></div></div></template></el-table-column>
-      <el-table-column label="发布边界" min-width="230"><template #default="{ row }"><div class="limits"><strong>{{ row.min_capacity }}—{{ row.max_capacity }} 人</strong><span>{{ money(row.min_aa_principal_amount) }}—{{ money(row.max_aa_principal_amount) }} / 人</span></div></template></el-table-column>
+      <el-table-column label="标签" min-width="210"><template #default="{ row }"><div class="name"><span>{{ row.name.slice(0,1) }}</span><div><strong>{{ row.name }}</strong><small>{{ row.slug }}</small></div></div></template></el-table-column>
       <el-table-column label="展示城市" min-width="170"><template #default="{ row }"><div class="cities"><el-tag v-for="code in row.city_codes" :key="code" size="small" effect="plain">{{ cityLabel(code) }}</el-tag><span v-if="!row.city_codes.length">全部城市</span></div></template></el-table-column>
       <el-table-column label="关联活动" width="110"><template #default="{ row }"><strong>{{ row.active_activity_count }}</strong><small> / {{ row.activity_count }}</small></template></el-table-column>
       <el-table-column label="状态" width="95"><template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'">{{ row.is_active ? '已启用' : '已停用' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="140" fixed="right"><template #default="{ row }"><el-button link type="primary" :disabled="!canManage" @click="openEditor(row)">编辑</el-button><el-button link :type="row.is_active ? 'danger' : 'success'" :disabled="!canManage" @click="toggle(row)">{{ row.is_active ? '停用' : '启用' }}</el-button></template></el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑活动分类' : '新增活动分类'" width="620px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑活动标签' : '新增活动标签'" width="620px" destroy-on-close>
       <el-form label-position="top" class="form">
-        <div class="grid"><el-form-item label="分类名称" required><el-input v-model="form.name" maxlength="30"/></el-form-item><el-form-item label="分类标识" required><el-input v-model="form.slug" :disabled="Boolean(editing?.activity_count)"/></el-form-item></div>
-        <div class="grid"><el-form-item label="人数范围"><div class="range"><el-input-number v-model="form.min_capacity" :min="2" :max="100"/><span>至</span><el-input-number v-model="form.max_capacity" :min="2" :max="100"/></div></el-form-item><el-form-item label="单人AA范围（元）"><div class="range"><el-input-number v-model="minAmountYuan" :min="0.01" :precision="2"/><span>至</span><el-input-number v-model="maxAmountYuan" :min="0.01" :precision="2"/></div></el-form-item></div>
+        <div class="grid"><el-form-item label="标签名称" required><el-input v-model="form.name" maxlength="30"/></el-form-item><el-form-item label="标签标识" required><el-input v-model="form.slug" :disabled="Boolean(editing?.activity_count)"/></el-form-item></div>
         <el-form-item label="展示城市"><el-select v-model="form.city_codes" multiple collapse-tags placeholder="留空表示全部城市"><el-option v-for="city in cityOptions" :key="city.value" :label="city.label" :value="city.value"/></el-select></el-form-item>
-        <el-form-item label="内容规则提示"><el-input v-model="form.content_guidance" type="textarea" :rows="3" maxlength="500" show-word-limit/></el-form-item>
+        <el-form-item label="图标对象键"><el-input v-model="form.icon_object_key" placeholder="可选，用于客户端标签图标"/></el-form-item>
         <div class="grid"><el-form-item label="前台排序"><el-input-number v-model="form.sort_order" :min="0" :max="9999"/></el-form-item><el-form-item label="启用状态"><el-switch v-model="form.is_active" inline-prompt active-text="启用" inactive-text="停用"/></el-form-item></div>
       </el-form>
-      <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存分类</el-button></template>
+      <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存标签</el-button></template>
     </el-dialog>
   </section>
 </template>
