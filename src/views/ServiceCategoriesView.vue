@@ -35,6 +35,8 @@ const editing = ref<AdminServiceCategory | null>(null)
 const form = reactive<AdminServiceCategoryMutation>({
   name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
   platform_commission_rate: 20,
+  hourly_min_price_amount: 50, hourly_max_price_amount: 500,
+  per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
 })
 
 const cityOptions = [
@@ -70,6 +72,8 @@ function demoCategory(
     id, name, slug, icon_object_key: '', icon_url: null, city_codes: cityCodes,
     sort_order: sortOrder, is_active: active, service_count: serviceCount,
     platform_commission_rate: '20.00',
+    hourly_min_price_amount: 5000, hourly_max_price_amount: 50000,
+    per_session_min_price_amount: 10000, per_session_max_price_amount: 100000,
     active_service_count: active ? serviceCount : 0, provider_count: providerCount,
     created_at: now, updated_at: now,
   }
@@ -135,9 +139,15 @@ function resetForm(category?: AdminServiceCategory) {
     sort_order: category.sort_order,
     is_active: category.is_active,
     platform_commission_rate: Number(category.platform_commission_rate),
+    hourly_min_price_amount: category.hourly_min_price_amount / 100,
+    hourly_max_price_amount: category.hourly_max_price_amount / 100,
+    per_session_min_price_amount: category.per_session_min_price_amount / 100,
+    per_session_max_price_amount: category.per_session_max_price_amount / 100,
   } : {
     name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
     platform_commission_rate: 20,
+    hourly_min_price_amount: 50, hourly_max_price_amount: 500,
+    per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
   })
 }
 
@@ -170,6 +180,8 @@ async function save() {
   const slug = form.slug.trim().toLowerCase()
   if (!name) return ElMessage.warning('请输入分类名称')
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return ElMessage.warning('分类标识仅支持小写字母、数字和连字符')
+  if (form.hourly_min_price_amount > form.hourly_max_price_amount) return ElMessage.warning('按小时最高价不能低于最低价')
+  if (form.per_session_min_price_amount > form.per_session_max_price_amount) return ElMessage.warning('按次最高价不能低于最低价')
   saving.value = true
   const payload: AdminServiceCategoryMutation = {
     ...form,
@@ -177,6 +189,10 @@ async function save() {
     slug,
     icon_object_key: form.icon_object_key.trim(),
     city_codes: [...new Set(form.city_codes.map((item) => item.trim()).filter(Boolean))],
+    hourly_min_price_amount: Math.round(form.hourly_min_price_amount * 100),
+    hourly_max_price_amount: Math.round(form.hourly_max_price_amount * 100),
+    per_session_min_price_amount: Math.round(form.per_session_min_price_amount * 100),
+    per_session_max_price_amount: Math.round(form.per_session_max_price_amount * 100),
   }
   try {
     if (props.preview) {
@@ -306,6 +322,12 @@ onMounted(load)
         <el-table-column label="平台抽成" width="110" align="center">
           <template #default="{ row }"><strong>{{ Number(row.platform_commission_rate).toFixed(2) }}%</strong></template>
         </el-table-column>
+        <el-table-column label="价格区间" min-width="190">
+          <template #default="{ row }">
+            <div class="price-copy">按小时 ¥{{ row.hourly_min_price_amount / 100 }}–{{ row.hourly_max_price_amount / 100 }}</div>
+            <div class="price-copy">按次 ¥{{ row.per_session_min_price_amount / 100 }}–{{ row.per_session_max_price_amount / 100 }}</div>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" effect="light">{{ row.is_active ? '已启用' : '已停用' }}</el-tag></template>
         </el-table-column>
@@ -338,6 +360,14 @@ onMounted(load)
           <el-form-item label="前台排序"><el-input-number v-model="form.sort_order" :min="0" :max="9999" controls-position="right" /></el-form-item>
           <el-form-item label="平台抽成比例"><el-input-number v-model="form.platform_commission_rate" :min="0" :max="100" :step="0.5" :precision="2" controls-position="right" /></el-form-item>
         </div>
+        <div class="form-grid compact-grid">
+          <el-form-item label="按小时价格区间（元）" required>
+            <div class="price-range"><el-input-number v-model="form.hourly_min_price_amount" :min="0.01" :precision="2" /><span>至</span><el-input-number v-model="form.hourly_max_price_amount" :min="0.01" :precision="2" /></div>
+          </el-form-item>
+          <el-form-item label="按次价格区间（元）" required>
+            <div class="price-range"><el-input-number v-model="form.per_session_min_price_amount" :min="0.01" :precision="2" /><span>至</span><el-input-number v-model="form.per_session_max_price_amount" :min="0.01" :precision="2" /></div>
+          </el-form-item>
+        </div>
         <el-form-item label="启用状态"><el-switch v-model="form.is_active" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item>
         <el-form-item label="展示城市">
           <el-select v-model="form.city_codes" multiple filterable allow-create default-first-option collapse-tags :max-collapse-tags="3" placeholder="留空表示全部城市">
@@ -356,5 +386,5 @@ onMounted(load)
 </template>
 
 <style scoped>
-.category-page{min-height:calc(100vh - 76px)}.category-heading{margin-bottom:18px}.category-heading>div:last-child{display:flex;gap:8px}.category-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.category-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.category-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.category-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.category-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.category-summary .blue{color:#2679e9!important;background:#e9f1ff}.category-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.category-summary .orange{color:#e97825!important;background:#fff0e6}.category-summary .purple{color:#7b61cf;background:#f0edff}.category-summary span{color:var(--muted);font-size:12px}.category-summary strong{font-size:25px}.category-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.category-summary button.static{cursor:default}.category-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.category-filters{display:grid;grid-template-columns:minmax(260px,1fr) 140px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.category-name{display:flex;align-items:center;gap:11px}.category-name>.el-image,.category-name>span{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px}.category-name>span{color:#078f94;background:#e4f8f8;font-size:16px;font-weight:750}.category-name>div{display:flex;flex-direction:column;gap:4px}.category-name strong{font-size:13px}.category-name small,.updated-at{color:var(--muted);font-size:11px}.city-tags{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.city-tags>span{color:var(--muted);font-size:11px}.all-city{color:#078f94;font-size:12px}.relation-count{display:inline-flex;flex-direction:column;gap:3px;min-width:82px}.relation-count strong{font-size:13px}.relation-count span{color:var(--muted);font-size:10px}.provider-count{min-width:auto;padding-left:12px;border-left:1px solid #e8ecef}.category-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.category-form{margin-top:8px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.compact-grid{grid-template-columns:1fr 1fr}.category-form .el-select,.category-form .el-input-number{width:100%}.form-tip{display:block;margin-top:6px;color:#8a929d;font-size:11px;line-height:1.5}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.category-filters{grid-template-columns:minmax(220px,1fr) 125px 64px 64px}.category-summary small{display:none}}@media(prefers-reduced-motion:reduce){.category-summary button{transition:none}.category-summary button:hover{transform:none}}
+.category-page{min-height:calc(100vh - 76px)}.category-heading{margin-bottom:18px}.category-heading>div:last-child{display:flex;gap:8px}.category-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.category-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.category-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.category-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.category-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.category-summary .blue{color:#2679e9!important;background:#e9f1ff}.category-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.category-summary .orange{color:#e97825!important;background:#fff0e6}.category-summary .purple{color:#7b61cf;background:#f0edff}.category-summary span{color:var(--muted);font-size:12px}.category-summary strong{font-size:25px}.category-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.category-summary button.static{cursor:default}.category-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.category-filters{display:grid;grid-template-columns:minmax(260px,1fr) 140px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.category-name{display:flex;align-items:center;gap:11px}.category-name>.el-image,.category-name>span{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px}.category-name>span{color:#078f94;background:#e4f8f8;font-size:16px;font-weight:750}.category-name>div{display:flex;flex-direction:column;gap:4px}.category-name strong{font-size:13px}.category-name small,.updated-at{color:var(--muted);font-size:11px}.city-tags{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.city-tags>span{color:var(--muted);font-size:11px}.all-city{color:#078f94;font-size:12px}.relation-count{display:inline-flex;flex-direction:column;gap:3px;min-width:82px}.relation-count strong{font-size:13px}.relation-count span,.price-copy{color:var(--muted);font-size:10px}.price-copy+ .price-copy{margin-top:5px}.provider-count{min-width:auto;padding-left:12px;border-left:1px solid #e8ecef}.category-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.category-form{margin-top:8px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.compact-grid{grid-template-columns:1fr 1fr}.price-range{display:flex;align-items:center;gap:6px}.price-range span{color:var(--muted);font-size:12px}.category-form .el-select,.category-form .el-input-number{width:100%}.form-tip{display:block;margin-top:6px;color:#8a929d;font-size:11px;line-height:1.5}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.category-filters{grid-template-columns:minmax(220px,1fr) 125px 64px 64px}.category-summary small{display:none}}@media(prefers-reduced-motion:reduce){.category-summary button{transition:none}.category-summary button:hover{transform:none}}
 </style>

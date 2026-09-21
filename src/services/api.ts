@@ -37,6 +37,8 @@ import type {
   FulfillmentAnomalyFilter,
   FulfillmentStage,
   ProviderApplication,
+  ProviderChangeReview,
+  ProviderChangeReviewKind,
   ProviderApplicationStatus,
   ProviderOrderStatus,
   ProviderOrderSummary,
@@ -533,11 +535,36 @@ export const adminApi = {
       pagination: { page: number; page_size: number; total: number }
     }>('admin-provider-applications', `/admin/provider-applications/?${params}`)
   },
-  reviewProvider: (id: number, decision: 'approve' | 'reject', reason = '') =>
+  reviewProvider: (
+    id: number,
+    decision: 'approve' | 'reject',
+    reason = '',
+    allowedCategoryIds: number[] = [],
+  ) =>
     request<ProviderApplication>(`/admin/provider-applications/${id}/review/`, {
       method: 'POST',
-      body: JSON.stringify({ decision, reason }),
+      body: JSON.stringify({ decision, reason, allowed_category_ids: allowedCategoryIds }),
     }),
+  providerChangeReviews: (
+    kind: ProviderChangeReviewKind,
+    status: 'pending' | 'approved' | 'rejected' = 'pending',
+    page = 1,
+  ) => requestLatest<{
+    items: ProviderChangeReview[]
+    pagination: { page: number; page_size: number; total: number }
+  }>(
+    `provider-change-reviews-${kind}`,
+    `/admin/provider-change-reviews/?${queryString({ kind, status, page, page_size: 20 })}`,
+  ),
+  reviewProviderChange: (
+    kind: ProviderChangeReviewKind,
+    id: number,
+    decision: 'approve' | 'reject',
+    reason = '',
+  ) => request<{ id: number; kind: ProviderChangeReviewKind; status: string }>(
+    `/admin/provider-change-reviews/${kind}/${id}/review/`,
+    { method: 'POST', body: JSON.stringify({ decision, reason }) },
+  ),
   reviewProviderIdentity: (id: number, decision: 'approve' | 'reject', reason = '') =>
     request<AdminProvider>(`/admin/providers/${id}/identity-review/`, {
       method: 'POST',

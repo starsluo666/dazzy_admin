@@ -464,6 +464,10 @@ export interface AdminServiceCategory {
   sort_order: number
   is_active: boolean
   platform_commission_rate: string
+  hourly_min_price_amount: number
+  hourly_max_price_amount: number
+  per_session_min_price_amount: number
+  per_session_max_price_amount: number
   service_count: number
   active_service_count: number
   provider_count: number
@@ -486,6 +490,10 @@ export interface AdminServiceCategoryMutation {
   sort_order: number
   is_active: boolean
   platform_commission_rate: number
+  hourly_min_price_amount: number
+  hourly_max_price_amount: number
+  per_session_min_price_amount: number
+  per_session_max_price_amount: number
 }
 
 export type ProviderApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
@@ -574,6 +582,7 @@ export interface ProviderApplication {
   id: number
   public_id: string
   nickname: string
+  application_real_name: string
   phone: string
   gender: Gender
   birth_date: string | null
@@ -584,9 +593,70 @@ export interface ProviderApplication {
   bio: string
   max_service_radius_km: number
   service_names: string[]
+  allowed_categories: Array<{ id: number; name: string }>
+  onboarding_status: 'incomplete' | 'pending_review' | 'approved' | 'rejected'
+  onboarding_submitted_at: string | null
   submitted_at: string | null
   reviewed_at: string | null
   rejection_reason: string
+}
+
+export type ProviderChangeReviewKind = 'onboarding' | 'profile' | 'service'
+
+export interface ProviderProfileRevisionReview {
+  id: number
+  display_name: string
+  bio: string
+  lifestyle_photo_url: string | null
+  service_city_code: string
+  service_city_name: string
+  max_service_radius_km: number
+  status: string
+  rejection_reason: string
+  submitted_at: string
+}
+
+export interface ProviderServiceRevisionReview {
+  id: number
+  service_id: number | null
+  action: 'create' | 'update' | 'reactivate'
+  action_label: string
+  category_id: number
+  category_name: string
+  billing_type: 'hourly' | 'per_session'
+  billing_type_label: string
+  price_amount: number
+  min_price_amount: number
+  max_price_amount: number
+  estimated_duration_minutes: number | null
+  description: string
+  status: string
+  rejection_reason: string
+  submitted_at: string
+}
+
+export interface ProviderChangeReview {
+  id: number
+  kind: ProviderChangeReviewKind
+  provider_id: number
+  provider_name: string
+  application_real_name: string
+  identity_real_name: string
+  identity_name_matches: boolean
+  phone: string
+  service_city_name: string
+  status: string
+  submitted_at: string | null
+  rejection_reason: string
+  identity?: {
+    status: string
+    number_masked: string
+    front_photo_url: string | null
+    back_photo_url: string | null
+    face_photo_url: string | null
+  }
+  profile_revision: ProviderProfileRevisionReview | null
+  service_revisions: ProviderServiceRevisionReview[]
 }
 
 export interface AdminProviderService {
