@@ -18,6 +18,7 @@ import PlatformOperationSettingsView from './views/PlatformOperationSettingsView
 import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
+import CouponManagementView from './views/CouponManagementView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import {
   canAccessAdminPage,
@@ -245,6 +246,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageSupportCase"
     />
+    <CouponManagementView v-else-if="currentPage === 'coupons'" :preview="preview" />
     <SystemManagementView
       v-else-if="currentPage === 'system'"
       @open-audit="navigate('audit_logs')"

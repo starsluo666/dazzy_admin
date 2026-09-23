@@ -140,7 +140,10 @@ async function runAction(action: 'start_review' | 'resolve' | 'reject' | 'close'
   } else {
     const title = action === 'resolve' ? '完成处理' : action === 'reject' ? '不予受理' : '关闭工单'
     try {
-      const result = await ElMessageBox.prompt('处理结论会同步给用户并写入操作审计。', title, {
+      const result = await ElMessageBox.prompt(
+        action === 'resolve' && selected.value.reward_eligible && !selected.value.reward_issued
+          ? '确认举报成立后将立即向用户发放优惠券。处理结论会同步给用户并写入操作审计。'
+          : '处理结论会同步给用户并写入操作审计。', title, {
         inputPlaceholder: '请输入不少于5个字的处理结论',
         inputValidator: (value) => value.trim().length >= 5 || '处理结论至少填写5个字',
       })
@@ -208,7 +211,7 @@ onMounted(load)
       </div>
       <el-table v-loading="loading" :data="rows" height="calc(100vh - 403px)" empty-text="暂无客服工单" @row-click="open">
         <el-table-column label="工单 / 时间" min-width="188"><template #default="{ row }"><div class="identity"><strong>{{ row.case_no }}</strong><span>{{ format(row.created_at) }}</span></div></template></el-table-column>
-        <el-table-column label="类型" width="86"><template #default="{ row }"><el-tag effect="plain" :type="row.case_type === 'report' ? 'danger' : row.case_type === 'complaint' ? 'warning' : 'primary'">{{ row.case_type_label }}</el-tag></template></el-table-column>
+        <el-table-column label="类型" width="102"><template #default="{ row }"><el-tag effect="plain" :type="row.case_type === 'report' ? 'danger' : row.case_type === 'complaint' ? 'warning' : 'primary'">{{ row.reward_eligible ? '举报有奖' : row.case_type_label }}</el-tag></template></el-table-column>
         <el-table-column label="关联对象" min-width="185"><template #default="{ row }"><div class="identity"><strong>{{ row.target_title }}</strong><span>{{ row.target_type_label }} · {{ row.target_subtitle || '--' }}</span></div></template></el-table-column>
         <el-table-column label="提交用户" width="136"><template #default="{ row }"><div class="identity"><strong>{{ row.reporter_name || '用户' }}</strong><span>{{ row.reporter_phone }}</span></div></template></el-table-column>
         <el-table-column prop="city_name" label="城市" width="95"/>
@@ -226,6 +229,7 @@ onMounted(load)
         <el-scrollbar class="drawer-scroll">
           <section class="case-section overview"><h3><el-icon><Tickets/></el-icon> 工单概览</h3><div class="info-grid"><div><span>提交用户</span><strong>{{ selected.reporter_name }}　{{ selected.reporter_phone }}</strong></div><div><span>提交时间</span><strong>{{ format(selected.created_at) }}</strong></div><div><span>来源城市</span><strong>{{ selected.city_name || '未关联城市' }}</strong></div><div><span>当前处理人</span><strong>{{ selected.assignee_name || '待领取' }}</strong></div></div></section>
           <section class="case-section"><h3><el-icon><Warning/></el-icon> 关联对象</h3><div class="target-card"><strong>{{ selected.target_title }}</strong><span>{{ selected.target_type_label }} · {{ selected.target_subtitle || selected.target_id || '--' }}</span></div></section>
+          <section v-if="selected.reward_eligible" class="case-section"><h3>举报有奖</h3><p class="description">{{ selected.reward_issued ? '举报奖励券已发放' : '核查成立并完成处理时自动发券；不予受理不发券。' }}</p></section>
           <section class="case-section"><h3><el-icon><ChatLineRound/></el-icon> 用户描述</h3><p class="description">{{ selected.description }}</p><div v-if="selected.attachment_urls.length" class="evidence"><el-image v-for="url in selected.attachment_urls" :key="url" :src="url" fit="cover" :preview-src-list="selected.attachment_urls" preview-teleported/></div><el-empty v-else :image-size="50" description="用户未上传证据图片"/></section>
           <section class="case-section timeline"><h3><el-icon><Refresh/></el-icon> 处理时间线</h3><div v-for="record in selected.records" :key="record.id" class="timeline-row"><i/><div><strong>{{ record.record_type_label }}</strong><span>{{ record.actor_name }} · {{ format(record.created_at) }}</span><p v-if="record.content">{{ record.content }}</p></div></div></section>
           <section v-if="selected.review_reason" class="case-section review-reason"><h3>用户复核原因</h3><p>{{ selected.review_reason }}</p></section>

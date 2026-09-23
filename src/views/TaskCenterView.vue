@@ -35,6 +35,7 @@ const taskTypes = ref<Array<{ value: ScheduledTaskType; label: string }>>([
   { value: 'provider_acceptance_timeout', label: '达人接单超时' },
   { value: 'provider_rejection_support_timeout', label: '达人拒单客服处理超时' },
   { value: 'provider_order_confirmation_timeout', label: '达人订单确认超时' },
+  { value: 'provider_order_review_timeout', label: '达人订单默认好评' },
   { value: 'provider_order_settlement', label: '达人订单资金结算' },
   { value: 'provider_order_refund', label: '达人订单退款' },
   { value: 'activity_publish_payment_expiry', label: '活动发布支付超时' },

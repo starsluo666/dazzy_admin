@@ -48,6 +48,35 @@ const drawerVisible = ref(false)
 const actionVisible = ref(false)
 const actionSaving = ref(false)
 const identityReviewing = ref(false)
+const commissionSaving = ref(false)
+const commissionPeriod = ref<AdminProvider['commission_reset_period_override']>('')
+const commissionTiers = ref<Array<{ thresholdYuan: number; bonusRate: number }>>([])
+const useGlobalTiers = ref(true)
+
+function loadCommission(profile: AdminProvider) {
+  commissionPeriod.value = profile.commission_reset_period_override
+  useGlobalTiers.value = profile.commission_tiers_override === null
+  commissionTiers.value = (profile.commission_tiers_override || []).map((tier) => ({
+    thresholdYuan: tier.threshold_amount / 100, bonusRate: Number(tier.bonus_rate),
+  }))
+}
+
+async function saveCommission() {
+  if (!selected.value || commissionSaving.value || props.preview) return
+  commissionSaving.value = true
+  try {
+    const updated = await adminApi.updateProviderCommission(selected.value.id, {
+      reset_period: commissionPeriod.value,
+      tiers: useGlobalTiers.value ? null : commissionTiers.value.map((tier) => ({
+        threshold_amount: Math.round(tier.thresholdYuan * 100), bonus_rate: tier.bonusRate.toFixed(2),
+      })),
+    })
+    selected.value = updated
+    loadCommission(updated)
+    ElMessage.success('达人专属阶梯已保存，仅影响新订单')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存失败') }
+  finally { commissionSaving.value = false }
+}
 const actionForm = reactive<{
   kind: 'status' | 'credit'
   action: 'restrict_orders' | 'resume_orders' | 'suspend_qualification' | 'restore_qualification'
@@ -92,6 +121,7 @@ function demoProvider(index: number, overrides: Partial<AdminProvider> = {}): Ad
     max_service_radius_km: 20,
     rating: index ? '4.80' : '4.92', service_count: 56 + index * 18, order_count: 64 + index * 20,
     credit_score: 100 - index * 4, is_accepting_orders: index !== 2,
+    commission_reset_period_override: '', commission_tiers_override: null,
     admin_order_restricted: false, admin_restriction_reason: '',
     service_names: ['城市陪伴', index % 2 ? '桌游陪玩' : '旅游陪伴'],
     services: [
@@ -199,9 +229,10 @@ function selectSummary(key: string) {
 async function openDetail(row: AdminProvider) {
   selected.value = row
   drawerVisible.value = true
+  loadCommission(row)
   if (props.preview) return
   detailLoading.value = true
-  try { selected.value = await adminApi.managedProvider(row.id) }
+  try { selected.value = await adminApi.managedProvider(row.id); loadCommission(selected.value) }
   catch (error) { ElMessage.error(error instanceof Error ? error.message : '达人详情加载失败') }
   finally { detailLoading.value = false }
 }
@@ -315,6 +346,22 @@ onMounted(load)
         <section class="detail-section"><div class="section-title"><h3>达人实名认证</h3><el-tag :type="selected.identity_status === 'verified' ? 'success' : selected.identity_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ selected.identity_status_label }}</el-tag></div><div v-if="selected.identity_status !== 'unverified'" class="identity-review"><div class="identity-fields"><span>真实姓名</span><strong>{{ selected.identity_real_name || '—' }}</strong><span>证件号码</span><strong>{{ selected.identity_number_masked || '—' }}</strong><span>提交时间</span><strong>{{ formatDateTime(selected.identity_submitted_at) }}</strong></div><div class="identity-photos"><el-image v-for="(url,label) in { '身份证人像面':selected.identity_front_photo_url,'身份证国徽面':selected.identity_back_photo_url,'本人核验照片':selected.identity_face_photo_url }" :key="label" :src="url || ''" :preview-src-list="url ? [url] : []" fit="cover" preview-teleported><template #error><span>{{ label }}未上传</span></template></el-image></div><el-alert v-if="selected.identity_rejection_reason" type="error" :closable="false" :title="selected.identity_rejection_reason"/><div v-if="canReview && selected.identity_status === 'pending'" class="identity-actions"><el-button :loading="identityReviewing" @click="reviewIdentity('reject')">驳回认证</el-button><el-button type="primary" :loading="identityReviewing" @click="reviewIdentity('approve')">通过认证</el-button></div></div><el-empty v-else :image-size="48" description="达人尚未提交实名认证" /></section>
         <section class="detail-section"><div class="section-title"><h3>当前接单位置</h3><el-tag size="small" :type="selected.is_online ? 'success' : 'info'" effect="plain">{{ selected.is_online ? '在线' : '离线' }}</el-tag></div><div v-if="selected.has_live_location" class="service-location"><el-icon><Location /></el-icon><div><strong>{{ coordinateLabel(selected) }}</strong><p>定位精度约 {{ selected.location_accuracy_m || '—' }} 米 · 服务半径 {{ selected.max_service_radius_km }}km</p><span>最后更新 {{ formatDateTime(selected.location_updated_at) }} · 有效至 {{ formatDateTime(selected.location_expires_at) }}</span></div></div><el-empty v-else :image-size="48" description="达人尚未上报接单位置" /><p class="location-privacy">精确坐标仅供平台管理和距离计算使用，用户端只展示距离。</p></section>
         <section class="detail-section provider-metrics"><div><span>综合评分</span><strong>{{ selected.rating }}</strong></div><div><span>服务次数</span><strong>{{ selected.service_count }}</strong></div><div><span>订单总量</span><strong>{{ selected.order_count }}</strong></div><div><span>服务项目</span><strong>{{ selected.service_names.length }}</strong></div></section>
+        <section class="detail-section commission-setting">
+          <h3>专属营业额阶梯加成</h3>
+          <p>留空沿用平台阶梯；只影响新订单，已创建订单按原快照结算。</p>
+          <div class="commission-row"><span>重置周期</span><el-select v-model="commissionPeriod" :disabled="!canManage" style="width:160px"><el-option label="沿用平台" value="" /><el-option label="每月" value="month" /><el-option label="每季度" value="quarter" /><el-option label="每年" value="year" /><el-option label="永久" value="never" /></el-select></div>
+          <el-switch v-model="useGlobalTiers" :disabled="!canManage" active-text="沿用平台阶梯" inactive-text="达人专属阶梯" />
+          <template v-if="!useGlobalTiers">
+            <div v-for="(tier, index) in commissionTiers" :key="index" class="commission-row">
+              <span>第 {{ index + 1 }} 级</span>
+              <el-input-number v-model="tier.thresholdYuan" :min="index ? (commissionTiers[index - 1]?.thresholdYuan || 0) + 0.01 : 0" :precision="2" :disabled="!canManage || index === 0" /><em>元起</em>
+              <el-input-number v-model="tier.bonusRate" :min="0" :max="100" :precision="2" :disabled="!canManage" /><em>百分点</em>
+              <el-button v-if="canManage" link type="danger" :disabled="index === 0 && commissionTiers.length > 1" @click="commissionTiers.splice(index, 1)">删除</el-button>
+            </div>
+            <el-button v-if="canManage" :disabled="commissionTiers.length >= 5" @click="commissionTiers.push({ thresholdYuan: commissionTiers.length ? (commissionTiers[commissionTiers.length - 1]?.thresholdYuan || 0) + 1000 : 0, bonusRate: commissionTiers.length ? (commissionTiers[commissionTiers.length - 1]?.bonusRate || 0) : 0 })">＋ 添加档位</el-button>
+          </template>
+          <div v-if="canManage" class="commission-actions"><el-button type="primary" :loading="commissionSaving" :disabled="preview" @click="saveCommission">保存专属配置</el-button></div>
+        </section>
         <section class="detail-section"><h3>达人资料</h3><p class="provider-bio">{{ selected.bio || '达人尚未填写个人简介' }}</p><div v-if="selected.lifestyle_photo_available" class="photo-status"><span>生活照</span><el-image v-if="selected.lifestyle_photo_url" :src="selected.lifestyle_photo_url" :preview-src-list="[selected.lifestyle_photo_url]" fit="cover" preview-teleported /><el-tag v-else type="success" effect="plain">已留存，仅审核人员可查看</el-tag></div></section>
         <section class="detail-section"><h3>服务配置</h3><div v-if="selected.services.length" class="service-cards"><article v-for="service in selected.services" :key="service.id"><header><strong>{{ service.category }}</strong><el-tag size="small" :type="service.is_active ? 'success' : 'info'" effect="plain">{{ service.is_active ? '启用' : '停用' }}</el-tag></header><p>{{ service.billing_type_label }} · <b>{{ formatAmount(service.price_amount) }}</b><template v-if="service.estimated_duration_minutes"> · {{ service.estimated_duration_minutes }}分钟</template></p><span>{{ service.description || '暂无服务说明' }}</span></article></div><el-empty v-else :image-size="48" description="尚未配置服务项目" /></section>
         <section class="detail-section"><h3>每周档期</h3><div v-if="selected.weekly_availability.length" class="schedule-list"><span v-for="slot in selected.weekly_availability" :key="`${slot.weekday}-${slot.starts_at}`">周{{ slot.weekday_label }}　{{ slot.starts_at.slice(0, 5) }}–{{ slot.ends_at.slice(0, 5) }}</span></div><el-empty v-else :image-size="48" description="尚未配置每周档期" /></section>
@@ -333,6 +380,12 @@ onMounted(load)
 </template>
 
 <style scoped>
+.commission-setting p { color: #7a8492; font-size: 12px; line-height: 1.6; }
+.commission-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; font-size: 12px; }
+.commission-row > span { width: 80px; }
+.commission-row > em { color: #7a8492; font-style: normal; }
+.commission-row .el-input-number { width: 120px; }
+.commission-actions { margin-top: 14px; }
 .provider-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-heading>div:last-child{display:flex;gap:8px}.provider-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.provider-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.provider-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.provider-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.provider-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.provider-summary .blue{color:#2679e9!important;background:#e9f1ff}.provider-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.provider-summary .purple{color:#7b61cf;background:#f0edff}.provider-summary .red{color:#d9485f;background:#fff0f2}.provider-summary .orange{color:#e97825!important;background:#fff0e6}.provider-summary span{color:var(--muted);font-size:12px}.provider-summary strong{font-size:25px}.provider-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.provider-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 115px 120px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.provider-person{display:flex;align-items:center;gap:10px}.provider-person>div,.score-cell{display:flex;flex-direction:column;gap:4px}.provider-person strong,.score-cell strong{font-size:13px}.provider-person span,.score-cell span{color:var(--muted);font-size:12px}.score-cell span{display:flex;align-items:center;gap:3px}.score-cell .el-icon{color:#efa834}.service-names{display:flex;flex-wrap:wrap;gap:4px}.service-names>span{color:var(--muted);font-size:12px}.provider-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.provider-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.provider-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.provider-drawer>header div{margin-right:auto}.provider-drawer>header h2{margin:0;font-size:20px}.provider-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.provider-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.provider-drawer>header button:hover{background:#f0f4f5}.restriction-alert{margin:14px 20px 0;width:auto}.provider-identity{display:flex;align-items:center;gap:14px;margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-identity>div:nth-child(2){flex:1}.provider-identity h3{display:flex;align-items:center;gap:8px;margin:0 0 7px;font-size:17px}.provider-identity p,.provider-identity span{margin:0;color:#5e6877;font-size:12px}.provider-identity span{display:block;margin-top:7px;color:var(--muted)}.credit-score{display:flex;flex-direction:column;align-items:center;width:72px;padding:9px;border-radius:8px;background:#f2fbfb}.credit-score strong{color:var(--brand);font-size:25px}.credit-score span{margin:2px 0 0}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.section-title h3{margin:0;font-size:15px}.service-location{display:flex;align-items:flex-start;gap:12px;padding:13px;border-radius:8px;background:#f3fafb}.service-location>.el-icon{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:10px;color:var(--brand);background:#dff5f5;font-size:19px}.service-location>div{display:flex;flex-direction:column;gap:5px;min-width:0}.service-location strong{font-size:14px}.service-location p{margin:0;color:#4e5a68;font-size:12px;line-height:1.5}.service-location span{color:var(--muted);font-size:11px}.location-privacy{margin:12px 0 0;color:#8b6c55;font-size:11px;line-height:1.5}.provider-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.provider-metrics div{display:flex;flex-direction:column;gap:5px}.provider-metrics span{color:var(--muted);font-size:11px}.provider-metrics strong{font-size:19px}.provider-bio{margin:0;color:#4f5a68;font-size:13px;line-height:1.75}.photo-status{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid #edf0f3;font-size:13px}.photo-status .el-image{width:92px;height:72px;border-radius:7px}.service-cards{display:grid;grid-template-columns:1fr 1fr;gap:9px}.service-cards article{padding:12px;border:1px solid #e6eaed;border-radius:7px}.service-cards header{display:flex;align-items:center;justify-content:space-between}.service-cards strong{font-size:13px}.service-cards p{margin:8px 0;color:#596474;font-size:12px}.service-cards b{color:var(--orange)}.service-cards span{color:var(--muted);font-size:11px}.schedule-list{display:flex;flex-wrap:wrap;gap:7px}.schedule-list span{padding:7px 10px;border-radius:5px;color:#485464;background:#f2f7f8;font-size:12px}.provider-records,.credit-history{display:flex;flex-direction:column}.provider-records article,.credit-history article{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;border-bottom:1px solid #edf0f3}.provider-records article:last-child,.credit-history article:last-child{border-bottom:0}.provider-records article>div{display:flex;flex-direction:column;gap:4px}.provider-records article>div:last-child{align-items:end}.provider-records strong,.provider-records b{font-size:13px}.provider-records b{color:var(--orange)}.provider-records span,.credit-history span{color:var(--muted);font-size:11px}.credit-history{gap:0}.credit-history article{justify-content:flex-start}.credit-history>article>strong{display:grid;place-items:center;width:42px;height:34px;border-radius:6px}.credit-history .positive{color:#078d76;background:#ecf9f5}.credit-history .negative{color:#d9485f;background:#fff0f2}.credit-history div{display:flex;flex-direction:column;gap:4px}.credit-history b{font-size:12px}.provider-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:640px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.provider-actions>div{display:flex;gap:7px}.provider-action-form{margin-top:18px}.score-preview{margin-left:12px;color:var(--muted);font-size:12px}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.provider-summary small{display:none}.provider-filters{grid-template-columns:minmax(170px,1fr) 105px 110px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.provider-summary button{transition:none}.provider-summary button:hover{transform:none}}
 .identity-review{display:flex;gap:14px;flex-direction:column}.identity-fields{display:grid;grid-template-columns:82px 1fr;gap:9px 14px;padding:13px;border-radius:7px;background:#f6f9fa;font-size:12px}.identity-fields span{color:var(--muted)}.identity-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.identity-photos .el-image{display:flex;height:105px;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:7px;background:#f5f7f8}.identity-photos span{color:var(--muted);font-size:11px}.identity-actions{display:flex;justify-content:flex-end;gap:8px}
 </style>

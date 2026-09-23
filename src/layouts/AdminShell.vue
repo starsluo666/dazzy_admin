@@ -44,8 +44,9 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'orders', label: '达人订单', icon: List, child: true, parent: 'orders-group', enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'settlements', label: '交易与结算', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
-  { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') },
+  { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') || can('support.case.manage') },
   { key: 'support_cases', label: '客服工单', icon: List, child: true, parent: 'support-group', enabled: can('support.case.view'), visible: can('support.case.view') },
+  { key: 'coupons', label: '优惠券', icon: Coin, child: true, parent: 'support-group', enabled: can('support.case.manage'), visible: can('support.case.manage') },
   { key: 'system-group', label: '系统管理', icon: Setting, group: true, visible: can('organization.manage') || can('system.task.view') || can('audit.view') },
   { key: 'system', label: '账号与权限', icon: UserFilled, child: true, parent: 'system-group', enabled: can('organization.manage'), visible: can('organization.manage') },
   { key: 'tasks', label: '任务中心', icon: Timer, child: true, parent: 'system-group', enabled: can('system.task.view'), visible: can('system.task.view') },
@@ -69,6 +70,7 @@ const pageLabels: Record<AdminPage, string> = {
   after_sales: '订单管理 / 退款与售后',
   settlements: '订单管理 / 交易与结算',
   support_cases: '客服与投诉 / 客服工单',
+  coupons: '客服与投诉 / 优惠券',
   system: '系统管理 / 账号与权限',
   tasks: '系统管理 / 任务中心',
   audit_logs: '系统管理 / 操作审计',
@@ -92,7 +94,7 @@ function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales', 'settlements'].includes(props.active))
-    || (key === 'support-group' && props.active === 'support_cases')
+    || (key === 'support-group' && ['support_cases', 'coupons'].includes(props.active))
     || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))
 }

@@ -23,7 +23,10 @@ import { adminApi } from '../services/api'
 import type { AdminAuditLog, PlatformOperationSetting } from '../types'
 import { formatDateTime } from '../utils/format'
 
-type FieldKey = Exclude<keyof PlatformOperationSetting, 'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone'>
+type FieldKey = Exclude<keyof PlatformOperationSetting,
+  'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone'
+  | 'provider_commission_reset_period' | 'provider_commission_tiers'
+  | 'report_coupon_amount' | 'report_coupon_min_order_amount' | 'report_coupon_valid_days'>
 type GroupKey = 'all' | 'provider' | 'activity' | 'settlement'
 type ViewMode = 'flow' | 'list'
 
@@ -44,6 +47,7 @@ interface RuleDefinition {
 const defaults: Record<FieldKey, number> = {
   provider_order_payment_timeout_minutes: 15,
   provider_order_confirmation_timeout_days: 3,
+  provider_order_review_timeout_days: 7,
   provider_order_settlement_freeze_days: 1,
   activity_payment_timeout_minutes: 30,
   activity_service_fee_rate: 10,
@@ -109,6 +113,12 @@ const rules: RuleDefinition[] = [
     impact: '活动发起人、活动参与者、活动退款与结算',
     scope: '新创建活动，创建后按活动快照保持不变',
     risk: '调整费率会直接影响新活动双方的支付金额。',
+  },
+  {
+    key: 'provider_order_review_timeout_days', group: 'provider',
+    label: '待评价期限', unit: '天', min: 1, max: 30, step: 1,
+    help: '到期未评价自动生成系统默认好评', impact: '达人服务订单、评价与举报有奖',
+    scope: '新进入待评价的订单', risk: '已进入待评价的订单按原截止时间执行。',
   },
   {
     key: 'activity_min_capacity', group: 'activity', label: '活动最少人数', unit: '人',
@@ -212,6 +222,16 @@ const savedDefaultCoverUrl = ref<string | null>(null)
 const coverUploading = ref(false)
 const customerServicePhone = ref('')
 const savedCustomerServicePhone = ref('')
+const resetPeriod = ref<PlatformOperationSetting['provider_commission_reset_period']>('month')
+const tierRows = ref<Array<{ thresholdYuan: number; bonusRate: number }>>([])
+const couponFaceYuan = ref(20)
+const couponThresholdYuan = ref(100)
+const couponValidDays = ref(365)
+const savedBusinessRules = ref('')
+const businessRulesSnapshot = computed(() => JSON.stringify({
+  period: resetPeriod.value, tiers: tierRows.value,
+  face: couponFaceYuan.value, threshold: couponThresholdYuan.value, days: couponValidDays.value,
+}))
 const form = reactive<Record<FieldKey, number>>({ ...defaults })
 const savedSnapshot = reactive<Record<FieldKey, number>>({ ...defaults })
 
@@ -221,7 +241,19 @@ const filteredRules = computed(() => activeGroup.value === 'all'
   : rules.filter((rule) => rule.group === activeGroup.value))
 const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnapshot[rule.key])
   || defaultCoverId.value !== savedDefaultCoverId.value
-  || customerServicePhone.value.trim() !== savedCustomerServicePhone.value)
+  || customerServicePhone.value.trim() !== savedCustomerServicePhone.value
+  || businessRulesSnapshot.value !== savedBusinessRules.value)
+
+function loadBusinessRules(data: PlatformOperationSetting) {
+  resetPeriod.value = data.provider_commission_reset_period
+  tierRows.value = data.provider_commission_tiers.map((tier) => ({
+    thresholdYuan: tier.threshold_amount / 100, bonusRate: Number(tier.bonus_rate),
+  }))
+  couponFaceYuan.value = data.report_coupon_amount / 100
+  couponThresholdYuan.value = data.report_coupon_min_order_amount / 100
+  couponValidDays.value = data.report_coupon_valid_days
+  savedBusinessRules.value = businessRulesSnapshot.value
+}
 const showProvider = computed(() => activeGroup.value === 'all' || activeGroup.value === 'provider')
 const showActivity = computed(() => activeGroup.value === 'all' || activeGroup.value === 'activity')
 const showSettlement = computed(() => activeGroup.value === 'all' || activeGroup.value === 'settlement')
@@ -261,6 +293,11 @@ function toApiValue(key: FieldKey, value: number) {
 
 function restoreDefaults() {
   Object.assign(form, defaults)
+  resetPeriod.value = 'month'
+  tierRows.value = []
+  couponFaceYuan.value = 20
+  couponThresholdYuan.value = 100
+  couponValidDays.value = 365
   ElMessage.success('已恢复推荐默认值，发布后生效')
 }
 
@@ -269,6 +306,12 @@ function cancelChanges() {
   defaultCoverId.value = savedDefaultCoverId.value
   defaultCoverUrl.value = savedDefaultCoverUrl.value
   customerServicePhone.value = savedCustomerServicePhone.value
+  const saved = JSON.parse(savedBusinessRules.value || '{}')
+  resetPeriod.value = saved.period || 'month'
+  tierRows.value = saved.tiers || []
+  couponFaceYuan.value = saved.face ?? 20
+  couponThresholdYuan.value = saved.threshold ?? 100
+  couponValidDays.value = saved.days ?? 365
   ElMessage.info('已撤销本次未发布修改')
 }
 
@@ -323,6 +366,7 @@ async function load() {
     defaultCoverUrl.value = data.default_activity_cover_url
     savedDefaultCoverUrl.value = data.default_activity_cover_url
     customerServicePhone.value = data.customer_service_phone
+    loadBusinessRules(data)
     savedCustomerServicePhone.value = data.customer_service_phone
     updatedAt.value = data.updated_at
   } catch (error) {
@@ -340,6 +384,14 @@ async function save() {
     ) as Partial<PlatformOperationSetting>
     payload.default_activity_cover_id = defaultCoverId.value
     payload.customer_service_phone = customerServicePhone.value.trim()
+    payload.provider_commission_reset_period = resetPeriod.value
+    payload.provider_commission_tiers = tierRows.value.map((tier) => ({
+      threshold_amount: Math.round(tier.thresholdYuan * 100),
+      bonus_rate: tier.bonusRate.toFixed(2),
+    }))
+    payload.report_coupon_amount = Math.round(couponFaceYuan.value * 100)
+    payload.report_coupon_min_order_amount = Math.round(couponThresholdYuan.value * 100)
+    payload.report_coupon_valid_days = couponValidDays.value
     const data = await adminApi.updatePlatformOperationSetting(payload)
     for (const rule of rules) {
       form[rule.key] = toFormValue(rule.key, data[rule.key])
@@ -350,6 +402,7 @@ async function save() {
     defaultCoverUrl.value = data.default_activity_cover_url
     savedDefaultCoverUrl.value = data.default_activity_cover_url
     customerServicePhone.value = data.customer_service_phone
+    loadBusinessRules(data)
     savedCustomerServicePhone.value = data.customer_service_phone
     updatedAt.value = data.updated_at
     await loadRecentAudits()
@@ -634,6 +687,34 @@ onMounted(() => {
             </article>
           </div>
 
+          <section class="business-rules">
+            <h3>达人营业额阶梯加成</h3>
+            <p>叠加在服务分类已有的达人分成比例上；按已确认完成订单的净服务费累计，正常资金冻结期也计入，争议中或取消的结算不计入。按自然月、季度或年度重置，永久累计不重置；新订单按当时档位固定比例，历史订单不追溯。加成最高抵扣该分类的平台抽成。</p>
+            <div class="business-rule-row">
+              <span>营业额重置周期</span>
+              <el-select v-model="resetPeriod" aria-label="营业额重置周期">
+                <el-option label="每月" value="month" />
+                <el-option label="每季度" value="quarter" />
+                <el-option label="每年" value="year" />
+                <el-option label="永久累计" value="never" />
+              </el-select>
+            </div>
+            <div v-for="(tier, index) in tierRows" :key="index" class="business-rule-row">
+              <span>第 {{ index + 1 }} 级</span>
+              <el-input-number v-model="tier.thresholdYuan" :min="index ? (tierRows[index - 1]?.thresholdYuan || 0) + 0.01 : 0" :precision="2" :disabled="index === 0" />
+              <em>元起</em>
+              <el-input-number v-model="tier.bonusRate" :min="0" :max="100" :precision="2" :step="0.5" />
+              <em>百分点</em>
+              <el-button link type="danger" :disabled="index === 0 && tierRows.length > 1" @click="tierRows.splice(index, 1)">删除</el-button>
+            </div>
+            <el-button :disabled="tierRows.length >= 5" @click="tierRows.push({ thresholdYuan: tierRows.length ? (tierRows[tierRows.length - 1]?.thresholdYuan || 0) + 1000 : 0, bonusRate: tierRows.length ? (tierRows[tierRows.length - 1]?.bonusRate || 0) : 0 })">＋ 添加档位（最多 5 级）</el-button>
+            <h3>举报奖励优惠券</h3>
+            <p>客服判定举报成立后自动发放；订单原价必须严格大于使用门槛，仅适用于达人服务订单。</p>
+            <div class="business-rule-row"><span>券面额</span><el-input-number v-model="couponFaceYuan" :min="0.01" :max="1000" :precision="2" /><em>元</em></div>
+            <div class="business-rule-row"><span>订单使用门槛</span><el-input-number v-model="couponThresholdYuan" :min="0.01" :max="100000" :precision="2" /><em>元以上（不含）</em></div>
+            <div class="business-rule-row"><span>有效期</span><el-input-number v-model="couponValidDays" :min="1" :max="3650" /><em>天</em></div>
+          </section>
+
           <footer class="editor-actions">
             <button class="text-action" @click="restoreDefaults">恢复默认</button>
             <span>最后更新：{{ formatDate(updatedAt) }}</span>
@@ -674,6 +755,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.business-rules { padding: 24px; border-top: 1px solid #e0e5ea; }
+.business-rules h3 { margin: 0 0 8px; font-size: 16px; }
+.business-rules h3:not(:first-child) { margin-top: 24px; }
+.business-rules p { margin: 0 0 15px; color: #7a8492; font-size: 12px; line-height: 1.6; }
+.business-rule-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+.business-rule-row > span { width: 125px; flex-shrink: 0; font-size: 13px; }
+.business-rule-row > em { font-size: 12px; color: #7a8492; font-style: normal; }
+.business-rule-row .el-select { width: 170px; }
+.business-rule-row .el-input-number { width: 145px; }
 .settings-page {
   --settings-accent: #08b5ba;
   --settings-ink: #192231;

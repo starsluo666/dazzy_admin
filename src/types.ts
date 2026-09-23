@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'support_cases' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'support_cases' | 'coupons' | 'system' | 'tasks' | 'audit_logs'
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
@@ -71,7 +71,13 @@ export interface PlatformOperationSetting {
   customer_service_phone: string
   provider_order_payment_timeout_minutes: number
   provider_order_confirmation_timeout_days: number
+  provider_order_review_timeout_days: number
   provider_order_settlement_freeze_days: number
+  provider_commission_reset_period: 'month' | 'quarter' | 'year' | 'never'
+  provider_commission_tiers: CommissionTier[]
+  report_coupon_amount: number
+  report_coupon_min_order_amount: number
+  report_coupon_valid_days: number
   activity_payment_timeout_minutes: number
   activity_service_fee_rate: number
   activity_min_capacity: number
@@ -105,6 +111,7 @@ export type ScheduledTaskType =
   | 'provider_acceptance_timeout'
   | 'provider_rejection_support_timeout'
   | 'provider_order_confirmation_timeout'
+  | 'provider_order_review_timeout'
   | 'provider_order_settlement'
   | 'provider_order_refund'
   | 'activity_publish_payment_expiry'
@@ -557,6 +564,24 @@ export interface AdminUserAddress {
   updated_at: string
 }
 
+export interface CommissionTier {
+  threshold_amount: number
+  bonus_rate: string
+}
+
+export interface AdminCoupon {
+  public_id: string
+  user_public_id: string
+  user_name: string
+  face_amount: number
+  min_order_amount: number
+  expires_at: string
+  status: string
+  source: string
+  issued_by: string | null
+  created_at: string
+}
+
 export interface AdminUserBrowsingRecord {
   id: number
   target_type: 'provider' | 'activity'
@@ -766,6 +791,8 @@ export interface AdminProvider {
   max_service_radius_km: number
   rating: string
   service_count: number
+  commission_reset_period_override: '' | 'month' | 'quarter' | 'year' | 'never'
+  commission_tiers_override: CommissionTier[] | null
   order_count: number
   credit_score: number
   is_accepting_orders: boolean
@@ -1010,6 +1037,8 @@ export interface AdminSupportCase {
   records: AdminSupportCaseRecord[]
   reporter_name: string
   reporter_phone: string
+  reward_eligible?: boolean
+  reward_issued?: boolean
   created_at: string
   updated_at: string
 }

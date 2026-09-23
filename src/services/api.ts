@@ -14,6 +14,8 @@ import type {
   AdminActivityReportSummary,
   AdminActivitySummary,
   AdminAuditLog,
+  AdminCoupon,
+  CommissionTier,
   AdminAfterSalesCase,
   AdminMe,
   AdminOrganization,
@@ -590,6 +592,15 @@ export const adminApi = {
     summary: AdminUserSummary
   }>('admin-users', `/admin/users/?${queryString(query)}`),
   user: (publicId: string) => request<AdminUser>(`/admin/users/${publicId}/`),
+  coupons: (userPublicId = '') => request<{ items: AdminCoupon[] }>(
+    `/admin/coupons/${userPublicId ? `?user_public_id=${encodeURIComponent(userPublicId)}` : ''}`,
+  ),
+  couponUsers: (search: string) => request<{ users: Array<{ public_id: string; nickname: string; phone_masked: string }> }>(
+    `/admin/coupons/?search=${encodeURIComponent(search)}`,
+  ),
+  issueCoupon: (userPublicId: string) => request<AdminCoupon>('/admin/coupons/', {
+    method: 'POST', body: JSON.stringify({ user_public_id: userPublicId }),
+  }),
   changeUserAccount: (
     publicId: string,
     action: 'restrict' | 'suspend' | 'restore',
@@ -613,6 +624,12 @@ export const adminApi = {
     summary: AdminProviderSummary
   }>('admin-providers', `/admin/providers/?${queryString(query)}`),
   managedProvider: (id: number) => request<AdminProvider>(`/admin/providers/${id}/`),
+  updateProviderCommission: (
+    id: number,
+    payload: { reset_period: AdminProvider['commission_reset_period_override']; tiers: CommissionTier[] | null },
+  ) => request<AdminProvider>(`/admin/providers/${id}/commission-override/`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
   changeProviderStatus: (
     id: number,
     action: 'restrict_orders' | 'resume_orders' | 'suspend_qualification' | 'restore_qualification',
