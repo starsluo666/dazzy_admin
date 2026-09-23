@@ -23,7 +23,7 @@ import { adminApi } from '../services/api'
 import type { AdminAuditLog, PlatformOperationSetting } from '../types'
 import { formatDateTime } from '../utils/format'
 
-type FieldKey = Exclude<keyof PlatformOperationSetting, 'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url'>
+type FieldKey = Exclude<keyof PlatformOperationSetting, 'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone'>
 type GroupKey = 'all' | 'provider' | 'activity' | 'settlement'
 type ViewMode = 'flow' | 'list'
 
@@ -210,6 +210,8 @@ const defaultCoverUrl = ref<string | null>(null)
 const savedDefaultCoverId = ref<string | null>(null)
 const savedDefaultCoverUrl = ref<string | null>(null)
 const coverUploading = ref(false)
+const customerServicePhone = ref('')
+const savedCustomerServicePhone = ref('')
 const form = reactive<Record<FieldKey, number>>({ ...defaults })
 const savedSnapshot = reactive<Record<FieldKey, number>>({ ...defaults })
 
@@ -217,7 +219,9 @@ const selectedRule = computed(() => rules.find((rule) => rule.key === selectedRu
 const filteredRules = computed(() => activeGroup.value === 'all'
   ? rules
   : rules.filter((rule) => rule.group === activeGroup.value))
-const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnapshot[rule.key]) || defaultCoverId.value !== savedDefaultCoverId.value)
+const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnapshot[rule.key])
+  || defaultCoverId.value !== savedDefaultCoverId.value
+  || customerServicePhone.value.trim() !== savedCustomerServicePhone.value)
 const showProvider = computed(() => activeGroup.value === 'all' || activeGroup.value === 'provider')
 const showActivity = computed(() => activeGroup.value === 'all' || activeGroup.value === 'activity')
 const showSettlement = computed(() => activeGroup.value === 'all' || activeGroup.value === 'settlement')
@@ -264,6 +268,7 @@ function cancelChanges() {
   Object.assign(form, savedSnapshot)
   defaultCoverId.value = savedDefaultCoverId.value
   defaultCoverUrl.value = savedDefaultCoverUrl.value
+  customerServicePhone.value = savedCustomerServicePhone.value
   ElMessage.info('已撤销本次未发布修改')
 }
 
@@ -317,6 +322,8 @@ async function load() {
     savedDefaultCoverId.value = data.default_activity_cover_id
     defaultCoverUrl.value = data.default_activity_cover_url
     savedDefaultCoverUrl.value = data.default_activity_cover_url
+    customerServicePhone.value = data.customer_service_phone
+    savedCustomerServicePhone.value = data.customer_service_phone
     updatedAt.value = data.updated_at
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '平台参数加载失败')
@@ -332,6 +339,7 @@ async function save() {
       rules.map((rule) => [rule.key, toApiValue(rule.key, form[rule.key])]),
     ) as Partial<PlatformOperationSetting>
     payload.default_activity_cover_id = defaultCoverId.value
+    payload.customer_service_phone = customerServicePhone.value.trim()
     const data = await adminApi.updatePlatformOperationSetting(payload)
     for (const rule of rules) {
       form[rule.key] = toFormValue(rule.key, data[rule.key])
@@ -341,6 +349,8 @@ async function save() {
     savedDefaultCoverId.value = data.default_activity_cover_id
     defaultCoverUrl.value = data.default_activity_cover_url
     savedDefaultCoverUrl.value = data.default_activity_cover_url
+    customerServicePhone.value = data.customer_service_phone
+    savedCustomerServicePhone.value = data.customer_service_phone
     updatedAt.value = data.updated_at
     await loadRecentAudits()
     ElMessage.success('平台参数已发布并写入审计日志')
@@ -400,6 +410,19 @@ onMounted(() => {
         </aside>
 
         <div class="editor-column">
+          <section class="customer-service-setting">
+            <div>
+              <strong>客服电话</strong>
+              <small>用户端“客服中心”入口点击后展示该号码；留空时提示用户通过问题反馈联系。</small>
+            </div>
+            <el-input
+              v-model="customerServicePhone"
+              maxlength="32"
+              clearable
+              placeholder="例如：400-123-4567"
+              aria-label="客服电话"
+            />
+          </section>
           <div v-if="viewMode === 'flow'" class="flow-canvas">
             <section v-if="showProvider" class="flow-lane">
               <header class="lane-heading">
@@ -819,6 +842,11 @@ onMounted(() => {
 .dual-rule-card em { color: #434d59; font-style: normal; }
 .activity-publish-settings { display: grid; grid-template-columns: minmax(310px, 1fr) minmax(360px, 1.25fr); gap: 12px; margin-top: 14px; }
 .default-cover-setting, .publish-boundaries { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 11px 13px; border: 1px solid #e2e9eb; border-radius: 8px; background: #f9fbfc; box-sizing: border-box; }
+.customer-service-setting { display: flex; align-items: center; gap: 18px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #e2e9eb; border-radius: 10px; background: #fff; }
+.customer-service-setting > div { display: flex; min-width: 240px; flex-direction: column; gap: 4px; }
+.customer-service-setting strong { color: #263438; font-size: 13px; }
+.customer-service-setting small { color: #899397; font-size: 10px; line-height: 1.5; }
+.customer-service-setting .el-input { width: 280px; margin-left: auto; }
 .cover-preview { display: grid; place-items: center; overflow: hidden; flex: 0 0 92px; width: 92px; height: 58px; border-radius: 6px; color: #929aa5; background: #edf2f3; font-size: 10px; }
 .cover-preview img { width: 100%; height: 100%; object-fit: cover; }
 .default-cover-setting > div:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }

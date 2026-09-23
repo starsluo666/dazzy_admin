@@ -71,6 +71,40 @@ const cityOptions = [
   { label: '广州市', value: '440100' },
 ]
 
+function refundRuleLines(snapshot: Record<string, unknown>) {
+  const rawRules = Array.isArray(snapshot.rules) ? snapshot.rules : []
+  const rules = rawRules
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      beforeHours: Number(item.before_hours),
+      principal: Number(item.principal_refund_percent),
+      serviceFee: Number(item.service_fee_refund_percent),
+    }))
+    .filter((item) => [item.beforeHours, item.principal, item.serviceFee].every(Number.isFinite))
+    .sort((left, right) => right.beforeHours - left.beforeHours)
+
+  if (!rules.length && snapshot.version === 'standard-v1') {
+    rules.push(
+      { beforeHours: 12, principal: 100, serviceFee: 100 },
+      { beforeHours: 6, principal: 100, serviceFee: 0 },
+      { beforeHours: 2, principal: 70, serviceFee: 0 },
+      { beforeHours: 0, principal: 0, serviceFee: 0 },
+    )
+  }
+  if (!rules.length) {
+    return Object.entries(snapshot).map(([key, value]) => `${key}：${String(value)}`)
+  }
+  return rules.map((rule, index) => {
+    const previous = rules[index - 1]
+    const period = index === 0
+      ? `活动开始前 ${rule.beforeHours} 小时及以上`
+      : rule.beforeHours > 0
+        ? `活动开始前 ${rule.beforeHours} 小时及以上、不足 ${previous.beforeHours} 小时`
+        : `活动开始前不足 ${previous.beforeHours} 小时`
+    return `${period}：退还本金 ${rule.principal}%，退还平台服务费 ${rule.serviceFee}%`
+  }).concat('活动开始后不能直接取消报名，如需退款请申请售后，由客服审核处理。')
+}
+
 function future(days: number, hour = 19) {
   const value = new Date()
   value.setDate(value.getDate() + days)
@@ -404,7 +438,7 @@ onMounted(load)
         <section v-if="selected.settlement" class="detail-card settlement-card"><header><h3>履约与结算</h3><el-tag :type="selected.settlement.status === 'settled' ? 'success' : selected.settlement.status === 'dispute_frozen' ? 'danger' : 'warning'" size="small">{{ selected.settlement.status_label }}</el-tag></header><dl><div><dt>结算单号</dt><dd class="order-no">{{ selected.settlement.settlement_no }}</dd></div><div><dt>预计 / 实际入账</dt><dd>{{ money(selected.settlement.settlement_amount) }}</dd></div><div><dt>履约确认截止</dt><dd>{{ formatDate(selected.settlement.confirmation_deadline) }}</dd></div><div><dt>风险冻结截止</dt><dd>{{ formatDate(selected.settlement.freeze_until) }}</dd></div><div v-if="selected.settlement.dispute_reason"><dt>冻结原因</dt><dd>{{ selected.settlement.dispute_reason }}</dd></div></dl></section>
 
         <section class="detail-card"><header><h3>集合地点</h3></header><p class="location-name">{{ selected.meeting_place_name }}</p><p class="muted">{{ selected.meeting_address }}</p><p class="coordinate">管理坐标：{{ selected.source_longitude }}, {{ selected.source_latitude }}</p></section>
-        <section class="detail-card content-card"><header><h3>活动内容</h3></header><h4>活动介绍</h4><p>{{ selected.description }}</p><h4>参与规则</h4><p>{{ selected.participation_rules }}</p><h4>退款规则快照</h4><pre>{{ JSON.stringify(selected.refund_rule_snapshot, null, 2) }}</pre></section>
+        <section class="detail-card content-card"><header><h3>活动内容</h3></header><h4>活动介绍</h4><p>{{ selected.description }}</p><h4>参与规则</h4><p>{{ selected.participation_rules }}</p><h4>退款规则快照</h4><ul class="refund-rule-list"><li v-for="line in refundRuleLines(selected.refund_rule_snapshot)" :key="line">{{ line }}</li></ul></section>
 
         <section v-if="selected.participants.length" class="detail-card"><header><h3>报名用户（{{ selected.participants.length }}）</h3></header><div class="participant-list"><div v-for="participant in selected.participants" :key="participant.public_id"><el-avatar :size="32">{{ participant.nickname.slice(0, 1) }}</el-avatar><span><strong>{{ participant.nickname }}</strong><small>{{ participant.phone_masked }} · {{ formatDate(participant.joined_at) }}</small></span><el-tag type="success" size="small" effect="plain">{{ participant.status_label }}</el-tag></div></div></section>
 
@@ -428,4 +462,5 @@ onMounted(load)
 
 <style scoped>
 .activity-page{min-height:calc(100vh - 76px)}.activity-heading{margin-bottom:10px}.activity-tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}.activity-tabs button{position:relative;padding:11px 20px;border:0;color:var(--muted);background:transparent;font-size:13px}.activity-tabs button.active{color:#078f94;font-weight:700}.activity-tabs button.active::after{position:absolute;right:18px;bottom:-1px;left:18px;height:2px;background:#08b8bd;content:''}.activity-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.activity-summary button{position:relative;display:grid;grid-template-columns:50px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.activity-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.activity-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.activity-summary .blue{color:#2679e9;background:#e9f1ff}.activity-summary .cyan{color:#00aeb4;background:#e4f8f8}.activity-summary .orange{color:#e97825;background:#fff0e6}.activity-summary .gray{color:#6f7884;background:#f0f2f4}.activity-summary span{color:var(--muted);font-size:12px}.activity-summary strong{font-size:25px;color:#172033}.activity-summary small{position:absolute;right:14px;bottom:14px;color:#9ba4af;font-size:10px}.activity-summary button.static{cursor:default}.activity-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.activity-filters{display:grid;grid-template-columns:minmax(280px,1fr) 135px 135px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.activity-info{display:flex;align-items:center;gap:11px}.mini-cover{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:8px;color:#fff;font-weight:800}.cover-0{background:linear-gradient(145deg,#35cad0,#087f91)}.cover-1{background:linear-gradient(145deg,#ffb36b,#f06431)}.cover-2{background:linear-gradient(145deg,#76a7ff,#6554cc)}.activity-info>div:last-child,.organizer,.time-place{display:flex;flex-direction:column;gap:5px}.activity-info strong{overflow:hidden;max-width:185px;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.activity-info small,.organizer small,.time-place small{color:var(--muted);font-size:11px}.organizer strong,.time-place strong{font-size:12px}.capacity strong{color:#0b9ba1;font-size:18px}.capacity span{color:var(--muted);font-size:11px}.amount{color:#ef6d2e;font-size:13px}.activity-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.drawer-title{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}.detail-body{display:flex;flex-direction:column;gap:12px;padding-bottom:12px}.detail-hero{display:grid;grid-template-columns:156px 1fr;gap:18px;align-items:center;padding-bottom:16px;border-bottom:1px solid #e8edf0}.poster{display:flex;flex-direction:column;justify-content:flex-end;width:156px;height:112px;padding:14px;border-radius:10px;color:#fff}.poster span{font-size:20px;font-weight:800}.poster b{margin-top:3px;font-size:11px;opacity:.86}.detail-hero small{color:var(--muted)}.detail-hero h2{margin:6px 0 12px;font-size:19px}.detail-hero p{display:flex;align-items:center;gap:5px;margin:5px 0;color:#626d79;font-size:12px}.detail-card{padding:16px;border:1px solid #e4eaed;border-radius:8px;background:#fff}.detail-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.detail-card h3{margin:0;font-size:14px}.organizer-profile{display:flex;align-items:center;gap:10px}.organizer-profile>div{display:flex;flex:1;flex-direction:column;gap:4px}.organizer-profile span{color:var(--muted);font-size:11px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-card dl{margin:0}.detail-card dl>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #edf0f2;font-size:12px}.detail-card dl>div:last-child{border:0}.detail-card dt{color:var(--muted)}.detail-card dd{margin:0;font-weight:650}.detail-card .total dd{color:#ef6d2e}.order-no{max-width:150px;overflow:hidden;text-overflow:ellipsis}.location-name{margin:0 0 6px;font-weight:700}.muted{margin:0;color:var(--muted);font-size:12px}.coordinate{margin:10px 0 0;padding:8px 10px;border-radius:5px;color:#71808b;background:#f5f7f8;font-size:11px}.content-card h4{margin:14px 0 5px;font-size:12px}.content-card p{margin:0;color:#5e6974;font-size:12px;line-height:1.7}.content-card pre{margin:0;padding:10px;border-radius:5px;color:#53606a;background:#f7f9fa;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}.participant-list{display:flex;flex-direction:column}.participant-list>div{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f2}.participant-list>div:last-child{border:0}.participant-list span{display:flex;flex:1;flex-direction:column;gap:3px}.participant-list strong{font-size:12px}.participant-list small{color:var(--muted);font-size:10px}.review-result p{margin:0;color:#626d79;font-size:12px}.reject-reason{margin-top:9px!important;padding:9px;border-radius:5px;color:#b34f28!important;background:#fff5ed}.refund-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #edf0f2}.refund-row:last-child{border:0}.refund-row>div{display:flex;flex-direction:column;gap:4px}.refund-row>div:last-child{align-items:flex-end}.refund-row small{color:var(--muted);font-size:10px}.review-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;width:100%}.review-actions span{margin-right:auto;color:var(--muted);font-size:11px}:deep(.activity-drawer .el-drawer__footer){border-top:1px solid #e8edf0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.activity-filters{grid-template-columns:minmax(230px,1fr) 120px 120px 64px 64px}.activity-summary small{display:none}}@media(prefers-reduced-motion:reduce){.activity-summary button{transition:none}.activity-summary button:hover{transform:none}}
+.refund-rule-list{display:flex;flex-direction:column;gap:7px;margin:0;padding:10px 12px 10px 28px;border-radius:5px;color:#53606a;background:#f7f9fa;font-size:12px;line-height:1.6}
 </style>

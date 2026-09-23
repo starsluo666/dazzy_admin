@@ -30,10 +30,11 @@ const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
 const rows = ref<AdminProviderOrder[]>([])
 const selected = ref<AdminProviderOrder | null>(null)
-const summary = ref<ProviderOrderSummary>({ total: 0, active: 0, pending_confirmation: 0, anomalies: 0 })
+const summary = ref<ProviderOrderSummary>({ total: 0, active: 0, pending_confirmation: 0, anomalies: 0, pending_reviews: 0 })
 const stage = ref<FulfillmentStage>('all')
 const anomaly = ref<FulfillmentAnomalyFilter>('all')
 const statusFilter = ref<ProviderOrderStatus | ''>('')
+const reviewAuditFilter = ref<'all' | 'pending' | 'approved' | 'rejected'>('all')
 const cityFilter = ref('')
 const search = ref(props.initialSearch || '')
 const page = ref(1)
@@ -88,6 +89,7 @@ const summaryCards = computed(() => [
   { key: 'active', label: '履约中', value: summary.value.active, icon: Van, tone: 'cyan' },
   { key: 'pending_confirmation', label: '待用户确认', value: summary.value.pending_confirmation, icon: Clock, tone: 'orange' },
   { key: 'anomalies', label: '异常订单', value: summary.value.anomalies, icon: Warning, tone: 'red' },
+  { key: 'pending_reviews', label: '评价待审核', value: summary.value.pending_reviews, icon: DocumentChecked, tone: 'orange' },
 ])
 
 const timeline = computed(() => {
@@ -244,6 +246,7 @@ async function load() {
         active: all.filter((item) => ['departed', 'in_service'].includes(item.status)).length,
         pending_confirmation: all.filter((item) => item.status === 'pending_confirmation').length,
         anomalies: all.filter((item) => item.anomalies.length).length,
+        pending_reviews: all.filter((item) => item.review?.audit_status === 'pending').length,
       }
       return
     }
@@ -251,6 +254,7 @@ async function load() {
       stage: stage.value,
       anomaly: anomaly.value,
       status: statusFilter.value,
+      review_audit_status: reviewAuditFilter.value,
       city_code: cityFilter.value,
       search: search.value.trim(),
       page: page.value,
@@ -271,6 +275,13 @@ async function load() {
 function selectSummary(key: string) {
   page.value = 1
   statusFilter.value = ''
+  reviewAuditFilter.value = key === 'pending_reviews' ? 'pending' : 'all'
+  if (key === 'pending_reviews') {
+    stage.value = 'all'
+    anomaly.value = 'all'
+    load()
+    return
+  }
   if (key === 'anomalies') {
     stage.value = 'all'
     anomaly.value = 'any'
@@ -285,6 +296,7 @@ function resetFilters() {
   stage.value = 'all'
   anomaly.value = 'all'
   statusFilter.value = ''
+  reviewAuditFilter.value = 'all'
   cityFilter.value = ''
   search.value = ''
   page.value = 1
@@ -380,30 +392,31 @@ async function addSupportNote() {
   }
 }
 
-async function moderateReview(action: 'hide' | 'restore') {
+async function moderateReview(action: 'approve' | 'reject' | 'hide' | 'restore') {
   if (!selected.value?.review || reviewSaving.value) return
   let reason = ''
-  if (action === 'hide') {
+  if (action === 'hide' || action === 'reject') {
     try {
       const result = await ElMessageBox.prompt(
-        '请填写屏蔽原因，操作会同步影响达人公开评分。',
-        '屏蔽评价',
+        action === 'hide' ? '请填写屏蔽原因，操作会同步影响达人公开评分。' : '请填写驳回原因，用户将在通知中心看到该原因。',
+        action === 'hide' ? '屏蔽评价' : '驳回评价',
         { inputPlaceholder: '例如：包含辱骂或泄露隐私信息', inputValidator: value => value.trim().length >= 2 || '至少填写2个字' },
       )
       reason = result.value
     } catch { return }
   } else {
-    try { await ElMessageBox.confirm('恢复后评价会重新公开，并计入达人评分。', '恢复评价') }
+    try { await ElMessageBox.confirm(action === 'approve' ? '审核通过后评价会公开展示，并计入达人评分。' : '恢复后评价会重新公开，并计入达人评分。', action === 'approve' ? '通过评价' : '恢复评价') }
     catch { return }
   }
   reviewSaving.value = true
   try {
     const updated = props.preview
-      ? { ...selected.value, review: { ...selected.value.review, is_visible: action === 'restore' } }
+      ? { ...selected.value, review: { ...selected.value.review, is_visible: action === 'restore' || action === 'approve', audit_status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : selected.value.review.audit_status } }
       : await adminApi.moderateProviderOrderReview(selected.value.order_no, action, reason)
     selected.value = updated
     rows.value = rows.value.map(item => item.order_no === updated.order_no ? updated : item)
-    ElMessage.success(action === 'hide' ? '评价已屏蔽' : '评价已恢复')
+    ElMessage.success({ approve: '评价已审核通过', reject: '评价已驳回', hide: '评价已屏蔽', restore: '评价已恢复' }[action])
+    if (!props.preview) await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评价状态更新失败')
   } finally { reviewSaving.value = false }
@@ -426,7 +439,7 @@ onMounted(load)
       <button
         v-for="card in summaryCards"
         :key="card.key"
-        :class="{ active: card.key === 'anomalies' ? anomaly === 'any' : stage === card.key && anomaly === 'all' }"
+        :class="{ active: card.key === 'anomalies' ? anomaly === 'any' : card.key === 'pending_reviews' ? reviewAuditFilter === 'pending' : stage === card.key && anomaly === 'all' && reviewAuditFilter === 'all' }"
         @click="selectSummary(card.key)"
       >
         <el-icon :class="card.tone"><component :is="card.icon" /></el-icon>
@@ -461,6 +474,12 @@ onMounted(load)
           <el-option label="履约时间线缺失" value="timeline_gap" />
           <el-option label="待确认超时" value="confirmation_overdue" />
           <el-option label="拒单客服超时" value="support_contact_overdue" />
+        </el-select>
+        <el-select v-model="reviewAuditFilter" placeholder="评价审核">
+          <el-option label="全部评价状态" value="all" />
+          <el-option label="评价待审核" value="pending" />
+          <el-option label="评价已通过" value="approved" />
+          <el-option label="评价已驳回" value="rejected" />
         </el-select>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="page = 1; load()">查询</el-button>
@@ -636,9 +655,10 @@ onMounted(load)
         </section>
 
         <section class="detail-section" v-if="selected.review">
-          <div class="section-heading"><h3><el-icon><CircleCheck /></el-icon> 用户评价</h3><el-tag :type="selected.review.is_visible ? 'success' : 'info'" effect="plain">{{ selected.review.is_visible ? '公开展示' : '已屏蔽' }}</el-tag></div>
+          <div class="section-heading"><h3><el-icon><CircleCheck /></el-icon> 用户评价</h3><div class="review-status-tags"><el-tag :type="selected.review.audit_status === 'approved' ? 'success' : selected.review.audit_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ selected.review.audit_status_label }}</el-tag><el-tag v-if="selected.review.audit_status === 'approved'" :type="selected.review.is_visible ? 'success' : 'info'" effect="plain">{{ selected.review.is_visible ? '公开展示' : '已屏蔽' }}</el-tag></div></div>
           <div class="review-admin"><strong>{{ '★'.repeat(selected.review.rating) }}<span>{{ selected.review.rating }} 分</span></strong><small>{{ selected.review.customer_name }}{{ selected.review.is_anonymous ? '（匿名展示）' : '' }} · {{ formatDateTime(selected.review.created_at) }}</small><p>{{ selected.review.content || '用户未填写文字评价' }}</p><div v-if="selected.review.image_urls.length" class="review-images"><el-image v-for="url in selected.review.image_urls" :key="url" :src="url" :preview-src-list="selected.review.image_urls" fit="cover" preview-teleported /></div></div>
-          <el-button v-if="canManageReview" :loading="reviewSaving" :type="selected.review.is_visible ? 'danger' : 'primary'" plain @click="moderateReview(selected.review.is_visible ? 'hide' : 'restore')">{{ selected.review.is_visible ? '屏蔽评价' : '恢复评价' }}</el-button>
+          <p v-if="selected.review.audit_status === 'rejected'" class="review-rejection">驳回原因：{{ selected.review.audit_rejection_reason }}</p>
+          <div v-if="canManageReview" class="review-actions"><template v-if="selected.review.audit_status === 'pending'"><el-button type="success" :loading="reviewSaving" @click="moderateReview('approve')">审核通过</el-button><el-button type="danger" plain :loading="reviewSaving" @click="moderateReview('reject')">驳回评价</el-button></template><el-button v-else-if="selected.review.audit_status === 'approved'" :loading="reviewSaving" :type="selected.review.is_visible ? 'danger' : 'primary'" plain @click="moderateReview(selected.review.is_visible ? 'hide' : 'restore')">{{ selected.review.is_visible ? '屏蔽评价' : '恢复评价' }}</el-button></div>
         </section>
 
         <section class="detail-section support-section">
@@ -676,7 +696,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.fulfillment-page{min-height:calc(100vh - 76px)}.fulfillment-heading{margin-bottom:18px}.fulfillment-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:14px}.fulfillment-summary button{position:relative;display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;min-height:92px;padding:16px 18px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.fulfillment-summary button:hover{border-color:#9cdfe0;box-shadow:0 10px 28px rgba(29,72,87,.08);transform:translateY(-1px)}.fulfillment-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.fulfillment-summary button.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(8,184,189,.1)}.fulfillment-summary .el-icon{grid-row:1/3;width:44px;height:44px;border-radius:12px;font-size:23px}.fulfillment-summary .el-icon.cyan{background:#e4f8f8}.fulfillment-summary .el-icon.blue{color:#2679e9!important;background:#e9f1ff}.fulfillment-summary .el-icon.orange{background:#fff0e6}.fulfillment-summary .el-icon.red{color:#d9485f;background:#fff0f2}.fulfillment-summary span{color:var(--muted);font-size:13px}.fulfillment-summary strong{font-size:27px}.fulfillment-summary small{position:absolute;right:16px;bottom:16px;color:#9aa1ab}.order-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.order-filters{display:grid;grid-template-columns:minmax(230px,1.5fr) 130px 140px 155px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.order-identity,.party-cell{display:flex;flex-direction:column;gap:5px}.order-identity strong{font-size:13px}.order-identity span,.party-cell span{color:var(--muted);font-size:12px}.party-cell strong{font-size:13px}.evidence-ok{color:#078d76}.evidence-missing{color:#d94747}.anomaly-tags{display:flex;flex-wrap:wrap;gap:4px}.normal-copy{display:inline-flex;align-items:center;gap:4px;color:#078d76}.order-table-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.fulfillment-drawer{min-height:100%;padding-bottom:28px;background:#f7f9fb}.fulfillment-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.fulfillment-drawer>header div{margin-right:auto}.fulfillment-drawer>header h2{margin:0;font-size:20px}.fulfillment-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.fulfillment-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.fulfillment-drawer>header button:hover{background:#f0f4f5}.drawer-alert{margin:16px 20px 0;width:auto}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section h3{display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:15px}.detail-section h3 .el-icon{color:var(--brand);font-size:18px}.order-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.order-overview div{display:flex;flex-direction:column;gap:6px}.order-overview .wide{grid-column:1/-1}.order-overview span,.evidence-meta span{color:var(--muted);font-size:12px}.order-overview strong{font-size:14px}.order-overview .amount{color:var(--orange);font-size:18px}.price-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}.price-breakdown div{display:flex;align-items:center;justify-content:space-between;padding-bottom:9px;border-bottom:1px dashed #e8ecef}.price-breakdown span{color:var(--muted);font-size:13px}.price-breakdown strong{font-size:13px}.price-breakdown .discount strong{color:#078d76}.price-breakdown .total{grid-column:1/-1;padding-top:3px;border-bottom:0}.price-breakdown .total strong{color:var(--orange);font-size:18px}.fulfillment-timeline{position:relative}.fulfillment-timeline::before{position:absolute;top:14px;bottom:14px;left:13px;width:1px;background:#dfe5e8;content:''}.fulfillment-timeline>div{position:relative;display:grid;grid-template-columns:28px 100px 1fr;align-items:center;min-height:40px}.fulfillment-timeline i{z-index:1;display:grid;place-items:center;width:27px;height:27px;border-radius:50%;color:#fff;background:var(--brand)}.fulfillment-timeline i svg{width:15px}.fulfillment-timeline span{padding-left:12px;font-size:13px}.fulfillment-timeline strong{color:#4c5665;font-size:12px;font-weight:500;text-align:right}.fulfillment-timeline .pending i{color:#9ba4ad;background:#edf1f3}.fulfillment-timeline .pending span,.fulfillment-timeline .pending strong{color:#9ba4ad}.evidence-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.evidence-meta p{display:flex;flex-direction:column;gap:4px;margin:0;font-size:13px}.evidence-preview .el-image{width:100%;height:245px;border-radius:8px;background:#edf2f3}.evidence-preview p{margin:9px 0 0;color:var(--muted);font-size:12px}.party-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.party-grid article{padding:12px;border:1px solid #e8ecef;border-radius:7px}.party-grid span{color:var(--muted);font-size:12px}.party-grid strong{display:block;margin:6px 0;font-size:14px}.party-grid p{margin:0;color:#596474;font-size:12px}.customer-note{margin:12px 0 0;padding:10px 12px;border-radius:6px;color:#5b6471;background:#f4f7f8;font-size:13px}.support-notes{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}.support-notes article{padding:12px;border-left:3px solid var(--brand);border-radius:4px;background:#f5fbfb}.support-notes header{display:flex;justify-content:space-between}.support-notes header strong{font-size:13px}.support-notes header span,.support-notes small{color:var(--muted);font-size:11px}.support-notes p{margin:8px 0;color:#3f4958;font-size:13px;line-height:1.65}.note-submit{display:flex;align-items:center;justify-content:space-between;margin-top:10px}.note-submit span{color:var(--muted);font-size:12px}:deep(.fulfillment-row){cursor:pointer}:deep(.el-drawer__body){padding:0}:deep(.el-empty){padding:14px 0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1360px){.order-filters{grid-template-columns:minmax(210px,1fr) 120px 130px 145px 66px 66px}.fulfillment-summary button{padding:14px}.fulfillment-summary small{display:none}}
+.fulfillment-page{min-height:calc(100vh - 76px)}.fulfillment-heading{margin-bottom:18px}.fulfillment-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:14px}.fulfillment-summary button{position:relative;display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;min-height:92px;padding:16px 18px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.fulfillment-summary button:hover{border-color:#9cdfe0;box-shadow:0 10px 28px rgba(29,72,87,.08);transform:translateY(-1px)}.fulfillment-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.fulfillment-summary button.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(8,184,189,.1)}.fulfillment-summary .el-icon{grid-row:1/3;width:44px;height:44px;border-radius:12px;font-size:23px}.fulfillment-summary .el-icon.cyan{background:#e4f8f8}.fulfillment-summary .el-icon.blue{color:#2679e9!important;background:#e9f1ff}.fulfillment-summary .el-icon.orange{background:#fff0e6}.fulfillment-summary .el-icon.red{color:#d9485f;background:#fff0f2}.fulfillment-summary span{color:var(--muted);font-size:13px}.fulfillment-summary strong{font-size:27px}.fulfillment-summary small{position:absolute;right:16px;bottom:16px;color:#9aa1ab}.order-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.order-filters{display:grid;grid-template-columns:minmax(210px,1.5fr) 120px 130px 145px 135px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.order-identity,.party-cell{display:flex;flex-direction:column;gap:5px}.order-identity strong{font-size:13px}.order-identity span,.party-cell span{color:var(--muted);font-size:12px}.party-cell strong{font-size:13px}.evidence-ok{color:#078d76}.evidence-missing{color:#d94747}.anomaly-tags{display:flex;flex-wrap:wrap;gap:4px}.normal-copy{display:inline-flex;align-items:center;gap:4px;color:#078d76}.order-table-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.fulfillment-drawer{min-height:100%;padding-bottom:28px;background:#f7f9fb}.fulfillment-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.fulfillment-drawer>header div{margin-right:auto}.fulfillment-drawer>header h2{margin:0;font-size:20px}.fulfillment-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.fulfillment-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.fulfillment-drawer>header button:hover{background:#f0f4f5}.drawer-alert{margin:16px 20px 0;width:auto}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section h3{display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:15px}.detail-section h3 .el-icon{color:var(--brand);font-size:18px}.order-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.order-overview div{display:flex;flex-direction:column;gap:6px}.order-overview .wide{grid-column:1/-1}.order-overview span,.evidence-meta span{color:var(--muted);font-size:12px}.order-overview strong{font-size:14px}.order-overview .amount{color:var(--orange);font-size:18px}.price-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}.price-breakdown div{display:flex;align-items:center;justify-content:space-between;padding-bottom:9px;border-bottom:1px dashed #e8ecef}.price-breakdown span{color:var(--muted);font-size:13px}.price-breakdown strong{font-size:13px}.price-breakdown .discount strong{color:#078d76}.price-breakdown .total{grid-column:1/-1;padding-top:3px;border-bottom:0}.price-breakdown .total strong{color:var(--orange);font-size:18px}.fulfillment-timeline{position:relative}.fulfillment-timeline::before{position:absolute;top:14px;bottom:14px;left:13px;width:1px;background:#dfe5e8;content:''}.fulfillment-timeline>div{position:relative;display:grid;grid-template-columns:28px 100px 1fr;align-items:center;min-height:40px}.fulfillment-timeline i{z-index:1;display:grid;place-items:center;width:27px;height:27px;border-radius:50%;color:#fff;background:var(--brand)}.fulfillment-timeline i svg{width:15px}.fulfillment-timeline span{padding-left:12px;font-size:13px}.fulfillment-timeline strong{color:#4c5665;font-size:12px;font-weight:500;text-align:right}.fulfillment-timeline .pending i{color:#9ba4ad;background:#edf1f3}.fulfillment-timeline .pending span,.fulfillment-timeline .pending strong{color:#9ba4ad}.evidence-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.evidence-meta p{display:flex;flex-direction:column;gap:4px;margin:0;font-size:13px}.evidence-preview .el-image{width:100%;height:245px;border-radius:8px;background:#edf2f3}.evidence-preview p{margin:9px 0 0;color:var(--muted);font-size:12px}.party-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.party-grid article{padding:12px;border:1px solid #e8ecef;border-radius:7px}.party-grid span{color:var(--muted);font-size:12px}.party-grid strong{display:block;margin:6px 0;font-size:14px}.party-grid p{margin:0;color:#596474;font-size:12px}.customer-note{margin:12px 0 0;padding:10px 12px;border-radius:6px;color:#5b6471;background:#f4f7f8;font-size:13px}.support-notes{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}.support-notes article{padding:12px;border-left:3px solid var(--brand);border-radius:4px;background:#f5fbfb}.support-notes header{display:flex;justify-content:space-between}.support-notes header strong{font-size:13px}.support-notes header span,.support-notes small{color:var(--muted);font-size:11px}.support-notes p{margin:8px 0;color:#3f4958;font-size:13px;line-height:1.65}.note-submit{display:flex;align-items:center;justify-content:space-between;margin-top:10px}.note-submit span{color:var(--muted);font-size:12px}.review-status-tags,.review-actions{display:flex;align-items:center;gap:8px}.review-rejection{padding:10px 12px;border-radius:6px;color:#b42335;background:#fff2f3;font-size:12px}:deep(.fulfillment-row){cursor:pointer}:deep(.el-drawer__body){padding:0}:deep(.el-empty){padding:14px 0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1360px){.order-filters{grid-template-columns:minmax(190px,1fr) 110px 120px 135px 125px 66px 66px}.fulfillment-summary button{padding:14px}.fulfillment-summary small{display:none}}
 @media(prefers-reduced-motion:reduce){.fulfillment-summary button{transition:none}.fulfillment-summary button:hover{transform:none}}
 .section-heading{display:flex;align-items:center;justify-content:space-between}.section-heading h3{margin-bottom:16px}
 .review-admin{display:flex;flex-direction:column;gap:9px;margin-bottom:14px;padding:14px;border-radius:8px;background:#f7fbfb}.review-admin>strong{color:#f2a11b;font-size:18px;letter-spacing:1px}.review-admin>strong span{margin-left:10px;color:#273342;font-size:13px;letter-spacing:0}.review-admin>small{color:var(--muted);font-size:12px}.review-admin>p{margin:0;color:#3f4958;font-size:13px;line-height:1.65}.review-images{display:grid;grid-template-columns:repeat(3,88px);gap:8px;margin-top:3px}.review-images :deep(.el-image){width:88px;height:88px;border-radius:7px;background:#eaf0f1}

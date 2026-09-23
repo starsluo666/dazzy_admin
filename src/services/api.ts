@@ -242,6 +242,7 @@ export interface ProviderOrderQuery {
   stage: FulfillmentStage
   anomaly: FulfillmentAnomalyFilter
   status?: ProviderOrderStatus | ''
+  review_audit_status?: 'all' | 'pending' | 'approved' | 'rejected'
   city_code?: string
   search?: string
   page?: number
@@ -650,7 +651,7 @@ export const adminApi = {
     ),
   moderateProviderOrderReview: (
     orderNo: string,
-    action: 'hide' | 'restore',
+    action: 'approve' | 'reject' | 'hide' | 'restore',
     reason = '',
   ) => request<AdminProviderOrder>(
     `/admin/provider-orders/${encodeURIComponent(orderNo)}/review/action/`,

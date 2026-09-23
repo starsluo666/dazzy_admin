@@ -68,6 +68,7 @@ export interface AdminOrganizationMember {
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
 
 export interface PlatformOperationSetting {
+  customer_service_phone: string
   provider_order_payment_timeout_minutes: number
   provider_order_confirmation_timeout_days: number
   provider_order_settlement_freeze_days: number
@@ -556,6 +557,31 @@ export interface AdminUserAddress {
   updated_at: string
 }
 
+export interface AdminUserBrowsingRecord {
+  id: number
+  target_type: 'provider' | 'activity'
+  target_type_label: string
+  target_id: string
+  title: string
+  city_name: string
+  view_count: number
+  first_viewed_at: string
+  last_viewed_at: string
+}
+
+export interface AdminUserReviewRecord {
+  id: number
+  order_no: string
+  provider_name: string
+  service_name: string
+  rating: number
+  content: string
+  audit_status: 'pending' | 'approved' | 'rejected'
+  audit_status_label: string
+  is_visible: boolean
+  created_at: string
+}
+
 export interface AdminUser {
   public_id: string
   nickname: string
@@ -572,11 +598,15 @@ export interface AdminUser {
   risk_flag: AdminUserRiskFlag | null
   order_count: number
   activity_count: number
+  browsing_count: number
+  review_count: number
   date_joined: string
   last_login: string | null
   recent_orders?: AdminUserRecentOrder[]
   recent_activities?: AdminUserRecentActivity[]
   addresses?: AdminUserAddress[]
+  browsing_history?: AdminUserBrowsingRecord[]
+  reviews?: AdminUserReviewRecord[]
 }
 
 export interface AdminUserSummary {
@@ -1064,6 +1094,11 @@ export interface AdminProviderOrder {
     image_urls: string[]
     created_at: string
     is_visible: boolean
+    audit_status: 'pending' | 'approved' | 'rejected'
+    audit_status_label: string
+    audit_rejection_reason: string
+    audited_by_name: string | null
+    audited_at: string | null
   } | null
 }
 
@@ -1072,4 +1107,5 @@ export interface ProviderOrderSummary {
   active: number
   pending_confirmation: number
   anomalies: number
+  pending_reviews: number
 }

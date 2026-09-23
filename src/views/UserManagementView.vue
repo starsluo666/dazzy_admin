@@ -82,6 +82,8 @@ function demoUser(index: number, overrides: Partial<AdminUser> = {}): AdminUser 
     risk_flag: null,
     order_count: 3 + index * 2,
     activity_count: index,
+    browsing_count: index + 2,
+    review_count: index % 3,
     date_joined: `2026-08-${String(18 - index).padStart(2, '0')}T10:20:00+08:00`,
     last_login: now,
     recent_orders: [{
@@ -114,6 +116,8 @@ function demoUser(index: number, overrides: Partial<AdminUser> = {}): AdminUser 
       is_default: true,
       updated_at: now,
     }] : [],
+    browsing_history: [],
+    reviews: [],
     ...overrides,
   }
 }
@@ -323,7 +327,7 @@ onMounted(load)
         </el-table-column>
         <el-table-column label="身份" width="90"><template #default="scope"><el-tag :type="scope.row.identity === 'provider' ? 'primary' : 'info'" effect="plain">{{ scope.row.identity === 'provider' ? '达人' : '用户' }}</el-tag></template></el-table-column>
         <el-table-column label="账号状态" width="98"><template #default="scope"><el-tag :type="accountTagType(scope.row.account_status)" effect="plain">{{ scope.row.account_status_label }}</el-tag></template></el-table-column>
-        <el-table-column label="业务记录" min-width="130"><template #default="scope"><div class="record-cell"><strong>{{ scope.row.order_count }} 笔订单</strong><span>{{ scope.row.activity_count }} 场活动</span></div></template></el-table-column>
+        <el-table-column label="业务记录" min-width="160"><template #default="scope"><div class="record-cell"><strong>{{ scope.row.order_count }} 笔订单 · {{ scope.row.activity_count }} 场活动</strong><span>{{ scope.row.browsing_count }} 条浏览 · {{ scope.row.review_count }} 条评价</span></div></template></el-table-column>
         <el-table-column label="风险标记" min-width="150"><template #default="scope"><el-tag v-if="scope.row.risk_flag" :type="scope.row.risk_flag.level === 'high' ? 'danger' : 'warning'" effect="light">{{ scope.row.risk_flag.level_label }}</el-tag><span v-else class="normal-copy"><el-icon><CircleCheck /></el-icon> 无风险标记</span></template></el-table-column>
         <el-table-column label="注册时间" width="145"><template #default="scope">{{ formatDateTime(scope.row.date_joined) }}</template></el-table-column>
         <el-table-column label="操作" width="78" fixed="right"><template #default="scope"><el-button link type="primary" @click.stop="openDetail(scope.row)">查看详情</el-button></template></el-table-column>
@@ -339,7 +343,9 @@ onMounted(load)
         <el-alert v-if="selected.risk_flag" class="risk-alert" type="warning" :closable="false" show-icon :title="`${selected.risk_flag.level_label}：${selected.risk_flag.reason}`" :description="`${selected.risk_flag.marked_by_name} · ${formatDateTime(selected.risk_flag.marked_at)}`" />
 
         <section class="detail-section account-overview"><div><span>账号状态</span><strong>{{ selected.account_status_label }}</strong></div><div><span>用户身份</span><strong>{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</strong></div><div><span>达人状态</span><strong>{{ selected.provider_status_label || '非达人' }}</strong></div><div><span>最近登录</span><strong>{{ formatDateTime(selected.last_login) }}</strong></div></section>
-        <section class="detail-section"><h3>业务概况</h3><div class="business-counts"><article><strong>{{ selected.order_count }}</strong><span>达人订单</span></article><article><strong>{{ selected.activity_count }}</strong><span>关联活动</span></article></div></section>
+        <section class="detail-section"><h3>业务概况</h3><div class="business-counts"><article><strong>{{ selected.order_count }}</strong><span>达人订单</span></article><article><strong>{{ selected.activity_count }}</strong><span>关联活动</span></article><article><strong>{{ selected.browsing_count }}</strong><span>浏览对象</span></article><article><strong>{{ selected.review_count }}</strong><span>评价记录</span></article></div></section>
+        <section class="detail-section"><div class="address-section-title"><h3>浏览数据</h3><span>最近 {{ selected.browsing_history?.length || 0 }} 条</span></div><div v-if="selected.browsing_history?.length" class="compact-records"><article v-for="record in selected.browsing_history" :key="record.id"><div><strong>{{ record.title }}</strong><span>{{ record.target_type_label }} · {{ record.city_name || '城市未知' }} · 最近 {{ formatDateTime(record.last_viewed_at) }}</span></div><div><b>{{ record.view_count }} 次</b><span>首次 {{ formatDateTime(record.first_viewed_at) }}</span></div></article></div><el-empty v-else :image-size="48" description="暂无浏览数据" /></section>
+        <section class="detail-section"><div class="address-section-title"><h3>评价数据</h3><span>最近 {{ selected.reviews?.length || 0 }} 条</span></div><div v-if="selected.reviews?.length" class="compact-records"><article v-for="review in selected.reviews" :key="review.id"><div><strong>{{ review.rating }} 分 · {{ review.service_name }}</strong><span>{{ review.order_no }} · 达人 {{ review.provider_name }}</span><span>{{ review.content || '未填写文字评价' }}</span></div><div><el-tag size="small" :type="review.audit_status === 'approved' ? 'success' : review.audit_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ review.audit_status_label }}</el-tag><span>{{ formatDateTime(review.created_at) }}</span></div></article></div><el-empty v-else :image-size="48" description="暂无评价数据" /></section>
         <section class="detail-section"><div class="address-section-title"><h3>常用地址</h3><span>{{ selected.addresses?.length || 0 }} 条</span></div><div v-if="selected.addresses?.length" class="address-records"><article v-for="address in selected.addresses" :key="address.id"><header><strong>{{ address.name }}</strong><el-tag v-if="address.is_default" size="small" type="primary" effect="plain">默认</el-tag></header><p>{{ address.city_name }} {{ address.address }}</p><div class="address-contact"><span>联系人</span><strong>{{ address.contact_name }}{{ address.contact_gender_label }}</strong><span>手机号</span><strong>{{ address.contact_phone }}</strong></div><footer><span>经度 {{ formatCoordinate(address.longitude) }}</span><span>纬度 {{ formatCoordinate(address.latitude) }}</span></footer></article></div><el-empty v-else :image-size="48" description="暂无常用地址" /></section>
         <section class="detail-section"><h3>最近订单</h3><div v-if="selected.recent_orders?.length" class="compact-records"><article v-for="order in selected.recent_orders" :key="order.order_no"><div><strong>{{ order.service_name }}</strong><span>{{ order.order_no }} · 达人 {{ order.provider_name }}</span></div><div><b>{{ formatAmount(order.payable_amount) }}</b><el-tag size="small" effect="plain">{{ order.status_label }}</el-tag></div></article></div><el-empty v-else :image-size="48" description="暂无订单记录" /></section>
         <section class="detail-section"><h3>最近活动</h3><div v-if="selected.recent_activities?.length" class="compact-records"><article v-for="activity in selected.recent_activities" :key="activity.id"><div><strong>{{ activity.title }}</strong><span>{{ formatDateTime(activity.starts_at) }}</span></div><el-tag size="small" effect="plain">{{ activity.status_label }}</el-tag></article></div><el-empty v-else :image-size="48" description="暂无活动记录" /></section>
