@@ -666,7 +666,10 @@ export interface ProviderApplication {
 
 export type ProviderChangeReviewKind = 'onboarding' | 'profile' | 'service'
 
+export interface ProviderMedia { id: string; type: 'image' | 'video'; url: string }
+
 export interface ProviderProfileRevisionReview {
+  media: ProviderMedia[]
   id: number
   display_name: string
   bio: string
@@ -778,6 +781,7 @@ export interface AdminProvider {
   status_label: string
   bio: string
   lifestyle_photo_available: boolean
+  media: ProviderMedia[]
   lifestyle_photo_url: string | null
   service_city_code: string
   service_city_name: string

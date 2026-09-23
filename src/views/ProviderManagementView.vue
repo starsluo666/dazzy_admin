@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProviderGallery from '../components/ProviderGallery.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -112,7 +113,7 @@ function demoProvider(index: number, overrides: Partial<AdminProvider> = {}): Ad
     account_status: 'active', account_status_label: '正常',
     status: 'approved', status_label: '已通过',
     bio: '热爱城市探索与摄影，熟悉本地路线，性格开朗有耐心。',
-    lifestyle_photo_available: true, lifestyle_photo_url: null,
+    lifestyle_photo_available: true, lifestyle_photo_url: null, media: [],
     service_city_code: '130400', service_city_name: '邯郸市',
     is_online: index !== 2, has_live_location: true,
     current_longitude: '114.5389610', current_latitude: '36.6256570',
@@ -362,7 +363,7 @@ onMounted(load)
           </template>
           <div v-if="canManage" class="commission-actions"><el-button type="primary" :loading="commissionSaving" :disabled="preview" @click="saveCommission">保存专属配置</el-button></div>
         </section>
-        <section class="detail-section"><h3>达人资料</h3><p class="provider-bio">{{ selected.bio || '达人尚未填写个人简介' }}</p><div v-if="selected.lifestyle_photo_available" class="photo-status"><span>生活照</span><el-image v-if="selected.lifestyle_photo_url" :src="selected.lifestyle_photo_url" :preview-src-list="[selected.lifestyle_photo_url]" fit="cover" preview-teleported /><el-tag v-else type="success" effect="plain">已留存，仅审核人员可查看</el-tag></div></section>
+        <section class="detail-section"><h3>达人资料</h3><p class="provider-bio">{{ selected.bio || '达人尚未填写个人简介' }}</p><ProviderGallery v-if="selected.media?.length || selected.lifestyle_photo_url" :media="selected.media" :cover="selected.lifestyle_photo_url" /><el-tag v-else-if="selected.lifestyle_photo_available" type="success" effect="plain">已留存，仅审核人员可查看</el-tag></section>
         <section class="detail-section"><h3>服务配置</h3><div v-if="selected.services.length" class="service-cards"><article v-for="service in selected.services" :key="service.id"><header><strong>{{ service.category }}</strong><el-tag size="small" :type="service.is_active ? 'success' : 'info'" effect="plain">{{ service.is_active ? '启用' : '停用' }}</el-tag></header><p>{{ service.billing_type_label }} · <b>{{ formatAmount(service.price_amount) }}</b><template v-if="service.estimated_duration_minutes"> · {{ service.estimated_duration_minutes }}分钟</template></p><span>{{ service.description || '暂无服务说明' }}</span></article></div><el-empty v-else :image-size="48" description="尚未配置服务项目" /></section>
         <section class="detail-section"><h3>每周档期</h3><div v-if="selected.weekly_availability.length" class="schedule-list"><span v-for="slot in selected.weekly_availability" :key="`${slot.weekday}-${slot.starts_at}`">周{{ slot.weekday_label }}　{{ slot.starts_at.slice(0, 5) }}–{{ slot.ends_at.slice(0, 5) }}</span></div><el-empty v-else :image-size="48" description="尚未配置每周档期" /></section>
         <section class="detail-section"><h3>最近订单</h3><div v-if="selected.recent_orders?.length" class="provider-records"><article v-for="order in selected.recent_orders" :key="order.order_no"><div><strong>{{ order.service_name }}</strong><span>{{ order.order_no }} · 用户 {{ order.customer_name }}</span></div><div><b>{{ formatAmount(order.payable_amount) }}</b><el-tag size="small" effect="plain">{{ order.status_label }}</el-tag></div></article></div><el-empty v-else :image-size="48" description="暂无订单记录" /></section>

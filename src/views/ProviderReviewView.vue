@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProviderGallery from '../components/ProviderGallery.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -458,7 +459,7 @@ onMounted(() => { load(); loadCategories() })
         <p>证件号：{{ selectedChange.identity?.number_masked || '—' }}</p>
         <div class="identity-photos"><el-image v-if="selectedChange.identity?.front_photo_url" :src="selectedChange.identity.front_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.front_photo_url]" /><el-image v-if="selectedChange.identity?.back_photo_url" :src="selectedChange.identity.back_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.back_photo_url]" /><el-image v-if="selectedChange.identity?.face_photo_url" :src="selectedChange.identity.face_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.face_photo_url]" /></div>
       </section>
-      <section v-if="selectedChange.profile_revision"><h3>达人资料</h3><p>达人名：{{ selectedChange.profile_revision.display_name }}</p><p>城市与范围：{{ selectedChange.profile_revision.service_city_name }} · {{ selectedChange.profile_revision.max_service_radius_km }}km</p><p class="bio">{{ selectedChange.profile_revision.bio }}</p><el-image class="lifestyle-photo" :src="selectedChange.profile_revision.lifestyle_photo_url || ''" fit="cover" :preview-src-list="selectedChange.profile_revision.lifestyle_photo_url ? [selectedChange.profile_revision.lifestyle_photo_url] : []" /></section>
+      <section v-if="selectedChange.profile_revision"><h3>达人资料</h3><p>达人名：{{ selectedChange.profile_revision.display_name }}</p><p>城市与范围：{{ selectedChange.profile_revision.service_city_name }} · {{ selectedChange.profile_revision.max_service_radius_km }}km</p><p class="bio">{{ selectedChange.profile_revision.bio }}</p><ProviderGallery :media="selectedChange.profile_revision.media" :cover="selectedChange.profile_revision.lifestyle_photo_url" /></section>
       <section v-if="selectedChange.service_revisions.length"><h3>服务配置</h3><div v-for="service in selectedChange.service_revisions" :key="service.id" class="service-review"><strong>{{ service.category_name }} · {{ service.action_label }}</strong><span>{{ service.billing_type_label }} ¥{{ service.price_amount / 100 }}（允许 ¥{{ service.min_price_amount / 100 }}–{{ service.max_price_amount / 100 }}）</span><p>{{ service.description || '无服务说明' }}</p></div></section>
       <section v-if="selectedChange.rejection_reason"><h3>驳回原因</h3><p class="bio">{{ selectedChange.rejection_reason }}</p></section>
       <footer v-if="changeStatusFilter === 'pending'"><span>通过后将正式发布本次内容</span><el-button class="reject" :loading="reviewing" @click="reviewChange('reject')">驳回</el-button><el-button type="primary" :loading="reviewing" :disabled="reviewMode === 'onboarding' && !selectedChange.identity_name_matches" @click="reviewChange('approve')">通过审核</el-button></footer>
