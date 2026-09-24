@@ -20,6 +20,7 @@ import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
 import CouponManagementView from './views/CouponManagementView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
+import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
 import {
   canAccessAdminPage,
   firstAccessibleAdminPage,
@@ -240,6 +241,12 @@ onMounted(loadSession)
       v-else-if="currentPage === 'settlements'"
       :preview="preview"
       :can-manage="canManageOrderFinance"
+    />
+    <ActivityFinancePanel
+      v-else-if="currentPage === 'activity_finance'"
+      :preview="preview"
+      :can-manage-after-sales="canManageActivityAfterSales"
+      :can-manage-settlement="canManageActivitySettlement"
     />
     <SupportCasesView
       v-else-if="currentPage === 'support_cases'"

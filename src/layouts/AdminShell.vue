@@ -40,10 +40,12 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'activities', label: '活动管理', icon: Calendar, enabled: can('activity.view'), visible: can('activity.view') },
-  { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') || can('order.finance.view') },
+  { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') },
   { key: 'orders', label: '达人订单', icon: List, child: true, parent: 'orders-group', enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
-  { key: 'settlements', label: '交易与结算', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
+  { key: 'finance-group', label: '财务管理', icon: Coin, group: true, visible: can('order.finance.view') || can('activity_finance.view') },
+  { key: 'settlements', label: '达人订单财务', icon: Document, child: true, parent: 'finance-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
+  { key: 'activity_finance', label: '活动财务', icon: Calendar, child: true, parent: 'finance-group', enabled: can('activity_finance.view'), visible: can('activity_finance.view') },
   { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') || can('support.case.manage') },
   { key: 'support_cases', label: '客服工单', icon: List, child: true, parent: 'support-group', enabled: can('support.case.view'), visible: can('support.case.view') },
   { key: 'coupons', label: '优惠券', icon: Coin, child: true, parent: 'support-group', enabled: can('support.case.manage'), visible: can('support.case.manage') },
@@ -68,7 +70,8 @@ const pageLabels: Record<AdminPage, string> = {
   activities: '活动管理',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
-  settlements: '订单管理 / 交易与结算',
+  settlements: '财务管理 / 达人订单财务',
+  activity_finance: '财务管理 / 活动财务',
   support_cases: '客服与投诉 / 客服工单',
   coupons: '客服与投诉 / 优惠券',
   system: '系统管理 / 账号与权限',
@@ -93,7 +96,8 @@ function childVisible(parent?: string) {
 function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
-    || (key === 'orders-group' && ['orders', 'after_sales', 'settlements'].includes(props.active))
+    || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
+    || (key === 'finance-group' && ['settlements', 'activity_finance'].includes(props.active))
     || (key === 'support-group' && ['support_cases', 'coupons'].includes(props.active))
     || (key === 'operations-group' && ['services', 'platform_settings', 'provider_rules'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))

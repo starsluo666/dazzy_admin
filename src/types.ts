@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'support_cases' | 'coupons' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'support_cases' | 'coupons' | 'system' | 'tasks' | 'audit_logs'
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
