@@ -12,6 +12,8 @@ import AfterSalesView from './views/AfterSalesView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
 import ActivityManagementView from './views/ActivityManagementView.vue'
+import ActivityCategoriesView from './views/ActivityCategoriesView.vue'
+import ActivityReportsView from './views/ActivityReportsView.vue'
 import AuditLogsView from './views/AuditLogsView.vue'
 import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
@@ -19,8 +21,13 @@ import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
 import CouponManagementView from './views/CouponManagementView.vue'
+import CouponIssueRecordsView from './views/CouponIssueRecordsView.vue'
+import NewcomerGiftView from './views/NewcomerGiftView.vue'
+import InvitationRulesView from './views/InvitationRulesView.vue'
+import InvitationRecordsView from './views/InvitationRecordsView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
+import WalletFinanceView from './views/WalletFinanceView.vue'
 import {
   canAccessAdminPage,
   firstAccessibleAdminPage,
@@ -74,15 +81,16 @@ const canManageOrderReview = hasPermission('order.review.manage')
 const canManageServiceCategory = hasPermission('service_category.manage')
 const canReviewActivity = hasPermission('activity.review')
 const canManageActivity = hasPermission('activity.manage')
-const canViewActivityCategory = hasPermission('activity_category.view')
 const canManageActivityCategory = hasPermission('activity_category.manage')
-const canViewActivityReport = hasPermission('activity_report.view')
 const canManageActivityReport = hasPermission('activity_report.manage')
-const canViewActivityFinance = hasPermission('activity_finance.view')
 const canManageActivityAfterSales = hasPermission('activity_after_sales.manage')
 const canManageActivitySettlement = hasPermission('activity_settlement.manage')
 const canRetryTask = hasPermission('system.task.retry')
 const canManageSupportCase = hasPermission('support.case.manage')
+const canManageCoupon = hasPermission('coupon.manage')
+const canIssueCoupon = hasPermission('coupon.issue')
+const canManageGrowth = hasPermission('growth.manage')
+const canManageWallet = hasPermission('wallet.manage')
 
 setSessionExpiredHandler(() => {
   session.value = null
@@ -223,13 +231,16 @@ onMounted(loadSession)
       :preview="preview"
       :can-review="canReviewActivity"
       :can-manage="canManageActivity"
-      :can-view-category="canViewActivityCategory"
-      :can-manage-category="canManageActivityCategory"
-      :can-view-report="canViewActivityReport"
-      :can-manage-report="canManageActivityReport"
-      :can-view-finance="canViewActivityFinance"
-      :can-manage-after-sales="canManageActivityAfterSales"
-      :can-manage-settlement="canManageActivitySettlement"
+    />
+    <ActivityCategoriesView
+      v-else-if="currentPage === 'activity_categories'"
+      :preview="preview"
+      :can-manage="canManageActivityCategory"
+    />
+    <ActivityReportsView
+      v-else-if="currentPage === 'activity_reports'"
+      :preview="preview"
+      :can-manage="canManageActivityReport"
     />
     <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
     <AfterSalesView
@@ -248,12 +259,41 @@ onMounted(loadSession)
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
     />
+    <WalletFinanceView
+      v-else-if="currentPage === 'wallets'"
+      :preview="preview"
+      :can-manage="canManageWallet"
+    />
     <SupportCasesView
       v-else-if="currentPage === 'support_cases'"
       :preview="preview"
       :can-manage="canManageSupportCase"
     />
-    <CouponManagementView v-else-if="currentPage === 'coupons'" :preview="preview" />
+    <CouponManagementView
+      v-else-if="currentPage === 'coupons'"
+      :preview="preview"
+      :can-manage="canManageCoupon"
+      :can-issue="canIssueCoupon"
+    />
+    <CouponIssueRecordsView
+      v-else-if="currentPage === 'coupon_records'"
+      :preview="preview"
+      :can-issue="canIssueCoupon"
+    />
+    <NewcomerGiftView
+      v-else-if="currentPage === 'newcomer_gift'"
+      :preview="preview"
+      :can-manage="canManageGrowth"
+    />
+    <InvitationRulesView
+      v-else-if="currentPage === 'invitation_rules'"
+      :preview="preview"
+      :can-manage="canManageGrowth"
+    />
+    <InvitationRecordsView
+      v-else-if="currentPage === 'invitation_records'"
+      :preview="preview"
+    />
     <SystemManagementView
       v-else-if="currentPage === 'system'"
       @open-audit="navigate('audit_logs')"

@@ -15,6 +15,16 @@ import type {
   AdminActivitySummary,
   AdminAuditLog,
   AdminCoupon,
+  AdminCouponQuery,
+  AdminCouponTemplate,
+  AdminCouponTemplateMutation,
+  AdminInvitationQuery,
+  AdminInvitationRecord,
+  AdminRechargeOrder,
+  AdminWallet,
+  RechargeCampaign,
+  GrowthCampaignConfig,
+  GrowthCampaignMutation,
   CommissionTier,
   AdminAfterSalesCase,
   AdminMe,
@@ -592,15 +602,49 @@ export const adminApi = {
     summary: AdminUserSummary
   }>('admin-users', `/admin/users/?${queryString(query)}`),
   user: (publicId: string) => request<AdminUser>(`/admin/users/${publicId}/`),
-  coupons: (userPublicId = '') => request<{ items: AdminCoupon[] }>(
-    `/admin/coupons/${userPublicId ? `?user_public_id=${encodeURIComponent(userPublicId)}` : ''}`,
-  ),
+  coupons: (query: AdminCouponQuery = {}) => requestLatest<{
+    items: AdminCoupon[]
+    pagination: { page: number; page_size: number; total: number }
+  }>('admin-coupons', `/admin/coupons/?${queryString(query)}`),
   couponUsers: (search: string) => request<{ users: Array<{ public_id: string; nickname: string; phone_masked: string }> }>(
-    `/admin/coupons/?search=${encodeURIComponent(search)}`,
+    `/admin/coupons/?user_search=${encodeURIComponent(search)}&page_size=1`,
   ),
-  issueCoupon: (userPublicId: string) => request<AdminCoupon>('/admin/coupons/', {
-    method: 'POST', body: JSON.stringify({ user_public_id: userPublicId }),
+  couponTemplates: () => request<{ items: AdminCouponTemplate[] }>('/admin/coupon-templates/'),
+  createCouponTemplate: (payload: AdminCouponTemplateMutation) => request<AdminCouponTemplate>('/admin/coupon-templates/', {
+    method: 'POST', body: JSON.stringify(payload),
   }),
+  updateCouponTemplate: (publicId: string, payload: Partial<AdminCouponTemplateMutation>) => request<AdminCouponTemplate>(`/admin/coupon-templates/${publicId}/`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
+  deleteCouponTemplate: (publicId: string) => request<void>(`/admin/coupon-templates/${publicId}/`, { method: 'DELETE' }),
+  issueCoupon: (userPublicId: string, templatePublicId: string) => request<AdminCoupon>('/admin/coupons/', {
+    method: 'POST', body: JSON.stringify({ user_public_id: userPublicId, template_public_id: templatePublicId }),
+  }),
+  revokeCoupon: (publicId: string, reason: string) => request<AdminCoupon>(`/admin/coupons/${publicId}/revoke/`, {
+    method: 'POST', body: JSON.stringify({ reason }),
+  }),
+  growthConfig: () => request<GrowthCampaignConfig>('/admin/growth/config/'),
+  updateGrowthConfig: (payload: GrowthCampaignMutation) => request<GrowthCampaignConfig>('/admin/growth/config/', {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
+  invitationRecords: (query: AdminInvitationQuery = {}) => requestLatest<{
+    items: AdminInvitationRecord[]
+    pagination: { page: number; page_size: number; total: number }
+    generated_at: string
+  }>('admin-invitations', `/admin/growth/invitations/?${queryString(query)}`),
+  rechargeCampaign: () => request<RechargeCampaign>('/admin/recharge-campaign/'),
+  updateRechargeCampaign: (payload: Partial<RechargeCampaign>) => request<RechargeCampaign>(
+    '/admin/recharge-campaign/',
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ),
+  wallets: (query: { search?: string; page?: number; page_size?: number } = {}) => requestLatest<{
+    items: AdminWallet[]
+    pagination: { page: number; page_size: number; total: number }
+  }>('admin-wallets', `/admin/wallets/?${queryString(query)}`),
+  rechargeOrders: (query: { search?: string; status?: string; page?: number; page_size?: number } = {}) => requestLatest<{
+    items: AdminRechargeOrder[]
+    pagination: { page: number; page_size: number; total: number }
+  }>('admin-recharge-orders', `/admin/recharge-orders/?${queryString(query)}`),
   changeUserAccount: (
     publicId: string,
     action: 'restrict' | 'suspend' | 'restore',

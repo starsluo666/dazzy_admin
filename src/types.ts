@@ -7,7 +7,45 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'support_cases' | 'coupons' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+
+export interface RechargeDiscountTier {
+  min_quantity: number
+  discount_rate_bps: number
+}
+
+export interface RechargeCampaign {
+  is_enabled: boolean
+  unit_face_amount: number
+  max_quantity_per_order: number
+  rules_text: string
+  tiers: RechargeDiscountTier[]
+  updated_at: string
+}
+
+export interface AdminWallet {
+  user_public_id: string
+  nickname: string
+  phone: string
+  available_balance: number
+  frozen_balance: number
+  total_balance: number
+  updated_at: string
+}
+
+export interface AdminRechargeOrder {
+  order_no: string
+  nickname: string
+  phone: string
+  quantity: number
+  credited_amount: number
+  discount_amount: number
+  payable_amount: number
+  status: 'pending_payment' | 'paid' | 'closed'
+  status_label: string
+  paid_at: string | null
+  created_at: string
+}
 
 export type AdminRoleDataScope = 'all' | 'organization' | 'city'
 
@@ -571,15 +609,105 @@ export interface CommissionTier {
 
 export interface AdminCoupon {
   public_id: string
+  template_public_id: string | null
+  template_name: string
   user_public_id: string
   user_name: string
+  user_phone_masked: string
   face_amount: number
   min_order_amount: number
   expires_at: string
   status: string
   source: string
   issued_by: string | null
+  revoked_by: string | null
+  revoked_at: string | null
+  revoke_reason: string
   created_at: string
+}
+
+export interface AdminCouponTemplate {
+  public_id: string
+  name: string
+  description: string
+  face_amount: number
+  min_order_amount: number
+  valid_days: number
+  is_active: boolean
+  issued_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminCouponTemplateMutation {
+  name: string
+  description: string
+  face_amount: number
+  min_order_amount: number
+  valid_days: number
+  is_active: boolean
+}
+
+export interface AdminCouponQuery {
+  search?: string
+  template_public_id?: string
+  status?: '' | 'available' | 'reserved' | 'used' | 'expired' | 'revoked'
+  source?: '' | 'manual' | 'report_reward' | 'customer_service' | 'newcomer_gift' | 'invite_registration' | 'invite_first_order'
+  issued_by_search?: string
+  created_from?: string
+  created_to?: string
+  page?: number
+  page_size?: number
+}
+
+export interface GrowthCouponTemplate {
+  public_id: string
+  name: string
+  description: string
+  face_amount: number
+  min_order_amount: number
+  valid_days: number
+  is_active: boolean
+}
+
+export interface GrowthCampaignConfig {
+  newcomer_gift_enabled: boolean
+  invitation_enabled: boolean
+  newcomer_gift_templates: GrowthCouponTemplate[]
+  registration_reward_template: GrowthCouponTemplate | null
+  first_order_reward_template: GrowthCouponTemplate | null
+  updated_at: string | null
+}
+
+export interface GrowthCampaignMutation {
+  newcomer_gift_enabled?: boolean
+  invitation_enabled?: boolean
+  newcomer_gift_template_public_ids?: string[]
+  registration_reward_template_public_id?: string | null
+  first_order_reward_template_public_id?: string | null
+}
+
+export interface AdminInvitationRecord {
+  public_id: string
+  inviter_public_id: string
+  inviter_name: string
+  inviter_phone_masked: string
+  invitee_public_id: string
+  invitee_name: string
+  invitee_phone_masked: string
+  status: 'registered' | 'first_order_rewarded'
+  registration_rewarded: boolean
+  first_order_rewarded: boolean
+  registered_at: string
+  first_order_completed_at: string | null
+  order_no: string
+}
+
+export interface AdminInvitationQuery {
+  search?: string
+  status?: '' | 'registered' | 'first_order_rewarded'
+  page?: number
+  page_size?: number
 }
 
 export interface AdminUserBrowsingRecord {

@@ -33,7 +33,7 @@ function demoCase(id: number, patch: Partial<AdminSupportCase> = {}): AdminSuppo
     public_id: `00000000-0000-0000-0000-0000000000${id}`,
     case_no: `SC20260903${String(id).padStart(4, '0')}`,
     case_type: id % 3 === 0 ? 'report' : id % 2 === 0 ? 'complaint' : 'consultation',
-    case_type_label: id % 3 === 0 ? '举报' : id % 2 === 0 ? '投诉' : '咨询',
+    case_type_label: id % 3 === 0 ? '举报' : id % 2 === 0 ? '投诉/反馈' : '咨询',
     target_type: id === 1 ? 'provider_order' : id === 2 ? 'provider' : id === 3 ? 'review' : 'general',
     target_type_label: id === 1 ? '达人订单' : id === 2 ? '达人' : id === 3 ? '用户评价' : '平台服务',
     target_id: id === 1 ? 'DZYQA202609020001' : `TARGET-${id}`,
@@ -194,7 +194,7 @@ onMounted(load)
 
 <template>
   <section class="support-page">
-    <div class="page-heading"><div><h1>客服工单</h1><p>统一受理咨询、投诉与举报，完整记录处理过程</p></div><el-button :icon="Refresh" @click="load">刷新</el-button></div>
+    <div class="page-heading"><div><h1>客服工单</h1><p>统一受理投诉/反馈与举报，完整记录处理过程；历史咨询仍可查询</p></div><el-button :icon="Refresh" @click="load">刷新</el-button></div>
     <div class="summary-grid">
       <button v-for="item in summaryCards" :key="item.key" :class="{ active: item.key === 'resolved' ? filters.statusGroup === 'terminal' : filters.status === item.key }" @click="selectSummary(item.key)">
         <el-icon :class="item.tone"><component :is="item.icon" /></el-icon><span>{{ item.label }}</span><strong>{{ item.value }}</strong><small>查看工单</small>
@@ -203,7 +203,7 @@ onMounted(load)
     <section class="work-panel">
       <div class="filters">
         <el-input v-model="filters.search" clearable :prefix-icon="Search" placeholder="搜索工单号、用户或关联对象" @keyup.enter="query" />
-        <el-select v-model="filters.caseType" clearable placeholder="工单类型"><el-option label="咨询" value="consultation"/><el-option label="投诉" value="complaint"/><el-option label="举报" value="report"/></el-select>
+        <el-select v-model="filters.caseType" clearable placeholder="工单类型"><el-option label="历史咨询" value="consultation"/><el-option label="投诉/反馈" value="complaint"/><el-option label="举报" value="report"/></el-select>
         <el-select v-model="filters.targetType" clearable placeholder="关联对象"><el-option label="平台服务" value="general"/><el-option label="达人" value="provider"/><el-option label="达人订单" value="provider_order"/><el-option label="活动" value="activity"/><el-option label="用户评价" value="review"/></el-select>
         <el-select v-model="filters.status" clearable placeholder="处理状态" @change="filters.statusGroup = ''"><el-option label="待受理" value="pending"/><el-option label="处理中" value="processing"/><el-option label="复核中" value="reviewing"/><el-option label="已处理" value="resolved"/><el-option label="不予受理" value="rejected"/><el-option label="已关闭" value="closed"/></el-select>
         <el-select v-model="filters.cityCode" clearable placeholder="全部城市"><el-option label="邯郸市" value="130400"/><el-option label="北京市" value="110100"/></el-select>

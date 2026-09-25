@@ -20,6 +20,29 @@
   flex: 1;
 }
 
+.sidebar nav .nav-group.subgroup {
+  height: 40px;
+  margin-top: 0;
+  padding-left: 43px;
+  color: #4f5a68;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sidebar nav .nav-group.subgroup .el-icon {
+  font-size: 16px;
+}
+
+.sidebar nav button.grandchild {
+  height: 38px;
+  padding-left: 66px;
+  font-size: 13px;
+}
+
+.sidebar nav button.grandchild .el-icon {
+  font-size: 14px;
+}
+
 .sidebar nav .nav-group:hover {
   background: #f3fbfb;
 }
