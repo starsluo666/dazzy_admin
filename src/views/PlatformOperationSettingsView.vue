@@ -19,12 +19,13 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import FlowRuleCard from '../components/operation-settings/FlowRuleCard.vue'
+import DiscoveryCitySettings from '../components/operation-settings/DiscoveryCitySettings.vue'
 import { adminApi } from '../services/api'
 import type { AdminAuditLog, PlatformOperationSetting } from '../types'
 import { formatDateTime } from '../utils/format'
 
 type FieldKey = Exclude<keyof PlatformOperationSetting,
-  'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone'
+  'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone' | 'discovery_cities'
   | 'provider_commission_reset_period' | 'provider_commission_tiers'
   | 'report_coupon_amount' | 'report_coupon_min_order_amount' | 'report_coupon_valid_days'>
 type GroupKey = 'all' | 'provider' | 'activity' | 'settlement'
@@ -429,6 +430,8 @@ onMounted(() => {
       </div>
       <el-button type="primary" :loading="saving" @click="save">发布配置</el-button>
     </header>
+
+    <DiscoveryCitySettings />
 
     <nav class="view-switch" aria-label="参数视图">
       <button :class="{ active: viewMode === 'flow' }" @click="viewMode = 'flow'">流程视图</button>

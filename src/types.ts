@@ -106,6 +106,7 @@ export interface AdminOrganizationMember {
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
 
 export interface PlatformOperationSetting {
+  discovery_cities: Array<{ city_code: string; city_name: string }>
   customer_service_phone: string
   provider_order_payment_timeout_minutes: number
   provider_order_confirmation_timeout_days: number
