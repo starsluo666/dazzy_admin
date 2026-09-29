@@ -555,7 +555,7 @@ export type ProviderApplicationStatus = 'draft' | 'pending' | 'approved' | 'reje
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected'
 export type ProviderIdentityStatus = VerificationStatus
 export type Gender = 'unspecified' | 'male' | 'female'
-export type AccountStatus = 'active' | 'restricted' | 'suspended' | 'closed'
+export type AccountStatus = 'active' | 'restricted' | 'suspended' | 'closure_pending' | 'closed'
 export type UserRiskLevel = 'low' | 'medium' | 'high'
 
 export interface AdminUserRiskFlag {

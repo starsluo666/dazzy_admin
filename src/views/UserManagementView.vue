@@ -50,7 +50,7 @@ const actionForm = reactive<{
 }>({ kind: 'account', action: 'restrict', level: 'medium', reason: '' })
 
 const accountLabels: Record<AccountStatus, string> = {
-  active: '正常', restricted: '受限', suspended: '已封禁', closed: '已注销',
+  active: '正常', restricted: '受限', suspended: '已封禁', closure_pending: '注销处理中', closed: '已注销',
 }
 const riskLabels: Record<UserRiskLevel, string> = {
   low: '一般关注', medium: '重点关注', high: '高风险',
@@ -157,7 +157,7 @@ function formatCoordinate(value: string | number) {
 }
 function accountTagType(status: AccountStatus) {
   if (status === 'active') return 'success'
-  if (status === 'restricted') return 'warning'
+  if (status === 'restricted' || status === 'closure_pending') return 'warning'
   if (status === 'suspended') return 'danger'
   return 'info'
 }
