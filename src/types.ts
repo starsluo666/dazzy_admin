@@ -7,7 +7,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'platform_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
 
 export interface RechargeDiscountTier {
   min_quantity: number
@@ -442,6 +442,7 @@ export interface AdminActivityCategory {
   name: string
   slug: string
   icon_object_key: string
+  icon_asset_id: string | null
   icon_url: string | null
   city_codes: string[]
   min_capacity: number
@@ -467,7 +468,7 @@ export interface AdminActivityCategorySummary {
 export interface AdminActivityCategoryMutation {
   name: string
   slug: string
-  icon_object_key: string
+  icon_asset_id: string | null
   city_codes: string[]
   min_capacity: number
   max_capacity: number
@@ -514,6 +515,7 @@ export interface AdminServiceCategory {
   name: string
   slug: string
   icon_object_key: string
+  icon_asset_id: string | null
   icon_url: string | null
   city_codes: string[]
   sort_order: number
@@ -540,7 +542,7 @@ export interface AdminServiceCategorySummary {
 export interface AdminServiceCategoryMutation {
   name: string
   slug: string
-  icon_object_key: string
+  icon_asset_id: string | null
   city_codes: string[]
   sort_order: number
   is_active: boolean
@@ -601,6 +603,26 @@ export interface AdminUserAddress {
   latitude: string | number
   is_default: boolean
   updated_at: string
+}
+
+export interface AdminAssetReference {
+  type: 'service_category' | 'activity_category'
+  id: number
+  name: string
+}
+
+export interface AdminAsset {
+  id: string
+  name: string
+  kind: 'icon' | 'image'
+  object_key: string
+  url: string
+  content_type: string
+  size_bytes: number | null
+  status: 'active' | 'trash'
+  uploaded_at: string | null
+  reference_count: number
+  references: AdminAssetReference[]
 }
 
 export interface CommissionTier {

@@ -3,10 +3,11 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 
+import AssetPicker from '../../components/AssetPicker.vue'
 import { adminApi } from '../../services/api'
-import type { AdminActivityCategory, AdminActivityCategoryMutation, AdminActivityCategorySummary } from '../../types'
+import type { AdminActivityCategory, AdminActivityCategoryMutation, AdminActivityCategorySummary, AdminAsset } from '../../types'
 
-const props = defineProps<{ preview: boolean; canManage: boolean }>()
+const props = defineProps<{ preview: boolean; canManage: boolean; canUseAssets: boolean; canUploadAssets: boolean }>()
 const rows = ref<AdminActivityCategory[]>([])
 const summary = ref<AdminActivityCategorySummary>({ total: 0, active: 0, inactive: 0, active_activities: 0 })
 const search = ref('')
@@ -15,8 +16,11 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editing = ref<AdminActivityCategory | null>(null)
+const pickerOpen = ref(false)
+const selectedIconUrl = ref<string | null>(null)
+const iconTouched = ref(false)
 const form = reactive<AdminActivityCategoryMutation>({
-  name: '', slug: '', icon_object_key: '', city_codes: [], min_capacity: 2,
+  name: '', slug: '', icon_asset_id: null, city_codes: [], min_capacity: 2,
   max_capacity: 100, min_aa_principal_amount: 1, max_aa_principal_amount: 10000000,
   content_guidance: '', sort_order: 0, is_active: true,
 })
@@ -29,7 +33,7 @@ const cityOptions = [
 
 function demo(id: number, name: string, slug: string, count: number, active = true): AdminActivityCategory {
   return {
-    id, name, slug, icon_object_key: '', icon_url: null, city_codes: id < 3 ? ['130400'] : [],
+    id, name, slug, icon_object_key: '', icon_asset_id: null, icon_url: null, city_codes: id < 3 ? ['130400'] : [],
     min_capacity: 2, max_capacity: id === 4 ? 20 : 100,
     min_aa_principal_amount: 100, max_aa_principal_amount: id === 4 ? 50000 : 200000,
     content_guidance: '活动介绍须说明流程、适合人群、费用范围及集合要求。',
@@ -72,17 +76,24 @@ async function load() {
 }
 function resetForm(item?: AdminActivityCategory) {
   editing.value = item || null
+  selectedIconUrl.value = item?.icon_url || null
+  iconTouched.value = false
   Object.assign(form, item ? {
-    name: item.name, slug: item.slug, icon_object_key: item.icon_object_key,
+    name: item.name, slug: item.slug, icon_asset_id: item.icon_asset_id,
     city_codes: [...item.city_codes], min_capacity: item.min_capacity,
     max_capacity: item.max_capacity, min_aa_principal_amount: item.min_aa_principal_amount,
     max_aa_principal_amount: item.max_aa_principal_amount, content_guidance: item.content_guidance,
     sort_order: item.sort_order, is_active: item.is_active,
   } : {
-    name: '', slug: '', icon_object_key: '', city_codes: [], min_capacity: 2,
+    name: '', slug: '', icon_asset_id: null, city_codes: [], min_capacity: 2,
     max_capacity: 100, min_aa_principal_amount: 1, max_aa_principal_amount: 10000000,
     content_guidance: '', sort_order: 0, is_active: true,
   })
+}
+function chooseIcon(asset: AdminAsset | null) {
+  form.icon_asset_id = asset?.id || null
+  selectedIconUrl.value = asset?.url || null
+  iconTouched.value = true
 }
 function openEditor(item?: AdminActivityCategory) { if (props.canManage) { resetForm(item); dialogVisible.value = true } }
 async function save() {
@@ -90,15 +101,19 @@ async function save() {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) return ElMessage.warning('分类标识仅支持小写字母、数字和连字符')
   const payload: AdminActivityCategoryMutation = {
     ...form, name: form.name.trim(), slug: form.slug.trim().toLowerCase(),
-    icon_object_key: form.icon_object_key.trim(), content_guidance: form.content_guidance.trim(),
+    content_guidance: form.content_guidance.trim(),
     city_codes: [...new Set(form.city_codes)],
   }
   saving.value = true
   try {
     if (props.preview) {
-      if (editing.value) Object.assign(demoRows.value.find((item) => item.id === editing.value?.id)!, payload, { updated_at: new Date().toISOString() })
-      else demoRows.value.push({ id: Math.max(...demoRows.value.map((item) => item.id)) + 1, ...payload, icon_url: null, activity_count: 0, active_activity_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    } else if (editing.value) await adminApi.updateActivityCategory(editing.value.id, payload)
+      if (editing.value) Object.assign(demoRows.value.find((item) => item.id === editing.value?.id)!, payload, { icon_url: selectedIconUrl.value, updated_at: new Date().toISOString() })
+      else demoRows.value.push({ id: Math.max(...demoRows.value.map((item) => item.id)) + 1, ...payload, icon_object_key: '', icon_url: selectedIconUrl.value, activity_count: 0, active_activity_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    } else if (editing.value) {
+      const updatePayload: Partial<AdminActivityCategoryMutation> = { ...payload }
+      if (!editing.value.icon_asset_id && !iconTouched.value) delete updatePayload.icon_asset_id
+      await adminApi.updateActivityCategory(editing.value.id, updatePayload)
+    }
     else await adminApi.createActivityCategory(payload)
     dialogVisible.value = false; ElMessage.success(editing.value ? '活动标签已更新' : '活动标签已创建'); await load()
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存失败') }
@@ -138,14 +153,16 @@ onMounted(load)
       <el-form label-position="top" class="form">
         <div class="grid"><el-form-item label="标签名称" required><el-input v-model="form.name" maxlength="30"/></el-form-item><el-form-item label="标签标识" required><el-input v-model="form.slug" :disabled="Boolean(editing?.activity_count)"/></el-form-item></div>
         <el-form-item label="展示城市"><el-select v-model="form.city_codes" multiple collapse-tags placeholder="留空表示全部城市"><el-option v-for="city in cityOptions" :key="city.value" :label="city.label" :value="city.value"/></el-select></el-form-item>
-        <el-form-item label="图标对象键"><el-input v-model="form.icon_object_key" placeholder="可选，用于客户端标签图标"/></el-form-item>
+        <el-form-item label="活动标签图标"><div class="icon-selection"><img v-if="selectedIconUrl" :src="selectedIconUrl" alt="当前活动标签图标"/><span v-else class="icon-placeholder">{{ form.name.slice(0, 1) || '图' }}</span><div><el-button :disabled="!canUseAssets" @click="pickerOpen = true">选择图标</el-button><small>可从素材库选择或上传；留空使用文字图标</small></div></div></el-form-item>
         <div class="grid"><el-form-item label="前台排序"><el-input-number v-model="form.sort_order" :min="0" :max="9999"/></el-form-item><el-form-item label="启用状态"><el-switch v-model="form.is_active" inline-prompt active-text="启用" inactive-text="停用"/></el-form-item></div>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存标签</el-button></template>
     </el-dialog>
+    <AssetPicker v-model="pickerOpen" :selected-id="form.icon_asset_id" :can-upload="canUploadAssets" :preview="preview" @select="chooseIcon" />
   </section>
 </template>
 
 <style scoped>
+.icon-selection{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border:1px solid #e4eaed;border-radius:9px;background:#f9fbfc}.icon-selection img,.icon-placeholder{display:grid;place-items:center;flex:0 0 52px;width:52px;height:52px;border-radius:10px;object-fit:contain;background:#e7f7f7}.icon-placeholder{color:#087f84;font-weight:700}.icon-selection small{display:block;margin-top:5px;color:#8a929d;font-size:11px}
 .category-wrap{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.category-toolbar{display:flex;align-items:center;justify-content:space-between;padding:17px 18px;border-bottom:1px solid var(--line)}.category-toolbar>div{display:flex;align-items:center;gap:8px}.category-toolbar>div:first-child{flex-direction:column;align-items:flex-start;gap:3px}.category-toolbar strong{font-size:15px}.category-toolbar span{color:var(--muted);font-size:11px}.mini-summary{display:flex;gap:30px;padding:13px 18px;color:var(--muted);background:#f8fafb;font-size:12px}.mini-summary b{margin-left:6px;color:#172033;font-size:16px}.filters{display:grid;grid-template-columns:minmax(260px,1fr) 150px 70px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.name{display:flex;align-items:center;gap:10px}.name>span{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;color:#078f94;background:#e4f8f8;font-weight:750}.name>div,.limits{display:flex;flex-direction:column;gap:4px}.name small,.limits span,.category-wrap td small{color:var(--muted);font-size:10px}.limits strong{font-size:12px}.cities{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.cities>span{color:#078f94;font-size:11px}.form .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form .el-select,.form .el-input-number{width:100%}.range{display:grid;grid-template-columns:1fr 22px 1fr;align-items:center;width:100%;text-align:center}.range span{color:var(--muted);font-size:11px}
 </style>

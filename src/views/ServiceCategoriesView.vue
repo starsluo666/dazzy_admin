@@ -12,14 +12,16 @@ import {
 } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import AssetPicker from '../components/AssetPicker.vue'
 import { formatDateTime } from '../utils/format'
 import type {
   AdminServiceCategory,
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
+  AdminAsset,
 } from '../types'
 
-const props = defineProps<{ preview: boolean; canManage: boolean }>()
+const props = defineProps<{ preview: boolean; canManage: boolean; canUseAssets: boolean; canUploadAssets: boolean }>()
 
 const rows = ref<AdminServiceCategory[]>([])
 const summary = ref<AdminServiceCategorySummary>({ total: 0, active: 0, inactive: 0, active_services: 0 })
@@ -32,8 +34,11 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editing = ref<AdminServiceCategory | null>(null)
+const pickerOpen = ref(false)
+const selectedIconUrl = ref<string | null>(null)
+const iconTouched = ref(false)
 const form = reactive<AdminServiceCategoryMutation>({
-  name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
+  name: '', slug: '', icon_asset_id: null, city_codes: [], sort_order: 0, is_active: true,
   platform_commission_rate: 20,
   hourly_min_price_amount: 50, hourly_max_price_amount: 500,
   per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
@@ -69,7 +74,7 @@ function demoCategory(
 ): AdminServiceCategory {
   const now = new Date(Date.now() - id * 86400000).toISOString()
   return {
-    id, name, slug, icon_object_key: '', icon_url: null, city_codes: cityCodes,
+    id, name, slug, icon_object_key: '', icon_asset_id: null, icon_url: null, city_codes: cityCodes,
     sort_order: sortOrder, is_active: active, service_count: serviceCount,
     platform_commission_rate: '20.00',
     hourly_min_price_amount: 5000, hourly_max_price_amount: 50000,
@@ -131,10 +136,12 @@ async function load() {
 
 function resetForm(category?: AdminServiceCategory) {
   editing.value = category || null
+  selectedIconUrl.value = category?.icon_url || null
+  iconTouched.value = false
   Object.assign(form, category ? {
     name: category.name,
     slug: category.slug,
-    icon_object_key: category.icon_object_key,
+    icon_asset_id: category.icon_asset_id,
     city_codes: [...category.city_codes],
     sort_order: category.sort_order,
     is_active: category.is_active,
@@ -144,11 +151,17 @@ function resetForm(category?: AdminServiceCategory) {
     per_session_min_price_amount: category.per_session_min_price_amount / 100,
     per_session_max_price_amount: category.per_session_max_price_amount / 100,
   } : {
-    name: '', slug: '', icon_object_key: '', city_codes: [], sort_order: 0, is_active: true,
+    name: '', slug: '', icon_asset_id: null, city_codes: [], sort_order: 0, is_active: true,
     platform_commission_rate: 20,
     hourly_min_price_amount: 50, hourly_max_price_amount: 500,
     per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
   })
+}
+
+function chooseIcon(asset: AdminAsset | null) {
+  form.icon_asset_id = asset?.id || null
+  selectedIconUrl.value = asset?.url || null
+  iconTouched.value = true
 }
 
 function openEditor(category?: AdminServiceCategory) {
@@ -187,7 +200,6 @@ async function save() {
     ...form,
     name,
     slug,
-    icon_object_key: form.icon_object_key.trim(),
     city_codes: [...new Set(form.city_codes.map((item) => item.trim()).filter(Boolean))],
     hourly_min_price_amount: Math.round(form.hourly_min_price_amount * 100),
     hourly_max_price_amount: Math.round(form.hourly_max_price_amount * 100),
@@ -198,6 +210,7 @@ async function save() {
     if (props.preview) {
       const previewPayload = {
         ...payload,
+        icon_url: selectedIconUrl.value,
         platform_commission_rate: payload.platform_commission_rate.toFixed(2),
       }
       if (editing.value) {
@@ -207,7 +220,8 @@ async function save() {
         demoCategories.push({
           id: Math.max(...demoCategories.map((item) => item.id), 0) + 1,
           ...previewPayload,
-          icon_url: null,
+          icon_object_key: '',
+          icon_url: selectedIconUrl.value,
           service_count: 0,
           active_service_count: 0,
           provider_count: 0,
@@ -216,7 +230,9 @@ async function save() {
         })
       }
     } else if (editing.value) {
-      await adminApi.updateServiceCategory(editing.value.id, payload)
+      const updatePayload: Partial<AdminServiceCategoryMutation> = { ...payload }
+      if (!editing.value.icon_asset_id && !iconTouched.value) delete updatePayload.icon_asset_id
+      await adminApi.updateServiceCategory(editing.value.id, updatePayload)
     } else {
       await adminApi.createServiceCategory(payload)
     }
@@ -375,16 +391,21 @@ onMounted(load)
           </el-select>
           <small class="form-tip">可直接输入城市行政区划编码；留空时面向全部城市展示</small>
         </el-form-item>
-        <el-form-item label="图标资源键">
-          <el-input v-model="form.icon_object_key" maxlength="512" placeholder="可选，例如 public/category-icons/billiards.webp" />
-          <small class="form-tip">用于用户端分类图标；未配置时前台使用默认图标</small>
+        <el-form-item label="分类图标">
+          <div class="icon-selection">
+            <img v-if="selectedIconUrl" :src="selectedIconUrl" alt="当前分类图标" />
+            <span v-else class="icon-placeholder">{{ form.name.slice(0, 1) || '图' }}</span>
+            <div><el-button :disabled="!canUseAssets" @click="pickerOpen = true">选择图标</el-button><small class="form-tip">可从素材库选择或上传；留空使用默认图标</small></div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存分类</el-button></template>
     </el-dialog>
+    <AssetPicker v-model="pickerOpen" :selected-id="form.icon_asset_id" :can-upload="canUploadAssets" :preview="preview" @select="chooseIcon" />
   </div>
 </template>
 
 <style scoped>
+.icon-selection{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border:1px solid #e4eaed;border-radius:9px;background:#f9fbfc}.icon-selection img,.icon-placeholder{display:grid;place-items:center;flex:0 0 52px;width:52px;height:52px;border-radius:10px;object-fit:contain;background:#e7f7f7}.icon-placeholder{color:#087f84;font-weight:700}.icon-selection .form-tip{margin-top:5px}
 .category-page{min-height:calc(100vh - 76px)}.category-heading{margin-bottom:18px}.category-heading>div:last-child{display:flex;gap:8px}.category-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.category-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.category-summary button:not(.static):hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.category-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.category-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.category-summary .blue{color:#2679e9!important;background:#e9f1ff}.category-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.category-summary .orange{color:#e97825!important;background:#fff0e6}.category-summary .purple{color:#7b61cf;background:#f0edff}.category-summary span{color:var(--muted);font-size:12px}.category-summary strong{font-size:25px}.category-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.category-summary button.static{cursor:default}.category-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.category-filters{display:grid;grid-template-columns:minmax(260px,1fr) 140px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.category-name{display:flex;align-items:center;gap:11px}.category-name>.el-image,.category-name>span{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px}.category-name>span{color:#078f94;background:#e4f8f8;font-size:16px;font-weight:750}.category-name>div{display:flex;flex-direction:column;gap:4px}.category-name strong{font-size:13px}.category-name small,.updated-at{color:var(--muted);font-size:11px}.city-tags{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.city-tags>span{color:var(--muted);font-size:11px}.all-city{color:#078f94;font-size:12px}.relation-count{display:inline-flex;flex-direction:column;gap:3px;min-width:82px}.relation-count strong{font-size:13px}.relation-count span,.price-copy{color:var(--muted);font-size:10px}.price-copy+ .price-copy{margin-top:5px}.provider-count{min-width:auto;padding-left:12px;border-left:1px solid #e8ecef}.category-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.category-form{margin-top:8px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.compact-grid{grid-template-columns:1fr 1fr}.price-range{display:flex;align-items:center;gap:6px}.price-range span{color:var(--muted);font-size:12px}.category-form .el-select,.category-form .el-input-number{width:100%}.form-tip{display:block;margin-top:6px;color:#8a929d;font-size:11px;line-height:1.5}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1280px){.category-filters{grid-template-columns:minmax(220px,1fr) 125px 64px 64px}.category-summary small{display:none}}@media(prefers-reduced-motion:reduce){.category-summary button{transition:none}.category-summary button:hover{transform:none}}
 </style>

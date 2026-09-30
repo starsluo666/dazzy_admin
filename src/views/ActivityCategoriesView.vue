@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ActivityCategoriesPanel from './activity/ActivityCategoriesPanel.vue'
 
-defineProps<{ preview: boolean; canManage: boolean }>()
+defineProps<{ preview: boolean; canManage: boolean; canUseAssets: boolean; canUploadAssets: boolean }>()
 </script>
 
 <template>
@@ -12,7 +12,7 @@ defineProps<{ preview: boolean; canManage: boolean }>()
         <p>维护活动发布、搜索和筛选使用的独立标签</p>
       </div>
     </header>
-    <ActivityCategoriesPanel :preview="preview" :can-manage="canManage" />
+    <ActivityCategoriesPanel :preview="preview" :can-manage="canManage" :can-use-assets="canUseAssets" :can-upload-assets="canUploadAssets" />
   </div>
 </template>
 

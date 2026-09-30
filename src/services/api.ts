@@ -2,6 +2,7 @@ import type {
   AccountStatus,
   ActivityStatus,
   AdminActivity,
+  AdminAsset,
   AdminActivityAfterSales,
   AdminActivityCategory,
   AdminActivityCategoryMutation,
@@ -460,6 +461,18 @@ export const adminApi = {
     pagination: { page: number; page_size: number; total: number }
     summary: AdminServiceCategorySummary
   }>('admin-service-categories', `/admin/service-categories/?${queryString(query)}`),
+  assets: (query: { kind?: 'all' | 'icon' | 'image'; status?: 'active' | 'trash'; search?: string; page?: number; page_size?: number } = {}) =>
+    request<{ items: AdminAsset[]; pagination: { page: number; page_size: number; total: number } }>(`/admin/assets/?${queryString(query)}`),
+  uploadAsset: (file: File, kind: 'icon' | 'image' = 'icon') => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('kind', kind)
+    return request<AdminAsset>('/admin/assets/', { method: 'POST', body })
+  },
+  trashAssets: (ids: string[]) => request<{ deleted: string[]; blocked: Array<{ id: string; name: string; references: AdminAsset['references'] }> }>(
+    '/admin/assets/batch-delete/', { method: 'POST', body: JSON.stringify({ ids }) },
+  ),
+  restoreAsset: (id: string) => request<AdminAsset>(`/admin/assets/${id}/restore/`, { method: 'POST' }),
   createServiceCategory: (payload: AdminServiceCategoryMutation) =>
     request<AdminServiceCategory>('/admin/service-categories/', {
       method: 'POST',

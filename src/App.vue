@@ -11,6 +11,7 @@ import FulfillmentOrdersView from './views/FulfillmentOrdersView.vue'
 import AfterSalesView from './views/AfterSalesView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
+import AssetsView from './views/AssetsView.vue'
 import ActivityManagementView from './views/ActivityManagementView.vue'
 import ActivityCategoriesView from './views/ActivityCategoriesView.vue'
 import ActivityReportsView from './views/ActivityReportsView.vue'
@@ -79,6 +80,8 @@ const canReviewAfterSales = hasPermission('order.after_sales.review')
 const canManageOrderFinance = hasPermission('order.finance.manage')
 const canManageOrderReview = hasPermission('order.review.manage')
 const canManageServiceCategory = hasPermission('service_category.manage')
+const canUseAssets = hasPermission('asset.view')
+const canManageAssets = hasPermission('asset.manage')
 const canReviewActivity = hasPermission('activity.review')
 const canManageActivity = hasPermission('activity.manage')
 const canManageActivityCategory = hasPermission('activity_category.manage')
@@ -217,7 +220,10 @@ onMounted(loadSession)
       v-else-if="currentPage === 'services'"
       :preview="preview"
       :can-manage="canManageServiceCategory"
+      :can-use-assets="canUseAssets"
+      :can-upload-assets="canManageAssets"
     />
+    <AssetsView v-else-if="currentPage === 'assets'" :preview="preview" :can-manage="canManageAssets" />
     <ProviderOrderingSettingsView
       v-else-if="currentPage === 'provider_rules'"
       @open-audit="navigate('audit_logs')"
@@ -236,6 +242,8 @@ onMounted(loadSession)
       v-else-if="currentPage === 'activity_categories'"
       :preview="preview"
       :can-manage="canManageActivityCategory"
+      :can-use-assets="canUseAssets"
+      :can-upload-assets="canManageAssets"
     />
     <ActivityReportsView
       v-else-if="currentPage === 'activity_reports'"
