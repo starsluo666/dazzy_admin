@@ -386,60 +386,62 @@ onMounted(() => { load(); loadCategories() })
         <button aria-label="关闭" @click="selected = null">×</button>
       </header>
 
-      <div class="identity">
-        <el-avatar :size="58">{{ selected.nickname.slice(0, 1) }}</el-avatar>
-        <div>
-          <strong>{{ selected.application_real_name || selected.nickname }}</strong>
-          <span>{{ selectedAge == null ? '生日未填写' : `${selectedAge}岁` }}　·　{{ genderLabels[selected.gender] }}</span>
-          <p>{{ selected.phone }}　｜　提交时间：{{ selected.submitted_at?.slice(0, 16).replace('T', ' ') || '—' }}</p>
+      <div class="review-drawer__body">
+        <div class="identity">
+          <el-avatar :size="58">{{ selected.nickname.slice(0, 1) }}</el-avatar>
+          <div>
+            <strong>{{ selected.application_real_name || selected.nickname }}</strong>
+            <span>{{ selectedAge == null ? '生日未填写' : `${selectedAge}岁` }}　·　{{ genderLabels[selected.gender] }}</span>
+            <p>{{ selected.phone }}　｜　提交时间：{{ selected.submitted_at?.slice(0, 16).replace('T', ' ') || '—' }}</p>
+          </div>
         </div>
+
+        <div class="steps">
+          <span>✓<b>提交申请</b></span><i />
+          <span :class="{ current: selected.status === 'pending' }">2<b>平台审核</b></span><i />
+          <span :class="{ current: selected.status !== 'pending' }">3<b>{{ statusLabels[selected.status] }}</b></span><i />
+          <span>4<b>达人端认证</b></span>
+        </div>
+
+        <section>
+          <h3>基本资料</h3>
+          <div class="info-grid">
+            <p>性别：{{ genderLabels[selected.gender] }}</p>
+            <p>服务城市：{{ selected.service_city_name }}</p>
+            <p>服务半径：{{ selected.max_service_radius_km }}km</p>
+          </div>
+          <p>达人简介：</p>
+          <p class="bio">{{ selected.bio }}</p>
+          <el-image v-if="selected.lifestyle_photo_url" class="lifestyle-photo" :src="selected.lifestyle_photo_url" fit="cover" :preview-src-list="[selected.lifestyle_photo_url]" />
+          <div v-else class="photo-missing">未提交近期生活照</div>
+        </section>
+
+        <section>
+          <h3>允许经营的服务分类</h3>
+          <el-checkbox-group v-model="allowedCategoryIds" class="allowed-categories" :disabled="selected.status !== 'pending'">
+            <el-checkbox v-for="category in categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</el-checkbox>
+          </el-checkbox-group>
+          <p class="muted-copy">初审通过后，达人端只能选择这里授权的分类。</p>
+        </section>
+
+        <section>
+          <h3>审核检查</h3>
+          <div class="check-row">
+            <span>入驻意向</span>
+            <el-tag type="success" effect="plain">基础资料已提交</el-tag>
+          </div>
+          <div class="check-row">
+            <span>申请资料</span>
+            <el-tag type="success" effect="plain">已提交</el-tag>
+          </div>
+          <div class="check-row"><span>实名认证与生活照</span><el-tag type="info" effect="plain">初审通过后在达人端完成</el-tag></div>
+        </section>
+
+        <section v-if="selected.status === 'rejected' && selected.rejection_reason">
+          <h3>驳回原因</h3>
+          <p class="bio">{{ selected.rejection_reason }}</p>
+        </section>
       </div>
-
-      <div class="steps">
-        <span>✓<b>提交申请</b></span><i />
-        <span :class="{ current: selected.status === 'pending' }">2<b>平台审核</b></span><i />
-        <span :class="{ current: selected.status !== 'pending' }">3<b>{{ statusLabels[selected.status] }}</b></span><i />
-        <span>4<b>达人端认证</b></span>
-      </div>
-
-      <section>
-        <h3>基本资料</h3>
-        <div class="info-grid">
-          <p>性别：{{ genderLabels[selected.gender] }}</p>
-          <p>服务城市：{{ selected.service_city_name }}</p>
-          <p>服务半径：{{ selected.max_service_radius_km }}km</p>
-        </div>
-        <p>达人简介：</p>
-        <p class="bio">{{ selected.bio }}</p>
-        <el-image v-if="selected.lifestyle_photo_url" class="lifestyle-photo" :src="selected.lifestyle_photo_url" fit="cover" :preview-src-list="[selected.lifestyle_photo_url]" />
-        <div v-else class="photo-missing">未提交近期生活照</div>
-      </section>
-
-      <section>
-        <h3>允许经营的服务分类</h3>
-        <el-checkbox-group v-model="allowedCategoryIds" :disabled="selected.status !== 'pending'">
-          <el-checkbox v-for="category in categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</el-checkbox>
-        </el-checkbox-group>
-        <p class="muted-copy">初审通过后，达人端只能选择这里授权的分类。</p>
-      </section>
-
-      <section>
-        <h3>审核检查</h3>
-        <div class="check-row">
-          <span>入驻意向</span>
-          <el-tag type="success" effect="plain">基础资料已提交</el-tag>
-        </div>
-        <div class="check-row">
-          <span>申请资料</span>
-          <el-tag type="success" effect="plain">已提交</el-tag>
-        </div>
-        <div class="check-row"><span>实名认证与生活照</span><el-tag type="info" effect="plain">初审通过后在达人端完成</el-tag></div>
-      </section>
-
-      <section v-if="selected.status === 'rejected' && selected.rejection_reason">
-        <h3>驳回原因</h3>
-        <p class="bio">{{ selected.rejection_reason }}</p>
-      </section>
 
       <footer v-if="selected.status === 'pending'">
         <span>操作将记录至审计日志</span>
@@ -452,22 +454,52 @@ onMounted(() => { load(); loadCategories() })
 
     <aside v-if="reviewMode !== 'application' && selectedChange" class="review-drawer">
       <header><h2>{{ reviewMode === 'onboarding' ? '达人开通审核' : reviewMode === 'profile' ? '资料变更审核' : '服务变更审核' }}</h2><span>审核编号：{{ selectedChange.id }}</span><button aria-label="关闭" @click="selectedChange = null">×</button></header>
-      <div class="identity"><el-avatar :size="58">{{ selectedChange.provider_name.slice(0, 1) }}</el-avatar><div><strong>{{ selectedChange.provider_name }}</strong><span>真实姓名：{{ selectedChange.application_real_name || '—' }}</span><p>{{ selectedChange.phone }}　｜　{{ selectedChange.service_city_name }}</p></div></div>
-      <section v-if="reviewMode === 'onboarding'">
-        <h3>实名认证</h3>
-        <p :class="{ 'name-warning': !selectedChange.identity_name_matches }">认证姓名：{{ selectedChange.identity_real_name || '—' }} {{ selectedChange.identity_name_matches ? '' : '（与申请姓名不一致）' }}</p>
-        <p>证件号：{{ selectedChange.identity?.number_masked || '—' }}</p>
-        <div class="identity-photos"><el-image v-if="selectedChange.identity?.front_photo_url" :src="selectedChange.identity.front_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.front_photo_url]" /><el-image v-if="selectedChange.identity?.back_photo_url" :src="selectedChange.identity.back_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.back_photo_url]" /><el-image v-if="selectedChange.identity?.face_photo_url" :src="selectedChange.identity.face_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.face_photo_url]" /></div>
-      </section>
-      <section v-if="selectedChange.profile_revision"><h3>达人资料</h3><p>达人名：{{ selectedChange.profile_revision.display_name }}</p><p>城市与范围：{{ selectedChange.profile_revision.service_city_name }} · {{ selectedChange.profile_revision.max_service_radius_km }}km</p><p class="bio">{{ selectedChange.profile_revision.bio }}</p><ProviderGallery :media="selectedChange.profile_revision.media" :cover="selectedChange.profile_revision.lifestyle_photo_url" /></section>
-      <section v-if="selectedChange.service_revisions.length"><h3>服务配置</h3><div v-for="service in selectedChange.service_revisions" :key="service.id" class="service-review"><strong>{{ service.category_name }} · {{ service.action_label }}</strong><span>{{ service.billing_type_label }} ¥{{ service.price_amount / 100 }}（允许 ¥{{ service.min_price_amount / 100 }}–{{ service.max_price_amount / 100 }}）</span><p>{{ service.description || '无服务说明' }}</p></div></section>
-      <section v-if="selectedChange.rejection_reason"><h3>驳回原因</h3><p class="bio">{{ selectedChange.rejection_reason }}</p></section>
+      <div class="review-drawer__body">
+        <div class="identity"><el-avatar :size="58">{{ selectedChange.provider_name.slice(0, 1) }}</el-avatar><div><strong>{{ selectedChange.provider_name }}</strong><span>真实姓名：{{ selectedChange.application_real_name || '—' }}</span><p>{{ selectedChange.phone }}　｜　{{ selectedChange.service_city_name }}</p></div></div>
+        <section v-if="reviewMode === 'onboarding'">
+          <h3>实名认证</h3>
+          <p :class="{ 'name-warning': !selectedChange.identity_name_matches }">认证姓名：{{ selectedChange.identity_real_name || '—' }} {{ selectedChange.identity_name_matches ? '' : '（与申请姓名不一致）' }}</p>
+          <p>证件号：{{ selectedChange.identity?.number_masked || '—' }}</p>
+          <div class="identity-photos"><el-image v-if="selectedChange.identity?.front_photo_url" :src="selectedChange.identity.front_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.front_photo_url]" /><el-image v-if="selectedChange.identity?.back_photo_url" :src="selectedChange.identity.back_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.back_photo_url]" /><el-image v-if="selectedChange.identity?.face_photo_url" :src="selectedChange.identity.face_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.face_photo_url]" /></div>
+        </section>
+        <section v-if="selectedChange.profile_revision"><h3>达人资料</h3><p>达人名：{{ selectedChange.profile_revision.display_name }}</p><p>城市与范围：{{ selectedChange.profile_revision.service_city_name }} · {{ selectedChange.profile_revision.max_service_radius_km }}km</p><p class="bio">{{ selectedChange.profile_revision.bio }}</p><ProviderGallery :media="selectedChange.profile_revision.media" :cover="selectedChange.profile_revision.lifestyle_photo_url" /></section>
+        <section v-if="selectedChange.service_revisions.length"><h3>服务配置</h3><div v-for="service in selectedChange.service_revisions" :key="service.id" class="service-review"><strong>{{ service.category_name }} · {{ service.action_label }}</strong><span>{{ service.billing_type_label }} ¥{{ service.price_amount / 100 }}（允许 ¥{{ service.min_price_amount / 100 }}–{{ service.max_price_amount / 100 }}）</span><p>{{ service.description || '无服务说明' }}</p></div></section>
+        <section v-if="selectedChange.rejection_reason"><h3>驳回原因</h3><p class="bio">{{ selectedChange.rejection_reason }}</p></section>
+      </div>
       <footer v-if="changeStatusFilter === 'pending'"><span>通过后将正式发布本次内容</span><el-button class="reject" :loading="reviewing" @click="reviewChange('reject')">驳回</el-button><el-button type="primary" :loading="reviewing" :disabled="reviewMode === 'onboarding' && !selectedChange.identity_name_matches" @click="reviewChange('approve')">通过审核</el-button></footer>
     </aside>
   </div>
 </template>
 
 <style scoped>
+.review-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: 16px;
+}
+
+.allowed-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-bottom: 8px;
+}
+
+.allowed-categories :deep(.el-checkbox) {
+  max-width: 100%;
+  height: auto;
+  min-height: 32px;
+  margin-right: 0;
+}
+
+.allowed-categories :deep(.el-checkbox__label) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
 .lifestyle-photo {
   width: 100%;
   height: 240px;
