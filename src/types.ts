@@ -961,6 +961,7 @@ export interface AdminProvider {
   submitted_at: string | null
   reviewed_at: string | null
   rejection_reason: string
+  application_real_name: string
   identity_real_name: string
   identity_number_masked: string
   identity_front_photo_url: string | null

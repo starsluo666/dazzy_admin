@@ -49,6 +49,9 @@ const drawerVisible = ref(false)
 const actionVisible = ref(false)
 const actionSaving = ref(false)
 const identityReviewing = ref(false)
+const nameCorrectionVisible = ref(false)
+const nameCorrectionSaving = ref(false)
+const nameCorrectionForm = reactive({ application_real_name: '', reason: '' })
 const commissionSaving = ref(false)
 const commissionPeriod = ref<AdminProvider['commission_reset_period_override']>('')
 const commissionTiers = ref<Array<{ thresholdYuan: number; bonusRate: number }>>([])
@@ -136,7 +139,7 @@ function demoProvider(index: number, overrides: Partial<AdminProvider> = {}): Ad
     credit_adjustments: index === 1 ? [{ id: 1, delta: -2, before_score: 100, after_score: 98, reason: '接单前主动拒单', operator_name: '系统规则', organization_name: '乐搭伴运营平台', created_at: now }] : [],
     recent_orders: [{ order_no: `DZY20260823040${index + 1}`, customer_name: '张女士', service_name: '城市陪伴', status: 'completed', status_label: '已完成', payable_amount: 33600, created_at: now }],
     submitted_at: '2026-08-15T10:20:00+08:00', reviewed_at: '2026-08-16T09:30:00+08:00', rejection_reason: '',
-    identity_real_name: names[index], identity_number_masked: '1304**********1234',
+    application_real_name: names[index], identity_real_name: names[index], identity_number_masked: '1304**********1234',
     identity_front_photo_url: null, identity_back_photo_url: null, identity_face_photo_url: null,
     identity_submitted_at: now, identity_reviewed_at: now, identity_rejection_reason: '',
     is_profile_complete: true,
@@ -313,6 +316,32 @@ async function reviewIdentity(decision: 'approve' | 'reject') {
   finally { identityReviewing.value = false }
 }
 
+function openNameCorrection() {
+  if (!selected.value) return
+  nameCorrectionForm.application_real_name = selected.value.application_real_name || ''
+  nameCorrectionForm.reason = ''
+  nameCorrectionVisible.value = true
+}
+
+async function submitNameCorrection() {
+  if (!selected.value || nameCorrectionSaving.value) return
+  const name = nameCorrectionForm.application_real_name.trim()
+  const reason = nameCorrectionForm.reason.trim()
+  if (name.length < 2 || name.length > 50) { ElMessage.warning('请填写 2 至 50 字的真实姓名'); return }
+  if (reason.length < 5) { ElMessage.warning('请填写至少 5 字的核实及更正原因'); return }
+  nameCorrectionSaving.value = true
+  try {
+    const updated = props.preview
+      ? { ...selected.value, application_real_name: name }
+      : await adminApi.correctProviderApplicationName(selected.value.id, name, reason)
+    selected.value = { ...selected.value, ...updated }
+    rows.value = rows.value.map(item => item.id === updated.id ? { ...item, ...updated } : item)
+    nameCorrectionVisible.value = false
+    ElMessage.success('申请姓名已更正，请通知达人重新提交实名认证')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '更正申请姓名失败') }
+  finally { nameCorrectionSaving.value = false }
+}
+
 onMounted(load)
 </script>
 
@@ -344,7 +373,23 @@ onMounted(load)
         <header><div><h2>达人详情</h2><p>PA{{ selected.id.toString().padStart(10, '0') }}</p></div><el-tag :type="statusTagType(selected.status)" effect="plain">{{ selected.status_label }}</el-tag><button aria-label="关闭达人详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button></header>
         <el-alert v-if="selected.admin_order_restricted" class="restriction-alert" :type="selected.status === 'suspended' ? 'error' : 'warning'" :closable="false" show-icon :title="serviceState(selected).label" :description="selected.admin_restriction_reason || '平台已限制该达人接单'" />
         <section class="provider-identity"><el-avatar :size="60">{{ selected.nickname.slice(0, 1) }}</el-avatar><div><h3>{{ selected.nickname }} <el-tag size="small" :type="serviceState(selected).type" effect="plain">{{ serviceState(selected).label }}</el-tag></h3><p>{{ selected.phone_masked }} · {{ selected.gender_label }} · {{ selected.service_city_name }}</p><span>{{ selected.identity_status_label }} · 服务半径 {{ selected.max_service_radius_km }}km</span></div><div class="credit-score"><strong>{{ selected.credit_score }}</strong><span>信用分</span></div></section>
-        <section class="detail-section"><div class="section-title"><h3>达人实名认证</h3><el-tag :type="selected.identity_status === 'verified' ? 'success' : selected.identity_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ selected.identity_status_label }}</el-tag></div><div v-if="selected.identity_status !== 'unverified'" class="identity-review"><div class="identity-fields"><span>真实姓名</span><strong>{{ selected.identity_real_name || '—' }}</strong><span>证件号码</span><strong>{{ selected.identity_number_masked || '—' }}</strong><span>提交时间</span><strong>{{ formatDateTime(selected.identity_submitted_at) }}</strong></div><div class="identity-photos"><el-image v-for="(url,label) in { '身份证人像面':selected.identity_front_photo_url,'身份证国徽面':selected.identity_back_photo_url,'本人核验照片':selected.identity_face_photo_url }" :key="label" :src="url || ''" :preview-src-list="url ? [url] : []" fit="cover" preview-teleported><template #error><span>{{ label }}未上传</span></template></el-image></div><el-alert v-if="selected.identity_rejection_reason" type="error" :closable="false" :title="selected.identity_rejection_reason"/><div v-if="canReview && selected.identity_status === 'pending'" class="identity-actions"><el-button :loading="identityReviewing" @click="reviewIdentity('reject')">驳回认证</el-button><el-button type="primary" :loading="identityReviewing" @click="reviewIdentity('approve')">通过认证</el-button></div></div><el-empty v-else :image-size="48" description="达人尚未提交实名认证" /></section>
+        <section class="detail-section">
+          <div class="section-title"><h3>达人实名认证</h3><el-tag :type="selected.identity_status === 'verified' ? 'success' : selected.identity_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ selected.identity_status_label }}</el-tag></div>
+          <div class="identity-review">
+            <div class="identity-fields">
+              <span>入驻申请姓名</span><strong>{{ selected.application_real_name || '—' }}</strong>
+              <span>认证资料姓名</span><strong>{{ selected.identity_real_name || '尚未填写' }}</strong>
+              <span v-if="selected.identity_number_masked">证件号码</span><strong v-if="selected.identity_number_masked">{{ selected.identity_number_masked }}</strong>
+              <span v-if="selected.identity_submitted_at">提交时间</span><strong v-if="selected.identity_submitted_at">{{ formatDateTime(selected.identity_submitted_at) }}</strong>
+            </div>
+            <el-alert v-if="selected.application_real_name && selected.identity_real_name && selected.application_real_name.trim() !== selected.identity_real_name.trim()" type="warning" :closable="false" title="两处姓名不一致，达人无法提交实名认证；请先核对身份证与入驻资料。" />
+            <div v-if="selected.identity_front_photo_url || selected.identity_back_photo_url || selected.identity_face_photo_url" class="identity-photos"><el-image v-for="(url,label) in { '身份证人像面':selected.identity_front_photo_url,'身份证国徽面':selected.identity_back_photo_url,'本人核验照片':selected.identity_face_photo_url }" :key="label" :src="url || ''" :preview-src-list="url ? [url] : []" fit="cover" preview-teleported><template #error><span>{{ label }}未上传</span></template></el-image></div>
+            <el-alert v-if="selected.identity_rejection_reason" type="error" :closable="false" :title="selected.identity_rejection_reason" />
+            <div v-if="selected.identity_status === 'unverified'" class="identity-note">达人尚未提交实名认证</div>
+            <div v-if="canReview && selected.status === 'approved' && ['unverified', 'rejected'].includes(selected.identity_status)" class="identity-actions"><el-button @click="openNameCorrection">更正入驻申请姓名</el-button></div>
+            <div v-if="canReview && selected.identity_status === 'pending'" class="identity-actions"><el-button :loading="identityReviewing" @click="reviewIdentity('reject')">驳回认证</el-button><el-button type="primary" :loading="identityReviewing" @click="reviewIdentity('approve')">通过认证</el-button></div>
+          </div>
+        </section>
         <section class="detail-section"><div class="section-title"><h3>当前接单位置</h3><el-tag size="small" :type="selected.is_online ? 'success' : 'info'" effect="plain">{{ selected.is_online ? '在线' : '离线' }}</el-tag></div><div v-if="selected.has_live_location" class="service-location"><el-icon><Location /></el-icon><div><strong>{{ coordinateLabel(selected) }}</strong><p>定位精度约 {{ selected.location_accuracy_m || '—' }} 米 · 服务半径 {{ selected.max_service_radius_km }}km</p><span>最后更新 {{ formatDateTime(selected.location_updated_at) }} · 有效至 {{ formatDateTime(selected.location_expires_at) }}</span></div></div><el-empty v-else :image-size="48" description="达人尚未上报接单位置" /><p class="location-privacy">精确坐标仅供平台管理和距离计算使用，用户端只展示距离。</p></section>
         <section class="detail-section provider-metrics"><div><span>综合评分</span><strong>{{ selected.rating }}</strong></div><div><span>服务次数</span><strong>{{ selected.service_count }}</strong></div><div><span>订单总量</span><strong>{{ selected.order_count }}</strong></div><div><span>服务项目</span><strong>{{ selected.service_names.length }}</strong></div></section>
         <section class="detail-section commission-setting">
@@ -377,6 +422,15 @@ onMounted(load)
       <el-form label-position="top" class="provider-action-form"><el-form-item v-if="actionForm.kind === 'credit'" label="调整分值"><el-input-number v-model="actionForm.delta" :min="-100" :max="100" /><span class="score-preview">调整后 {{ Math.max(0, Math.min(100, (selected?.credit_score || 0) + actionForm.delta)) }} 分</span></el-form-item><el-form-item label="操作原因"><el-input v-model="actionForm.reason" type="textarea" :rows="4" maxlength="500" show-word-limit placeholder="请填写投诉、复核或规则依据，提交后写入审计日志" /></el-form-item></el-form>
       <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionForm.action === 'suspend_qualification' ? 'danger' : 'primary'" :loading="actionSaving" @click="submitAction">确认提交</el-button></template>
     </el-dialog>
+    <el-dialog v-model="nameCorrectionVisible" title="更正入驻申请姓名" width="480px" append-to-body>
+      <el-alert type="warning" :closable="false" show-icon title="请先核对申请人身份证及入驻记录；仅更正录入错误，不代替实名认证审核。" />
+      <el-form label-position="top" class="provider-action-form">
+        <el-form-item label="原申请姓名"><strong>{{ selected?.application_real_name || '—' }}</strong></el-form-item>
+        <el-form-item label="更正后的姓名"><el-input v-model="nameCorrectionForm.application_real_name" maxlength="50" placeholder="填写与身份证一致的姓名" /></el-form-item>
+        <el-form-item label="核实及更正原因"><el-input v-model="nameCorrectionForm.reason" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="记录客服核实结果及录入错误原因，提交后写入审计日志" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="nameCorrectionVisible = false">取消</el-button><el-button type="primary" :loading="nameCorrectionSaving" @click="submitNameCorrection">确认更正</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
@@ -389,4 +443,5 @@ onMounted(load)
 .commission-actions { margin-top: 14px; }
 .provider-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-heading>div:last-child{display:flex;gap:8px}.provider-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.provider-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.provider-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.provider-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.provider-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.provider-summary .blue{color:#2679e9!important;background:#e9f1ff}.provider-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.provider-summary .purple{color:#7b61cf;background:#f0edff}.provider-summary .red{color:#d9485f;background:#fff0f2}.provider-summary .orange{color:#e97825!important;background:#fff0e6}.provider-summary span{color:var(--muted);font-size:12px}.provider-summary strong{font-size:25px}.provider-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.provider-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 115px 120px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.provider-person{display:flex;align-items:center;gap:10px}.provider-person>div,.score-cell{display:flex;flex-direction:column;gap:4px}.provider-person strong,.score-cell strong{font-size:13px}.provider-person span,.score-cell span{color:var(--muted);font-size:12px}.score-cell span{display:flex;align-items:center;gap:3px}.score-cell .el-icon{color:#efa834}.service-names{display:flex;flex-wrap:wrap;gap:4px}.service-names>span{color:var(--muted);font-size:12px}.provider-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.provider-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.provider-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.provider-drawer>header div{margin-right:auto}.provider-drawer>header h2{margin:0;font-size:20px}.provider-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.provider-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.provider-drawer>header button:hover{background:#f0f4f5}.restriction-alert{margin:14px 20px 0;width:auto}.provider-identity{display:flex;align-items:center;gap:14px;margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-identity>div:nth-child(2){flex:1}.provider-identity h3{display:flex;align-items:center;gap:8px;margin:0 0 7px;font-size:17px}.provider-identity p,.provider-identity span{margin:0;color:#5e6877;font-size:12px}.provider-identity span{display:block;margin-top:7px;color:var(--muted)}.credit-score{display:flex;flex-direction:column;align-items:center;width:72px;padding:9px;border-radius:8px;background:#f2fbfb}.credit-score strong{color:var(--brand);font-size:25px}.credit-score span{margin:2px 0 0}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.section-title h3{margin:0;font-size:15px}.service-location{display:flex;align-items:flex-start;gap:12px;padding:13px;border-radius:8px;background:#f3fafb}.service-location>.el-icon{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:10px;color:var(--brand);background:#dff5f5;font-size:19px}.service-location>div{display:flex;flex-direction:column;gap:5px;min-width:0}.service-location strong{font-size:14px}.service-location p{margin:0;color:#4e5a68;font-size:12px;line-height:1.5}.service-location span{color:var(--muted);font-size:11px}.location-privacy{margin:12px 0 0;color:#8b6c55;font-size:11px;line-height:1.5}.provider-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.provider-metrics div{display:flex;flex-direction:column;gap:5px}.provider-metrics span{color:var(--muted);font-size:11px}.provider-metrics strong{font-size:19px}.provider-bio{margin:0;color:#4f5a68;font-size:13px;line-height:1.75}.photo-status{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid #edf0f3;font-size:13px}.photo-status .el-image{width:92px;height:72px;border-radius:7px}.service-cards{display:grid;grid-template-columns:1fr 1fr;gap:9px}.service-cards article{padding:12px;border:1px solid #e6eaed;border-radius:7px}.service-cards header{display:flex;align-items:center;justify-content:space-between}.service-cards strong{font-size:13px}.service-cards p{margin:8px 0;color:#596474;font-size:12px}.service-cards b{color:var(--orange)}.service-cards span{color:var(--muted);font-size:11px}.schedule-list{display:flex;flex-wrap:wrap;gap:7px}.schedule-list span{padding:7px 10px;border-radius:5px;color:#485464;background:#f2f7f8;font-size:12px}.provider-records,.credit-history{display:flex;flex-direction:column}.provider-records article,.credit-history article{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;border-bottom:1px solid #edf0f3}.provider-records article:last-child,.credit-history article:last-child{border-bottom:0}.provider-records article>div{display:flex;flex-direction:column;gap:4px}.provider-records article>div:last-child{align-items:end}.provider-records strong,.provider-records b{font-size:13px}.provider-records b{color:var(--orange)}.provider-records span,.credit-history span{color:var(--muted);font-size:11px}.credit-history{gap:0}.credit-history article{justify-content:flex-start}.credit-history>article>strong{display:grid;place-items:center;width:42px;height:34px;border-radius:6px}.credit-history .positive{color:#078d76;background:#ecf9f5}.credit-history .negative{color:#d9485f;background:#fff0f2}.credit-history div{display:flex;flex-direction:column;gap:4px}.credit-history b{font-size:12px}.provider-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:640px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.provider-actions>div{display:flex;gap:7px}.provider-action-form{margin-top:18px}.score-preview{margin-left:12px;color:var(--muted);font-size:12px}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.provider-summary small{display:none}.provider-filters{grid-template-columns:minmax(170px,1fr) 105px 110px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.provider-summary button{transition:none}.provider-summary button:hover{transform:none}}
 .identity-review{display:flex;gap:14px;flex-direction:column}.identity-fields{display:grid;grid-template-columns:82px 1fr;gap:9px 14px;padding:13px;border-radius:7px;background:#f6f9fa;font-size:12px}.identity-fields span{color:var(--muted)}.identity-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.identity-photos .el-image{display:flex;height:105px;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:7px;background:#f5f7f8}.identity-photos span{color:var(--muted);font-size:11px}.identity-actions{display:flex;justify-content:flex-end;gap:8px}
+.identity-note{color:var(--muted);font-size:12px}
 </style>

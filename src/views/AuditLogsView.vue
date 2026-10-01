@@ -33,7 +33,7 @@ const actionNames: Record<string, string> = {
   'system.member.create': '添加后台账号', 'system.member.update': '更新后台账号',
   'system.task.retry': '重试失败任务',
   'operations.platform.update': '更新平台参数', 'operations.provider_ordering.update': '更新接单规则',
-  'provider.application.approve': '审核达人入驻', 'provider.credit.adjust': '调整达人信用分',
+  'provider.application.approve': '审核达人入驻', 'provider.application_name.correct': '更正达人入驻申请姓名', 'provider.credit.adjust': '调整达人信用分',
   'order.support_note.add': '添加订单跟进', 'order.after_sales.approve': '审核退款售后',
 }
 const targetNames: Record<string, string> = Object.fromEntries(targetOptions.filter((item) => item.value).map((item) => [item.value, item.label]))

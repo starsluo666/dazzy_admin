@@ -681,6 +681,10 @@ export const adminApi = {
     summary: AdminProviderSummary
   }>('admin-providers', `/admin/providers/?${queryString(query)}`),
   managedProvider: (id: number) => request<AdminProvider>(`/admin/providers/${id}/`),
+  correctProviderApplicationName: (id: number, application_real_name: string, reason: string) =>
+    request<AdminProvider>(`/admin/providers/${id}/application-name/`, {
+      method: 'POST', body: JSON.stringify({ application_real_name, reason }),
+    }),
   updateProviderCommission: (
     id: number,
     payload: { reset_period: AdminProvider['commission_reset_period_override']; tiers: CommissionTier[] | null },
