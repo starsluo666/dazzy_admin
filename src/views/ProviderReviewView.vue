@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import ProviderGallery from '../components/ProviderGallery.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 
 import { adminApi } from '../services/api'
 import type {
@@ -10,14 +11,17 @@ import type {
   ProviderApplication,
   ProviderApplicationStatus,
   ProviderChangeReview,
-  ProviderChangeReviewKind,
 } from '../types'
+import { parseProviderReviewMode, parseProviderReviewStatus, providerReviewQueues } from '../utils/providerReviews'
 
 const props = defineProps<{ preview: boolean }>()
+const route = useRoute()
+const router = useRouter()
 
 const rows = ref<ProviderApplication[]>([])
 const selected = ref<ProviderApplication | null>(null)
-const statusFilter = ref<ProviderApplicationStatus>('pending')
+const reviewMode = computed(() => parseProviderReviewMode(route.query.review))
+const statusFilter = computed(() => parseProviderReviewStatus(route.query.review_status, reviewMode.value))
 const cityFilter = ref('')
 const search = ref('')
 const page = ref(1)
@@ -25,8 +29,9 @@ const pageSize = 10
 const total = ref(0)
 const loading = ref(false)
 const reviewing = ref(false)
-const reviewMode = ref<'application' | ProviderChangeReviewKind>('application')
-const changeStatusFilter = ref<'pending' | 'approved' | 'rejected'>('pending')
+const reviewDescription = computed(() => providerReviewQueues.find(queue => queue.mode === reviewMode.value)!.description)
+let loadSequence = 0
+const changeStatusFilter = computed(() => statusFilter.value === 'suspended' ? 'pending' : statusFilter.value)
 const changeRows = ref<ProviderChangeReview[]>([])
 const selectedChange = ref<ProviderChangeReview | null>(null)
 const categoryOptions = ref<AdminServiceCategory[]>([])
@@ -91,6 +96,7 @@ function demoRows(): ProviderApplication[] {
 }
 
 async function load() {
+  const sequence = ++loadSequence
   loading.value = true
   try {
     if (reviewMode.value !== 'application') {
@@ -105,6 +111,7 @@ async function load() {
         changeStatusFilter.value,
         page.value,
       )
+      if (sequence !== loadSequence) return
       changeRows.value = data.items
       total.value = data.pagination.total
       if (!selectedChange.value || !changeRows.value.some(item => item.id === selectedChange.value?.id)) {
@@ -126,20 +133,22 @@ async function load() {
       page: page.value,
       page_size: pageSize,
     })
+    if (sequence !== loadSequence) return
     rows.value = data.items
     total.value = data.pagination.total
     if (!selected.value || !rows.value.some((item) => item.id === selected.value?.id)) {
       selected.value = rows.value[0] || null
     }
   } catch (error) {
+    if (sequence !== loadSequence) return
     rows.value = []
     changeRows.value = []
     total.value = 0
     selected.value = null
     selectedChange.value = null
-    ElMessage.error(error instanceof Error ? error.message : '达人申请加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '达人审核待办加载失败')
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
@@ -154,25 +163,27 @@ async function loadCategories() {
 }
 
 function switchReviewMode(mode: string | number | boolean | undefined) {
-  reviewMode.value = String(mode) as 'application' | ProviderChangeReviewKind
-  page.value = 1
-  selected.value = null
-  selectedChange.value = null
-  load()
+  const query = { ...route.query }
+  query.review = parseProviderReviewMode(mode)
+  delete query.review_status
+  void router.push({ query })
 }
 
-function changeReviewStatus(value: string) {
-  changeStatusFilter.value = value as 'pending' | 'approved' | 'rejected'
+watch([reviewMode, statusFilter], () => {
   page.value = 1
+  rows.value = []
+  changeRows.value = []
+  selected.value = null
   selectedChange.value = null
-  load()
+  void load()
+})
+
+function changeReviewStatus(value: string) {
+  void router.push({ query: { ...route.query, review_status: value } })
 }
 
 function changeStatus(value: ProviderApplicationStatus) {
-  statusFilter.value = value
-  page.value = 1
-  selected.value = null
-  load()
+  void router.push({ query: { ...route.query, review_status: value } })
 }
 
 function resetFilters() {
@@ -265,6 +276,7 @@ watch(selected, value => {
 })
 
 onMounted(() => { load(); loadCategories() })
+onBeforeUnmount(() => { loadSequence += 1 })
 </script>
 
 <template>
@@ -273,7 +285,7 @@ onMounted(() => { load(); loadCategories() })
       <div class="review-heading">
         <p>达人管理　/　<strong>达人审核</strong></p>
         <h1>达人审核</h1>
-        <span>审核达人入驻意向；通过后申请人进入达人端完成实名与正式资料</span>
+        <span>{{ reviewDescription }}</span>
       </div>
 
       <div class="review-kind-tabs">

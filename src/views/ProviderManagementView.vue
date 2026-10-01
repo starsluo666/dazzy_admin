@@ -347,7 +347,7 @@ onMounted(load)
 
 <template>
   <div class="page provider-management-page">
-    <header class="page-heading management-heading"><div><h1>达人管理</h1><p>查看达人服务、档期、订单与信用信息，管理接单和资格状态</p></div><div><el-button v-if="canReview" @click="emit('review')">入驻审核 <el-badge v-if="summary.pending" :value="summary.pending" /></el-button><el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button></div></header>
+    <header class="page-heading management-heading"><div><h1>达人管理</h1><p>查看达人服务、档期、订单与信用信息，管理接单和资格状态</p></div><div><el-button v-if="canReview" @click="emit('review')">入驻初审 <el-badge v-if="summary.pending" :value="summary.pending" /></el-button><el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button></div></header>
 
     <section class="provider-summary" aria-label="达人概况"><button v-for="card in summaryCards" :key="card.key" @click="selectSummary(card.key)"><el-icon :class="card.tone"><component :is="card.icon" /></el-icon><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>点击筛选</small></button></section>
 

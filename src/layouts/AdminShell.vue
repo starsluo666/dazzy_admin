@@ -5,9 +5,10 @@ import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Documen
 import { isAdminPage } from '../navigation'
 import { adminApi } from '../services/api'
 import type { AdminMe, AdminPage } from '../types'
+import { firstPendingProviderReview, providerReviewNotice, type ProviderReviewMode, type ProviderReviewSummary } from '../utils/providerReviews'
 
 const props = defineProps<{ active: AdminPage; session: AdminMe | null; preview: boolean }>()
-const emit = defineEmits<{ navigate: [page: AdminPage]; logout: [] }>()
+const emit = defineEmits<{ navigate: [page: AdminPage]; reviewProvider: [mode: ProviderReviewMode]; logout: [] }>()
 
 interface NavigationItem {
   key: string
@@ -44,7 +45,8 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
 }
 const collapsedGroups = ref<Set<string>>(new Set(allNavigationGroups))
 const pendingProviderReviews = ref(0)
-let previousProviderReviewCount: number | null = null
+const pendingProviderReviewMode = ref<ProviderReviewMode>('application')
+let previousProviderReviews: ProviderReviewSummary | null = null
 let providerReviewPollTimer: number | undefined
 
 const can = (permission: string) => Boolean(
@@ -56,7 +58,7 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'users', label: '用户列表', icon: List, child: true, parent: 'users-group', enabled: can('user.view'), visible: can('user.view') },
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
   { key: 'providers', label: '达人列表', icon: List, child: true, parent: 'providers-group', enabled: can('provider.view'), visible: can('provider.view') },
-  { key: 'provider_reviews', label: '入驻审核', icon: CircleCheck, child: true, parent: 'providers-group', enabled: can('provider.review'), visible: can('provider.review') },
+  { key: 'provider_reviews', label: '达人审核', icon: CircleCheck, child: true, parent: 'providers-group', enabled: can('provider.review'), visible: can('provider.review') },
   { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('asset.view') || can('operations.manage') },
   { key: 'services', label: '服务分类', icon: Grid, child: true, parent: 'operations-group', enabled: can('service_category.view'), visible: can('service_category.view') },
   { key: 'assets', label: '素材库', icon: Grid, child: true, parent: 'operations-group', enabled: can('asset.view'), visible: can('asset.view') },
@@ -97,7 +99,7 @@ const pageLabels: Record<AdminPage, string> = {
   dashboard: '运营总览',
   users: '用户管理 / 用户列表',
   providers: '达人管理 / 达人列表',
-  provider_reviews: '达人管理 / 入驻审核',
+  provider_reviews: '达人管理 / 达人审核',
   services: '运营配置 / 服务分类',
   assets: '运营配置 / 素材库',
   platform_settings: '运营配置 / 平台参数',
@@ -161,27 +163,29 @@ watch(
 )
 
 function openProviderReviews() {
-  if (can('provider.review')) emit('navigate', 'provider_reviews')
+  if (can('provider.review')) emit('reviewProvider', pendingProviderReviewMode.value)
 }
 
 async function refreshProviderReviewSummary() {
   if (!can('provider.review')) return
   try {
     const summary = props.preview
-      ? { total: 3 }
+      ? { applications: 0, onboarding: 3, profile_changes: 0, service_changes: 0, total: 3 }
       : await adminApi.providerReviewSummary()
-    const previous = previousProviderReviewCount
+    const previous = previousProviderReviews
     pendingProviderReviews.value = summary.total
-    previousProviderReviewCount = summary.total
-    if (!props.preview && summary.total > 0 && (previous === null || summary.total > previous)) {
+    pendingProviderReviewMode.value = firstPendingProviderReview(summary)
+    previousProviderReviews = summary
+    const notice = providerReviewNotice(summary, previous)
+    if (!props.preview && notice) {
       ElNotification({
         title: previous === null ? '达人审核待办' : '有新的达人审核待办',
         message: previous === null
-          ? `当前有 ${summary.total} 条达人审核待处理`
-          : `新增 ${summary.total - previous} 条，当前共 ${summary.total} 条待处理`,
+          ? `待处理：${notice.message}`
+          : `新增：${notice.message}；当前共 ${summary.total} 条待处理`,
         type: 'warning',
         duration: 6000,
-        onClick: openProviderReviews,
+        onClick: () => emit('reviewProvider', notice.mode),
       })
     }
   } catch {

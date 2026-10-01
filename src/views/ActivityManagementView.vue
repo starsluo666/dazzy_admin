@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Calendar,
@@ -20,12 +20,13 @@ const props = defineProps<{
   preview: boolean
   canReview: boolean
   canManage: boolean
+  initialStatus?: 'pending_review' | ''
 }>()
 
 const rows = ref<AdminActivity[]>([])
 const summary = ref<AdminActivitySummary>({ total: 0, pending_review: 0, active: 0, ended: 0 })
 const search = ref('')
-const statusFilter = ref<ActivityStatus | ''>('')
+const statusFilter = ref<ActivityStatus | ''>(props.initialStatus || '')
 const cityFilter = ref('')
 const page = ref(1)
 const pageSize = 20
@@ -333,6 +334,11 @@ function statusType(status: ActivityStatus) {
   return 'info'
 }
 
+watch(() => props.initialStatus, value => {
+  statusFilter.value = value || ''
+  page.value = 1
+  void load()
+})
 onMounted(load)
 </script>
 

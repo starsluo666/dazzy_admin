@@ -25,6 +25,9 @@ const targetOptions = [
   { value: 'organization_member', label: '后台账号' },
   { value: 'operation_setting', label: '运营配置' },
   { value: 'provider', label: '达人资料' },
+  { value: 'provider_profile', label: '达人申请 / 开通' },
+  { value: 'provider_profile_revision', label: '达人资料变更' },
+  { value: 'provider_service_revision', label: '达人服务变更' },
   { value: 'provider_order', label: '达人订单' },
   { value: 'user', label: '用户资料' },
 ]
@@ -33,7 +36,11 @@ const actionNames: Record<string, string> = {
   'system.member.create': '添加后台账号', 'system.member.update': '更新后台账号',
   'system.task.retry': '重试失败任务',
   'operations.platform.update': '更新平台参数', 'operations.provider_ordering.update': '更新接单规则',
-  'provider.application.approve': '审核达人入驻', 'provider.application_name.correct': '更正达人入驻申请姓名', 'provider.credit.adjust': '调整达人信用分',
+  'provider.application.approve': '通过达人入驻初审', 'provider.application.reject': '驳回达人入驻初审',
+  'provider.onboarding.approve': '通过达人开通审核', 'provider.onboarding.reject': '驳回达人开通审核',
+  'provider.profile_revision.approve': '通过达人资料变更', 'provider.profile_revision.reject': '驳回达人资料变更',
+  'provider.service_revision.approve': '通过达人服务变更', 'provider.service_revision.reject': '驳回达人服务变更',
+  'provider.application_name.correct': '更正达人入驻申请姓名', 'provider.credit.adjust': '调整达人信用分',
   'order.support_note.add': '添加订单跟进', 'order.after_sales.approve': '审核退款售后',
 }
 const targetNames: Record<string, string> = Object.fromEntries(targetOptions.filter((item) => item.value).map((item) => [item.value, item.label]))

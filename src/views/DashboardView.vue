@@ -5,12 +5,13 @@ import { Download, Refresh } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
 import { formatLongDate, formatMoney } from '../utils/format'
+import { providerReviewModeForTodo, type ProviderReviewMode } from '../utils/providerReviews'
 
 type TrendDays = 7 | 30
 type TrendPoint = { date: string; transaction_amount: number; order_count: number }
 
 const props = defineProps<{ preview: boolean }>()
-const emit = defineEmits<{ reviewProvider: []; reviewActivity: [] }>()
+const emit = defineEmits<{ reviewProvider: [mode: ProviderReviewMode]; reviewActivity: [] }>()
 const metrics = ref<Record<string, number | null>>({})
 const todos = ref<Array<{ key: string; label: string; count: number; priority: string }>>([])
 const trendDays = ref<TrendDays>(7)
@@ -29,7 +30,7 @@ const demoOrders = [18, 24, 12, 29, 34, 21, 36]
 const dateLabel = formatLongDate(new Date())
 const cards = computed(() => [
   { label: '今日新增用户', value: metrics.value.today_new_users ?? '—', trend: props.preview ? '+12.6% ↗' : '实时数据', tone: 'cyan', icon: '人' },
-  { label: '待审核达人', value: metrics.value.pending_providers ?? 0, trend: props.preview ? '较昨日 +6' : '实时待办', tone: 'orange', icon: '审' },
+  { label: '达人审核待办', value: metrics.value.pending_providers ?? 0, trend: props.preview ? '较昨日 +6' : '实时待办', tone: 'orange', icon: '审' },
   { label: '进行中订单', value: metrics.value.active_orders ?? 0, trend: props.preview ? '+8.2% ↗' : '实时数据', tone: 'blue', icon: '单' },
   { label: '近7日交易额', value: formatMoney(metrics.value.week_transaction_amount), trend: props.preview ? '+15.3% ↗' : '已支付订单', tone: 'orange', icon: '¥' },
 ])
@@ -87,10 +88,11 @@ async function load() {
       metrics.value = demoMetrics
       trendPoints.value = demoTrend(trendDays.value)
       todos.value = [
-        { key: 'provider_review', label: '达人入驻申请', count: 24, priority: 'high' },
+        { key: 'provider_application_review', label: '达人入驻初审', count: 6, priority: 'high' },
+        { key: 'provider_onboarding_review', label: '达人开通审核', count: 10, priority: 'high' },
+        { key: 'provider_profile_review', label: '达人资料变更审核', count: 5, priority: 'high' },
+        { key: 'provider_service_review', label: '达人服务变更审核', count: 3, priority: 'high' },
         { key: 'activity_review', label: '活动发布审核', count: 18, priority: 'medium' },
-        { key: 'refund', label: '退款人工复核', count: 9, priority: 'high' },
-        { key: 'report', label: '违规举报', count: 7, priority: 'medium' },
       ]
       return
     }
@@ -114,8 +116,14 @@ async function selectTrendDays(days: TrendDays) {
 onMounted(load)
 
 function handleTodo(key: string) {
-  if (key === 'provider_review') emit('reviewProvider')
+  const mode = providerReviewModeForTodo(key)
+  if (mode) emit('reviewProvider', mode)
   if (key === 'activity_review') emit('reviewActivity')
+}
+
+function openPendingProviderReview() {
+  const todo = todos.value.find(item => item.count > 0 && providerReviewModeForTodo(item.key))
+  emit('reviewProvider', todo ? providerReviewModeForTodo(todo.key)! : 'application')
 }
 </script>
 
@@ -129,11 +137,13 @@ function handleTodo(key: string) {
       </div>
     </div>
 
-    <button class="alert-bar" @click="emit('reviewActivity')">
-      🔔&nbsp;&nbsp;当前有 <strong>{{ metrics.pending_providers || 0 }}</strong> 条达人申请和
-      <strong>{{ metrics.pending_activities || 0 }}</strong> 条活动申请等待处理
-      <span>立即处理&nbsp;›</span>
-    </button>
+    <div class="alert-bar review-alert">
+      <span>当前有 {{ metrics.pending_providers || 0 }} 条达人审核、{{ metrics.pending_activities || 0 }} 条活动审核待处理</span>
+      <div class="review-alert-actions">
+        <el-button link type="primary" @click="openPendingProviderReview">处理达人审核</el-button>
+        <el-button link type="primary" @click="emit('reviewActivity')">处理活动审核</el-button>
+      </div>
+    </div>
 
     <section class="metric-grid">
       <article v-for="card in cards" :key="card.label">
@@ -188,6 +198,9 @@ function handleTodo(key: string) {
 </template>
 
 <style scoped>
+.review-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.review-alert > span { margin: 0; }
+.review-alert-actions { display: flex; gap: 12px; }
 .range-switch {
   display: flex;
   gap: 4px;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import LoginView from './views/LoginView.vue'
 import AdminShell from './layouts/AdminShell.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -41,6 +41,7 @@ import {
   setSessionExpiredHandler,
 } from './services/api'
 import type { AdminMe, AdminPage } from './types'
+import type { ProviderReviewMode } from './utils/providerReviews'
 
 const route = useRoute()
 const router = useRouter()
@@ -159,13 +160,26 @@ async function logout() {
   }
 }
 
-function navigate(page: AdminPage) {
+function navigate(page: AdminPage, queryOverrides: LocationQueryRaw = {}) {
   if (!canAccessAdminPage(page, session.value?.permissions, preview)) {
     ElMessage.warning('当前账号无权访问该页面')
     return
   }
   if (page === 'orders') orderSearch.value = ''
-  void router.push({ name: page, query: route.query })
+  const query: LocationQueryRaw = { ...route.query }
+  delete query.review
+  delete query.review_status
+  delete query.activity_status
+  Object.assign(query, queryOverrides)
+  void router.push({ name: page, query })
+}
+
+function openProviderReview(mode: ProviderReviewMode = 'application') {
+  navigate('provider_reviews', { review: mode })
+}
+
+function openActivityReview() {
+  navigate('activities', { activity_status: 'pending_review' })
 }
 
 function openOrderFromTask(orderNo: string) {
@@ -189,6 +203,7 @@ onMounted(loadSession)
     :session="session"
     :preview="preview"
     @navigate="navigate"
+    @review-provider="openProviderReview"
     @logout="logout"
   >
     <el-empty
@@ -198,8 +213,8 @@ onMounted(loadSession)
     <DashboardView
       v-else-if="currentPage === 'dashboard'"
       :preview="preview"
-      @review-provider="navigate('provider_reviews')"
-      @review-activity="navigate('activities')"
+      @review-provider="openProviderReview"
+      @review-activity="openActivityReview"
     />
     <UserManagementView
       v-else-if="currentPage === 'users'"
@@ -237,6 +252,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-review="canReviewActivity"
       :can-manage="canManageActivity"
+      :initial-status="route.query.activity_status === 'pending_review' ? 'pending_review' : ''"
     />
     <ActivityCategoriesView
       v-else-if="currentPage === 'activity_categories'"
