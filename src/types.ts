@@ -974,8 +974,12 @@ export interface AdminProvider {
   receiving_account?: {
     materials_saved: boolean
     status_label: string
-    channel_status: 'not_connected'
+    channel_status: 'not_connected' | 'registering' | 'registered' | 'configuring' | 'pending' | 'active' | 'rejected' | 'attention'
     channel_notice: string
+    audit_status: string
+    card_status: string
+    settlement_status: string
+    channel_checked_at: string | null
     bank_card_masked: string
     bank_name: string
     bank_province: string

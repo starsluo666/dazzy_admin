@@ -393,7 +393,7 @@ onMounted(load)
         <section class="detail-section"><div class="section-title"><h3>当前接单位置</h3><el-tag size="small" :type="selected.is_online ? 'success' : 'info'" effect="plain">{{ selected.is_online ? '在线' : '离线' }}</el-tag></div><div v-if="selected.has_live_location" class="service-location"><el-icon><Location /></el-icon><div><strong>{{ coordinateLabel(selected) }}</strong><p>定位精度约 {{ selected.location_accuracy_m || '—' }} 米 · 服务半径 {{ selected.max_service_radius_km }}km</p><span>最后更新 {{ formatDateTime(selected.location_updated_at) }} · 有效至 {{ formatDateTime(selected.location_expires_at) }}</span></div></div><el-empty v-else :image-size="48" description="达人尚未上报接单位置" /><p class="location-privacy">精确坐标仅供平台管理和距离计算使用，用户端只展示距离。</p></section>
         <section class="detail-section provider-metrics"><div><span>综合评分</span><strong>{{ selected.rating }}</strong></div><div><span>服务次数</span><strong>{{ selected.service_count }}</strong></div><div><span>订单总量</span><strong>{{ selected.order_count }}</strong></div><div><span>服务项目</span><strong>{{ selected.service_names.length }}</strong></div></section>
         <section v-if="selected.receiving_account" class="detail-section">
-          <div class="section-title"><h3>收款账户资料</h3><el-tag type="warning" effect="plain">{{ selected.receiving_account.status_label }}</el-tag></div>
+          <div class="section-title"><h3>收款账户资料</h3><el-tag :type="selected.receiving_account.channel_status === 'active' ? 'success' : 'warning'" effect="plain">{{ selected.receiving_account.status_label }}</el-tag></div>
           <el-alert type="info" :closable="false" :title="selected.receiving_account.channel_notice" />
           <div v-if="selected.receiving_account.materials_saved" class="identity-fields">
             <span>开户银行</span><strong>{{ selected.receiving_account.bank_name }}</strong>
@@ -401,6 +401,10 @@ onMounted(load)
             <span>银行卡号</span><strong>{{ selected.receiving_account.bank_card_masked }}</strong>
             <span>联系电话</span><strong>{{ selected.receiving_account.mobile_masked }}</strong>
             <span>保存时间</span><strong>{{ formatDateTime(selected.receiving_account.updated_at) }}</strong>
+            <span>渠道审核</span><strong>{{ ({ Y: '通过', P: '审核中', N: '拒绝' } as Record<string, string>)[selected.receiving_account.audit_status] || '尚无审核通知' }}</strong>
+            <span>银行卡核验</span><strong>{{ selected.receiving_account.card_status === 'S' ? '已确认' : '待核实' }}</strong>
+            <span>结算配置</span><strong>{{ selected.receiving_account.settlement_status === 'S' ? '已确认' : '待核实' }}</strong>
+            <span>最近渠道核验</span><strong>{{ formatDateTime(selected.receiving_account.channel_checked_at) }}</strong>
           </div>
           <p class="identity-note">仅显示脱敏资料。平台实名认证、资料保存和渠道开户是不同状态；此处不能手工标记分账成功。</p>
         </section>
