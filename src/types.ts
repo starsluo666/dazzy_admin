@@ -971,6 +971,18 @@ export interface AdminProvider {
   identity_reviewed_at: string | null
   identity_rejection_reason: string
   is_profile_complete: boolean
+  receiving_account?: {
+    materials_saved: boolean
+    status_label: string
+    channel_status: 'not_connected'
+    channel_notice: string
+    bank_card_masked: string
+    bank_name: string
+    bank_province: string
+    bank_city: string
+    mobile_masked: string
+    updated_at: string | null
+  } | null
   created_at: string
   updated_at: string
 }
