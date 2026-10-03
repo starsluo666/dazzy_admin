@@ -979,6 +979,8 @@ export interface AdminProvider {
     audit_status: string
     card_status: string
     settlement_status: string
+    cash_status: string
+    automatic_settlement_disabled: boolean | null
     channel_checked_at: string | null
     bank_card_masked: string
     bank_name: string
@@ -1097,7 +1099,7 @@ export interface ProviderOrderRefundRecord {
 
 export interface ProviderOrderSettlementPlan {
   plan_no: string
-  status: 'waiting' | 'blocked' | 'cancelled'
+  status: 'waiting' | 'ready' | 'blocked' | 'cancelled'
   status_label: string
   funding_type: 'unknown' | 'external' | 'wallet' | 'mixed'
   funding_type_label: string
@@ -1157,6 +1159,22 @@ export interface ProviderOrderSettlementRecord {
   provider_service_income_amount: number
   provider_settlement_amount: number
   distribution_plan?: ProviderOrderSettlementPlan | null
+  distribution?: {
+    req_date: string
+    req_seq_id: string
+    status: 'submitting' | 'unknown' | 'processing' | 'succeeded' | 'failed'
+    status_label: string
+    provider_amount: number
+    platform_amount: number
+    payment_fee_amount: number
+    split_fee_amount: number | null
+    bank_settlement_fee_amount: number | null
+    bank_arrival_verified: false
+    response_code: string
+    attention_reason: string
+    last_queried_at: string | null
+    created_at: string
+  } | null
   frozen_at: string
   freeze_until: string
   dispute_reason: string

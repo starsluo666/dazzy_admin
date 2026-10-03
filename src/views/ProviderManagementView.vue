@@ -403,7 +403,8 @@ onMounted(load)
             <span>保存时间</span><strong>{{ formatDateTime(selected.receiving_account.updated_at) }}</strong>
             <span>渠道审核</span><strong>{{ ({ Y: '通过', P: '审核中', N: '拒绝' } as Record<string, string>)[selected.receiving_account.audit_status] || '尚无审核通知' }}</strong>
             <span>银行卡核验</span><strong>{{ selected.receiving_account.card_status === 'S' ? '已确认' : '待核实' }}</strong>
-            <span>结算配置</span><strong>{{ selected.receiving_account.settlement_status === 'S' ? '已确认' : '待核实' }}</strong>
+            <span>手动提现</span><strong>{{ selected.receiving_account.cash_status === 'S' ? '已确认' : '待核实' }}</strong>
+            <span>自动结算</span><strong>{{ selected.receiving_account.automatic_settlement_disabled === true ? '已核验关闭' : '未确认关闭，禁止余额提现' }}</strong>
             <span>最近渠道核验</span><strong>{{ formatDateTime(selected.receiving_account.channel_checked_at) }}</strong>
           </div>
           <p class="identity-note">仅显示脱敏资料。平台实名认证、资料保存和渠道开户是不同状态；此处不能手工标记分账成功。</p>
