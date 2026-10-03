@@ -32,6 +32,7 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   users: ['users-group'],
   providers: ['providers-group'], provider_reviews: ['providers-group'],
   services: ['operations-group'], assets: ['operations-group'], platform_settings: ['operations-group'], provider_rules: ['operations-group'],
+  receiving_settings: ['operations-group'],
   activities: ['activities-group'], activity_categories: ['activities-group'], activity_reports: ['activities-group'],
   orders: ['orders-group'], after_sales: ['orders-group'],
   settlements: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
@@ -63,6 +64,7 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'services', label: '服务分类', icon: Grid, child: true, parent: 'operations-group', enabled: can('service_category.view'), visible: can('service_category.view') },
   { key: 'assets', label: '素材库', icon: Grid, child: true, parent: 'operations-group', enabled: can('asset.view'), visible: can('asset.view') },
   { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
+  { key: 'receiving_settings', label: '收款与提现配置', icon: Coin, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'provider_rules', label: '接单规则', icon: Operation, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
   { key: 'activities-group', label: '活动管理', icon: Calendar, group: true, visible: can('activity.view') || can('activity_category.view') || can('activity_report.view') },
   { key: 'activities', label: '活动列表', icon: List, child: true, parent: 'activities-group', enabled: can('activity.view'), visible: can('activity.view') },
@@ -103,6 +105,7 @@ const pageLabels: Record<AdminPage, string> = {
   services: '运营配置 / 服务分类',
   assets: '运营配置 / 素材库',
   platform_settings: '运营配置 / 平台参数',
+  receiving_settings: '运营配置 / 收款与提现配置',
   provider_rules: '运营配置 / 接单规则',
   activities: '活动管理 / 活动列表',
   activity_categories: '活动管理 / 标签配置',
@@ -148,7 +151,7 @@ function groupActive(key: string) {
     || (key === 'support-group' && props.active === 'support_cases')
     || (['marketing-group', 'coupon-management-group'].includes(key) && ['coupons', 'coupon_records'].includes(props.active))
     || (['marketing-group', 'growth-management-group'].includes(key) && ['newcomer_gift', 'invitation_rules', 'invitation_records'].includes(props.active))
-    || (key === 'operations-group' && ['services', 'assets', 'platform_settings', 'provider_rules'].includes(props.active))
+    || (key === 'operations-group' && ['services', 'assets', 'platform_settings', 'receiving_settings', 'provider_rules'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))
 }
 

@@ -62,6 +62,8 @@ import type {
   ProviderOrderRefundRecord,
   ProviderOrderSettlementRecord,
   PlatformOperationSetting,
+  ReceivingWithdrawalSetting,
+  ReceivingWithdrawalMutation,
   UserRiskLevel,
   VerificationStatus,
   ActivityReportStatus,
@@ -422,6 +424,8 @@ export const adminApi = {
     body: JSON.stringify(payload),
   }),
   platformOperationSetting: () => request<PlatformOperationSetting>('/admin/operation-settings/platform/'),
+  receivingWithdrawalSetting: () => request<ReceivingWithdrawalSetting>('/admin/operation-settings/receiving-withdrawal/'),
+  updateReceivingWithdrawalSetting: (payload: ReceivingWithdrawalMutation) => request<ReceivingWithdrawalSetting>('/admin/operation-settings/receiving-withdrawal/', { method: 'PUT', body: JSON.stringify(payload) }),
   updatePlatformOperationSetting: (payload: Partial<PlatformOperationSetting>) => request<PlatformOperationSetting>('/admin/operation-settings/platform/', { method: 'PATCH', body: JSON.stringify(payload) }),
   uploadActivityCover: (file: File) => {
     const body = new FormData()

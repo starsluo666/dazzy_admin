@@ -7,7 +7,33 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+
+export interface ReceivingWithdrawalForm {
+  cash_type: '' | 'T1' | 'D1'
+  out_fee_acct_type: '' | '01' | '02' | '05'
+  fix_amt: string | null
+  fee_rate: string | null
+  weekday_fix_amt: string | null
+  weekday_fee_rate: string | null
+}
+
+export interface ReceivingWithdrawalSetting {
+  form: ReceivingWithdrawalForm
+  source: 'admin' | 'environment' | 'unconfigured'
+  revision: number
+  updated_at: string | null
+  updated_by: string | null
+  checks: Array<{ key: string; label: string; ok: boolean; message: string }>
+  onboarding_ready: boolean
+  withdrawal_enabled: boolean
+}
+
+export interface ReceivingWithdrawalMutation extends ReceivingWithdrawalForm {
+  revision: number
+  confirmed: boolean
+  reason: string
+}
 
 export interface RechargeDiscountTier {
   min_quantity: number

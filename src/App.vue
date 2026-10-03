@@ -18,6 +18,7 @@ import ActivityReportsView from './views/ActivityReportsView.vue'
 import AuditLogsView from './views/AuditLogsView.vue'
 import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
+import ReceivingWithdrawalSettingsView from './views/ReceivingWithdrawalSettingsView.vue'
 import SystemManagementView from './views/SystemManagementView.vue'
 import TaskCenterView from './views/TaskCenterView.vue'
 import SupportCasesView from './views/SupportCasesView.vue'
@@ -95,6 +96,7 @@ const canManageCoupon = hasPermission('coupon.manage')
 const canIssueCoupon = hasPermission('coupon.issue')
 const canManageGrowth = hasPermission('growth.manage')
 const canManageWallet = hasPermission('wallet.manage')
+const canViewAudit = hasPermission('audit.view')
 
 setSessionExpiredHandler(() => {
   session.value = null
@@ -245,6 +247,11 @@ onMounted(loadSession)
     />
     <PlatformOperationSettingsView
       v-else-if="currentPage === 'platform_settings'"
+      @open-audit="navigate('audit_logs')"
+    />
+    <ReceivingWithdrawalSettingsView
+      v-else-if="currentPage === 'receiving_settings'"
+      :can-view-audit="canViewAudit"
       @open-audit="navigate('audit_logs')"
     />
     <ActivityManagementView

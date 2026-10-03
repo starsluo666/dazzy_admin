@@ -36,6 +36,7 @@ const actionNames: Record<string, string> = {
   'system.member.create': '添加后台账号', 'system.member.update': '更新后台账号',
   'system.task.retry': '重试失败任务',
   'operations.platform.update': '更新平台参数', 'operations.provider_ordering.update': '更新接单规则',
+  'operations.receiving_withdrawal.update': '更新收款与提现配置',
   'provider.application.approve': '通过达人入驻初审', 'provider.application.reject': '驳回达人入驻初审',
   'provider.onboarding.approve': '通过达人开通审核', 'provider.onboarding.reject': '驳回达人开通审核',
   'provider.profile_revision.approve': '通过达人资料变更', 'provider.profile_revision.reject': '驳回达人资料变更',
