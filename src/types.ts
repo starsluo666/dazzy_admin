@@ -1192,6 +1192,9 @@ export interface ProviderOrderSettlementRecord {
     status_label: string
     provider_amount: number
     platform_amount: number
+    payment_fee_flag: '1' | '2'
+    platform_split_amount: number
+    split_amount: number
     payment_fee_amount: number
     split_fee_amount: number | null
     bank_settlement_fee_amount: number | null
