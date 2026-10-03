@@ -52,14 +52,14 @@ const statusOptions = computed(() => {
   ]
   return [
     ['risk_frozen', '风险冻结中'], ['dispute_frozen', '争议冻结中'],
-    ['settled', '已结算入账'], ['cancelled', '已取消'],
+    ['settled', '平台账务已结算'], ['cancelled', '已取消'],
   ]
 })
 const summaryCards = computed(() => [
   { label: '累计实付', value: summary.value.paid_amount, icon: CreditCard, tone: 'blue' },
   { label: '累计退款', value: summary.value.refunded_amount, icon: Tickets, tone: 'orange' },
   { label: '待结算收入', value: summary.value.pending_settlement_amount, icon: Coin, tone: 'cyan' },
-  { label: '已结算收入', value: summary.value.settled_amount, icon: SuccessFilled, tone: 'green' },
+  { label: '账务已结算（非到账）', value: summary.value.settled_amount, icon: SuccessFilled, tone: 'green' },
   { label: '异常交易', value: summary.value.exception_count, icon: WarningFilled, tone: 'red', count: true },
 ])
 
@@ -93,6 +93,9 @@ const demoSettlement: ProviderOrderSettlementRecord = {
 function paymentRow(row: FinanceRecord): row is ProviderOrderPaymentRecord { return 'payment_no' in row }
 function refundRow(row: FinanceRecord): row is ProviderOrderRefundRecord { return 'refund_no' in row }
 function settlementRow(row: FinanceRecord): row is ProviderOrderSettlementRecord { return 'settlement_no' in row }
+function fundingAmount(value: number | null | undefined) {
+  return value == null ? '待核实' : formatAmount(value)
+}
 function statusType(status: string) {
   if (['paid', 'succeeded', 'settled'].includes(status)) return 'success'
   if (['failed', 'dispute_frozen'].includes(status)) return 'danger'
@@ -185,10 +188,11 @@ onMounted(load)
       <div><i>1</i><span><strong>用户支付</strong><small>支付单独立留痕</small></span></div><b>→</b>
       <div><i>2</i><span><strong>履约确认</strong><small>生成结算快照</small></span></div><b>→</b>
       <div><i>3</i><span><strong>风险冻结</strong><small>售后自动暂停</small></span></div><b>→</b>
-      <div><i>4</i><span><strong>达人入账</strong><small>到期幂等结算</small></span></div>
+      <div><i>4</i><span><strong>平台账务结算</strong><small>不代表分账或银行卡到账</small></span></div>
     </section>
 
     <section class="finance-panel">
+      <el-alert v-if="active === 'settlement'" type="info" :closable="false" show-icon title="当前仅生成分账准备记录，不会自动出款。平台账务结算、渠道分账和银行卡到账是不同状态。" />
       <div class="record-tabs">
         <button v-for="tab in tabs" :key="tab.key" :class="{ active: active === tab.key }" @click="switchTab(tab.key)">
           {{ tab.label }}<em v-if="tab.key === 'exception' && summary.exception_count">{{ summary.exception_count }}</em>
@@ -222,10 +226,12 @@ onMounted(load)
         <template v-else>
           <el-table-column label="结算单 / 订单" min-width="210"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.settlement_no }}</strong><span>{{ row.order_no }}</span></div></template></el-table-column>
           <el-table-column label="达人 / 服务" min-width="150"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.provider_name }}</strong><span>{{ row.service_name }} · {{ row.city_name }}</span></div></template></el-table-column>
-          <el-table-column label="平台抽成" min-width="125"><template #default="{ row }">{{ row.platform_commission_rate }}% · {{ formatAmount(row.platform_commission_amount) }}</template></el-table-column>
+          <el-table-column label="平台抽成（扣费前）" min-width="155"><template #default="{ row }">{{ row.platform_commission_rate }}% · {{ formatAmount(row.platform_commission_amount) }}</template></el-table-column>
           <el-table-column label="达人结算" min-width="125"><template #default="{ row }"><strong class="amount">{{ formatAmount(row.provider_settlement_amount) }}</strong></template></el-table-column>
-          <el-table-column label="状态" width="125"><template #default="{ row }"><el-tag :type="statusType(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
-          <el-table-column label="预计 / 实际入账" min-width="175"><template #default="{ row }">{{ formatDateTime(row.settled_at || row.freeze_until) }}</template></el-table-column>
+          <el-table-column label="资金来源" min-width="140"><template #default="{ row }">{{ row.distribution_plan?.funding_type_label || '待核账' }}</template></el-table-column>
+          <el-table-column label="账务状态" width="145"><template #default="{ row }"><el-tag :type="statusType(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
+          <el-table-column label="分账准备" min-width="185"><template #default="{ row }"><el-tag type="info" effect="plain">{{ row.distribution_plan?.status_label || '尚未生成 · 需核账' }}</el-tag></template></el-table-column>
+          <el-table-column label="账务结算 / 冻结截止" min-width="180"><template #default="{ row }">{{ formatDateTime(row.settled_at || row.freeze_until) }}</template></el-table-column>
         </template>
         <el-table-column v-if="active !== 'exception'" label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
       </el-table>
@@ -237,7 +243,26 @@ onMounted(load)
         <header><div><h2>交易详情</h2><p>{{ rowIdentity(selected) }}</p></div><el-tag :type="statusType(selected.status)" effect="light">{{ selected.status_label }}</el-tag></header>
         <section v-if="paymentRow(selected)"><h3>支付构成</h3><dl><div><dt>服务费</dt><dd>{{ formatAmount(selected.service_fee_amount) }}</dd></div><div><dt>交通费</dt><dd>{{ formatAmount(selected.transport_fee_amount) }}</dd></div><div><dt>优惠金额</dt><dd>-{{ formatAmount(selected.discount_amount) }}</dd></div><div class="total"><dt>用户实付</dt><dd>{{ formatAmount(selected.payable_amount) }}</dd></div></dl><p>渠道交易号：{{ selected.gateway_trade_no || '尚未生成' }}</p></section>
         <section v-else-if="refundRow(selected)"><h3>退款分配</h3><dl><div><dt>服务费退款</dt><dd>{{ formatAmount(selected.service_fee_refund_amount) }}</dd></div><div><dt>交通费退款</dt><dd>{{ formatAmount(selected.transport_fee_refund_amount) }}</dd></div><div><dt>其他费用退款</dt><dd>{{ formatAmount(selected.other_fee_refund_amount) }}</dd></div><div class="total"><dt>退款总额</dt><dd>{{ formatAmount(selected.refund_amount) }}</dd></div></dl><p>{{ selected.reason }}</p><el-alert v-if="selected.failure_reason" type="error" :closable="false" :title="selected.failure_reason" /></section>
-        <section v-else-if="settlementRow(selected)"><h3>结算分配</h3><dl><div><dt>净服务费</dt><dd>{{ formatAmount(selected.net_service_fee_amount) }}</dd></div><div><dt>平台抽成</dt><dd>{{ formatAmount(selected.platform_commission_amount) }}</dd></div><div><dt>交通及其他</dt><dd>{{ formatAmount(selected.net_transport_fee_amount + selected.net_other_fee_amount) }}</dd></div><div class="total"><dt>达人结算</dt><dd>{{ formatAmount(selected.provider_settlement_amount) }}</dd></div></dl><p>冻结期至 {{ formatDateTime(selected.freeze_until) }}</p><el-alert v-if="selected.dispute_reason" type="warning" :closable="false" :title="selected.dispute_reason" /></section>
+        <section v-else-if="settlementRow(selected)"><h3>结算分配</h3><dl><div><dt>净服务费</dt><dd>{{ formatAmount(selected.net_service_fee_amount) }}</dd></div><div><dt>平台抽成（扣费前）</dt><dd>{{ formatAmount(selected.platform_commission_amount) }}</dd></div><div><dt>交通及其他</dt><dd>{{ formatAmount(selected.net_transport_fee_amount + selected.net_other_fee_amount) }}</dd></div><div class="total"><dt>达人结算</dt><dd>{{ formatAmount(selected.provider_settlement_amount) }}</dd></div></dl><p>冻结期至 {{ formatDateTime(selected.freeze_until) }}</p><el-alert v-if="selected.dispute_reason" type="warning" :closable="false" :title="selected.dispute_reason" /></section>
+        <section v-if="settlementRow(selected)">
+          <h3>分账准备（未出款）</h3>
+          <template v-if="selected.distribution_plan">
+            <p>{{ selected.distribution_plan.plan_no }} · 第 {{ selected.distribution_plan.revision }} 版</p>
+            <dl>
+              <div><dt>准备状态</dt><dd>{{ selected.distribution_plan.status_label }}</dd></div>
+              <div><dt>资金来源</dt><dd>{{ selected.distribution_plan.funding_type_label }}</dd></div>
+              <div><dt>余额支付 / 已退</dt><dd>{{ fundingAmount(selected.distribution_plan.funding_snapshot.wallet_paid_amount) }} / {{ fundingAmount(selected.distribution_plan.funding_snapshot.wallet_refunded_amount) }}</dd></div>
+              <div><dt>外部支付 / 已退</dt><dd>{{ fundingAmount(selected.distribution_plan.funding_snapshot.external_paid_amount) }} / {{ fundingAmount(selected.distribution_plan.funding_snapshot.external_refunded_amount) }}</dd></div>
+              <div><dt>手续费承担（平台规则）</dt><dd>{{ selected.distribution_plan.fee_policy_snapshot?.bearer === 'platform' ? '平台承担，达人不扣手续费' : '待核实' }}</dd></div>
+              <div><dt>实际手续费合计</dt><dd>{{ selected.distribution_plan.fee_policy_snapshot?.total_fee_amount == null ? '待渠道核算' : formatAmount(selected.distribution_plan.fee_policy_snapshot.total_fee_amount) }}</dd></div>
+              <div><dt>平台扣费后净额</dt><dd>{{ selected.distribution_plan.fee_policy_snapshot?.platform_net_amount == null ? '待渠道核算' : formatAmount(selected.distribution_plan.fee_policy_snapshot.platform_net_amount) }}</dd></div>
+            </dl>
+            <p v-if="selected.distribution_plan.fee_policy_snapshot?.bearer === 'platform'">支付、分账及银行卡结算手续费由平台承担；实际费用以渠道核账为准。平台规则已记录不代表渠道扣费配置已生效。</p>
+            <ul><li v-for="reason in selected.distribution_plan.blockers" :key="reason.code">{{ reason.message }}</li></ul>
+            <p>最近核对：{{ formatDateTime(selected.distribution_plan.evaluated_at) }}。本地金额核对通过不代表渠道资金可用或已经到账。</p>
+          </template>
+          <el-alert v-else type="warning" :closable="false" title="尚未生成分账准备记录。历史结算需先核对渠道流水、退款及既有出款，不会自动补付。" />
+        </section>
       </div>
     </el-drawer>
   </div>

@@ -1095,6 +1095,49 @@ export interface ProviderOrderRefundRecord {
   updated_at: string
 }
 
+export interface ProviderOrderSettlementPlan {
+  plan_no: string
+  status: 'waiting' | 'blocked' | 'cancelled'
+  status_label: string
+  funding_type: 'unknown' | 'external' | 'wallet' | 'mixed'
+  funding_type_label: string
+  paid_amount: number
+  refunded_amount: number
+  provider_amount: number
+  platform_amount: number
+  fee_policy_snapshot?: {
+    version?: string
+    bearer?: 'platform'
+    scope?: string[]
+    provider_fee_amount?: number
+    provider_receivable_amount?: number
+    platform_gross_amount?: number
+    payment_fee_amount?: number | null
+    split_fee_amount?: number | null
+    bank_settlement_fee_amount?: number | null
+    total_fee_amount?: number | null
+    platform_net_amount?: number | null
+    platform_shortfall_amount?: number | null
+  }
+  funding_snapshot: {
+    locally_reconciled: boolean
+    channel_funds_verified: boolean
+    wallet_paid_amount: number | null
+    external_paid_amount: number | null
+    wallet_refunded_amount: number | null
+    external_refunded_amount: number | null
+    payment_no: string
+    payment_req_date: string
+    payment_req_seq_id: string
+    payment_gateway_trade_no: string
+  }
+  blockers: Array<{ code: string; message: string }>
+  requires_manual_review: boolean
+  revision: number
+  evaluated_at: string
+  execution_enabled: false
+}
+
 export interface ProviderOrderSettlementRecord {
   settlement_no: string
   order_no: string
@@ -1113,6 +1156,7 @@ export interface ProviderOrderSettlementRecord {
   platform_commission_amount: number
   provider_service_income_amount: number
   provider_settlement_amount: number
+  distribution_plan?: ProviderOrderSettlementPlan | null
   frozen_at: string
   freeze_until: string
   dispute_reason: string
