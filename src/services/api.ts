@@ -719,6 +719,10 @@ export const adminApi = {
     request<{ url: string; expires_in: number }>(
       `/admin/provider-orders/${encodeURIComponent(orderNo)}/evidence/`,
     ),
+  reviewOrderFulfillment: (orderNo: string, revision: number, reason: string) =>
+    request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/fulfillment-review/`, {
+      method: 'POST', body: JSON.stringify({ revision, reason }),
+    }),
   addProviderOrderSupportNote: (
     orderNo: string,
     content: string,

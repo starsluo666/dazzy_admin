@@ -48,6 +48,8 @@ interface RuleDefinition {
 const defaults: Record<FieldKey, number> = {
   provider_order_payment_timeout_minutes: 15,
   provider_order_confirmation_timeout_days: 3,
+  provider_order_early_tolerance_minutes: 30,
+  provider_order_late_tolerance_minutes: 30,
   provider_order_review_timeout_days: 7,
   provider_order_settlement_freeze_days: 1,
   activity_payment_timeout_minutes: 30,
@@ -63,6 +65,20 @@ const defaults: Record<FieldKey, number> = {
 }
 
 const rules: RuleDefinition[] = [
+  {
+    key: 'provider_order_early_tolerance_minutes', group: 'provider', label: '履约提前容差',
+    unit: '分钟', min: 0, max: 180, step: 5,
+    help: '开始或完成时间过早、按小时服务时长不足时，超出容差标记异常',
+    impact: '自动确认及分账', scope: '开始履约时固定规则，历史订单不追溯',
+    risk: '超出容差需客服审核；按次服务不校验实际服务时长。',
+  },
+  {
+    key: 'provider_order_late_tolerance_minutes', group: 'provider', label: '履约延后容差',
+    unit: '分钟', min: 0, max: 180, step: 5,
+    help: '开始或完成时间晚于预约时间且超出容差时标记异常',
+    impact: '自动确认及分账', scope: '开始履约时固定规则，历史订单不追溯',
+    risk: '异常不等于违约，客服核实通过后恢复剩余确认时长和正常结算流程。',
+  },
   {
     key: 'provider_order_payment_timeout_minutes',
     group: 'provider',
@@ -84,10 +100,10 @@ const rules: RuleDefinition[] = [
     min: 1,
     max: 15,
     step: 1,
-    help: '超时未确认，订单进入后台异常识别',
+    help: '到期未确认自动确认；履约异常待审核时暂停倒计时',
     impact: '待确认达人订单',
-    scope: '当前及后续待确认订单',
-    risk: '缩短时限会更早标记异常订单，需确保客服处理能力匹配。',
+    scope: '新提交完成的订单，已有截止时间不变',
+    risk: '客服恢复正常后继续剩余时长，不计入审核等待时间。',
   },
   {
     key: 'provider_order_settlement_freeze_days',
@@ -479,6 +495,15 @@ onMounted(() => {
               aria-label="客服电话"
             />
           </section>
+          <section v-if="showProvider && viewMode === 'flow'" class="fulfillment-tolerance-settings">
+            <h3>履约时间容差</h3>
+            <p>比较实际开始 / 完成与预约时间；按小时订单另校验实际服务时长。恰好在容差内不标异常。</p>
+            <div class="tolerance-controls">
+              <label>允许提前 <el-input-number v-model="form.provider_order_early_tolerance_minutes" :min="0" :max="180" :step="5" aria-label="允许提前分钟" /> 分钟</label>
+              <label>允许延后 <el-input-number v-model="form.provider_order_late_tolerance_minutes" :min="0" :max="180" :step="5" aria-label="允许延后分钟" /> 分钟</label>
+            </div>
+            <p>超出容差：暂停自动确认与分账，由客服复核。规则在开始履约时保存；不追溯历史订单。</p>
+          </section>
           <div v-if="viewMode === 'flow'" class="flow-canvas">
             <section v-if="showProvider" class="flow-lane">
               <header class="lane-heading">
@@ -510,7 +535,7 @@ onMounted(() => {
                   unit="天"
                   :min="1"
                   :max="15"
-                  help="超时进入异常识别"
+                  help="到期自动确认，履约异常时暂停"
                   :icon="Check"
                   :selected="selectedRuleKey === 'provider_order_confirmation_timeout_days'"
                   @update:model-value="updateRule('provider_order_confirmation_timeout_days', $event)"
@@ -869,6 +894,11 @@ onMounted(() => {
 .save-state.dirty i { background: #ee9d20; }
 .editor-column { display: flex; flex-direction: column; min-width: 0; }
 .flow-canvas { flex: 1; padding: 3px 17px 10px; overflow-x: auto; }
+.fulfillment-tolerance-settings { margin: 12px 17px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.fulfillment-tolerance-settings h3 { margin: 0 0 12px; font-size: 15px; }
+.fulfillment-tolerance-settings p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.tolerance-controls { display: flex; flex-wrap: wrap; gap: 20px; }
+.tolerance-controls label { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .flow-lane { padding: 15px 0 16px; border-bottom: 1px solid #edf0f3; }
 .flow-lane:last-child { border-bottom: 0; }
 .lane-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }

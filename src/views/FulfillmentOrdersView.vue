@@ -25,7 +25,7 @@ import type {
   ProviderOrderSummary,
 } from '../types'
 
-const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; initialSearch?: string }>()
+const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; initialSearch?: string }>()
 const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
 const rows = ref<AdminProviderOrder[]>([])
@@ -50,6 +50,7 @@ const noteContent = ref('')
 const noteSaving = ref(false)
 const marksCustomerContact = ref(false)
 const reviewSaving = ref(false)
+const fulfillmentSaving = ref(false)
 
 const supportContactDeadlinePassed = computed(() => Boolean(
   selected.value?.support_contact_deadline_at
@@ -98,6 +99,8 @@ const timeline = computed(() => {
   return [
     { label: '订单支付', value: order.paid_at },
     { label: '达人接单', value: order.accepted_at },
+    { label: '达人发起联系', value: order.provider_contact_initiated_at },
+    { label: '确认已联系核实', value: order.departure_contact_confirmed_at },
     { label: '达人出发', value: order.departed_at },
     { label: '集合照留存', value: order.arrival_photo_uploaded_at },
     { label: '开始服务', value: order.service_started_at },
@@ -119,6 +122,10 @@ function demoOrder(
   const overdue = new Date(now.getTime() - 4 * 86400000).toISOString()
   return {
     public_id: '00000000-0000-0000-0000-000000000001',
+    provider_contact_initiated_at: null, departure_contact_confirmed_at: null,
+    fulfillment_review_required: false, fulfillment_revision: 0, fulfillment_policy: {},
+    fulfillment_issues: [], fulfillment_reviews: [], confirmation_remaining_seconds: null,
+    completion_location: null,
     order_no: orderNo,
     status: orderStatus,
     status_label: statusLabels[orderStatus],
@@ -392,6 +399,29 @@ async function addSupportNote() {
   }
 }
 
+async function reviewFulfillment() {
+  if (!selected.value?.fulfillment_review_required || fulfillmentSaving.value || !props.canReviewFulfillment) return
+  const current = selected.value
+  fulfillmentSaving.value = true
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请核对实际服务时间、到场和完成位置，并联系双方确认。恢复后继续剩余确认时长；分账仍需通过既有冻结期、退款及渠道核验。',
+      '核实无误，恢复正常',
+      { confirmButtonText: '确认恢复', cancelButtonText: '暂不恢复', inputType: 'textarea',
+        inputPlaceholder: '填写核实经过及恢复正常的依据（必填）',
+        inputValidator: value => (value.trim().length >= 2 && value.trim().length <= 1000) || '请填写 2–1000 个字的核实依据' },
+    )
+    if (props.preview) { ElMessage.info('预览模式不执行审核'); return }
+    const updated = await adminApi.reviewOrderFulfillment(current.order_no, current.fulfillment_revision, value.trim())
+    if (selected.value?.order_no === current.order_no) selected.value = updated
+    rows.value = rows.value.map(item => item.order_no === updated.order_no ? updated : item)
+    ElMessage.success('履约异常已审核，按原有流程继续确认和结算')
+    await load()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '审核失败，请刷新订单后重试')
+  } finally { fulfillmentSaving.value = false }
+}
+
 async function moderateReview(action: 'approve' | 'reject' | 'hide' | 'restore') {
   if (!selected.value?.review || reviewSaving.value) return
   let reason = ''
@@ -470,6 +500,8 @@ onMounted(load)
         <el-select v-model="anomaly" placeholder="异常类型">
           <el-option label="不限异常" value="all" />
           <el-option label="全部异常订单" value="any" />
+          <el-option label="履约异常待审核" value="fulfillment_review" />
+          <el-option label="履约异常已恢复" value="fulfillment_resolved" />
           <el-option label="缺少集合照" value="missing_evidence" />
           <el-option label="履约时间线缺失" value="timeline_gap" />
           <el-option label="待确认超时" value="confirmation_overdue" />
@@ -566,7 +598,7 @@ onMounted(load)
           :closable="false"
           show-icon
           :title="selected.anomalies.map((item) => item.label).join('、')"
-          description="请结合履约时间线和客服备注核查；当前页面不提供直接修改订单状态。"
+          :description="selected.fulfillment_review_required ? '履约时间异常待核实，自动确认和分账已暂停。请查看下方复核记录。' : '请结合履约时间线和客服备注核查，订单主状态不由人工直接修改。'"
         />
 
         <el-alert
@@ -578,6 +610,22 @@ onMounted(load)
           :title="selected.support_contacted_at ? '客服已完成有效联系' : selected.provider_rejection_refund ? `系统退款${selected.provider_rejection_refund.status_label}` : '达人主动拒单，等待客服有效联系'"
           :description="selected.support_contacted_at ? `${selected.support_contacted_by_name || '客服'}于 ${formatDateTime(selected.support_contacted_at)} 完成登记，自动退款任务已停止。` : selected.provider_rejection_refund ? `退款单 ${selected.provider_rejection_refund.refund_no}，金额 ${formatAmount(selected.provider_rejection_refund.refund_amount)}。${selected.provider_rejection_refund.failure_reason || ''}` : `请在 ${formatDateTime(selected.support_contact_deadline_at)} 前完成有效联系，否则系统自动发起全额退款。`"
         />
+
+        <section v-if="selected.fulfillment_revision" class="detail-section fulfillment-review-section">
+          <h3><el-icon><Warning /></el-icon> 履约异常复核</h3>
+          <p>本单容差：提前 {{ selected.fulfillment_policy.early_minutes }} 分钟 / 延后 {{ selected.fulfillment_policy.late_minutes }} 分钟</p>
+          <div v-for="(issue, index) in selected.fulfillment_issues" :key="index" class="fulfillment-issue">
+            <strong>{{ issue.label }} <el-tag size="small" :type="issue.resolved_at ? 'success' : 'warning'">{{ issue.resolved_at ? '已核实' : '待核实' }}</el-tag></strong>
+            <span>记录时间 {{ formatDateTime(issue.recorded_at) }} · 预约节点 {{ formatDateTime(issue.expected_at) }}</span>
+          </div>
+          <p v-if="selected.fulfillment_review_required">自动确认与分账已暂停；客服审核期间不消耗用户剩余确认时长。</p>
+          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
+          <p v-else-if="selected.fulfillment_review_required">需具有“审核履约异常并恢复自动流程”权限的客服处理。</p>
+          <article v-for="review in selected.fulfillment_reviews" :key="review.revision" class="fulfillment-review-record">
+            <strong>{{ review.reviewer_name || '客服' }} · {{ formatDateTime(review.reviewed_at) }}</strong>
+            <p>{{ review.reason }}</p>
+          </article>
+        </section>
 
         <section class="detail-section order-overview">
           <div><span>服务项目</span><strong>{{ selected.service_name }}</strong></div>
@@ -631,6 +679,16 @@ onMounted(load)
             </div>
           </template>
           <el-empty v-else :image-size="54" description="达人尚未上传集合地点照片" />
+        </section>
+
+        <section class="detail-section">
+          <h3><el-icon><Location /></el-icon> 完成定位</h3>
+          <div v-if="selected.completion_location" class="evidence-meta">
+            <p><span>提交完成时间（服务器）</span>{{ formatDateTime(selected.completion_submitted_at) }}</p>
+            <p><span>位置（GCJ-02）</span>{{ selected.completion_location.longitude }}, {{ selected.completion_location.latitude }}</p>
+            <p><span>定位精度</span>{{ selected.completion_location.accuracy_m ? `约 ${selected.completion_location.accuracy_m} 米` : '未提供' }}</p>
+          </div>
+          <p v-else>尚无完成定位；旧订单不会因缺少新字段被追溯标异常。</p>
         </section>
 
         <section class="detail-section">
@@ -702,4 +760,8 @@ onMounted(load)
 .review-admin{display:flex;flex-direction:column;gap:9px;margin-bottom:14px;padding:14px;border-radius:8px;background:#f7fbfb}.review-admin>strong{color:#f2a11b;font-size:18px;letter-spacing:1px}.review-admin>strong span{margin-left:10px;color:#273342;font-size:13px;letter-spacing:0}.review-admin>small{color:var(--muted);font-size:12px}.review-admin>p{margin:0;color:#3f4958;font-size:13px;line-height:1.65}.review-images{display:grid;grid-template-columns:repeat(3,88px);gap:8px;margin-top:3px}.review-images :deep(.el-image){width:88px;height:88px;border-radius:7px;background:#eaf0f1}
 .after-sales-list{display:flex;flex-direction:column;gap:8px}.after-sales-list article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #e8ecef;border-radius:7px;background:#fbfcfc}.after-sales-list article>div{display:flex;align-items:flex-end;gap:8px}.after-sales-list article>div:first-child{min-width:0;flex-direction:column;align-items:flex-start;gap:4px}.after-sales-list strong{font-size:13px}.after-sales-list span{color:var(--muted);font-size:11px}.after-sales-list b{color:var(--orange);font-size:13px}.after-sales-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
 .support-contact-choice{display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:10px 12px;border-radius:7px;background:#fff8e8}.support-contact-choice>span{color:var(--muted);font-size:11px}
+.fulfillment-review-section p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.fulfillment-issue { display: flex; flex-direction: column; gap: 8px; padding: 12px; margin-bottom: 10px; border-radius: 8px; background: #fff8ed; font-size: 13px; }
+.fulfillment-issue span { color: var(--muted); font-size: 12px; }
+.fulfillment-review-record { padding: 12px; margin-top: 14px; border-radius: 8px; background: #f2f8f6; font-size: 13px; }
 </style>

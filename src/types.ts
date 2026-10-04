@@ -136,6 +136,8 @@ export interface PlatformOperationSetting {
   customer_service_phone: string
   provider_order_payment_timeout_minutes: number
   provider_order_confirmation_timeout_days: number
+  provider_order_early_tolerance_minutes: number
+  provider_order_late_tolerance_minutes: number
   provider_order_review_timeout_days: number
   provider_order_settlement_freeze_days: number
   provider_commission_reset_period: 'month' | 'quarter' | 'year' | 'never'
@@ -1049,6 +1051,8 @@ export type FulfillmentAnomalyFilter =
   | 'timeline_gap'
   | 'confirmation_overdue'
   | 'support_contact_overdue'
+  | 'fulfillment_review'
+  | 'fulfillment_resolved'
 
 export interface FulfillmentAnomaly {
   code: Exclude<FulfillmentAnomalyFilter, 'all' | 'any'>
@@ -1325,6 +1329,15 @@ export interface SupportCaseSummary {
 }
 
 export interface AdminProviderOrder {
+  provider_contact_initiated_at: string | null
+  departure_contact_confirmed_at: string | null
+  fulfillment_review_required: boolean
+  fulfillment_revision: number
+  fulfillment_policy: { version?: number; early_minutes?: number; late_minutes?: number }
+  fulfillment_issues: { code: string; label: string; revision: number; recorded_at: string; expected_at: string; resolved_at: string | null; delta_seconds: number }[]
+  fulfillment_reviews: { revision: number; reason: string; reviewed_at: string; reviewer_name: string }[]
+  confirmation_remaining_seconds: number | null
+  completion_location: null | { longitude: string; latitude: string; accuracy_m: string | null }
   public_id: string
   order_no: string
   status: ProviderOrderStatus

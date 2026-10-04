@@ -81,6 +81,7 @@ const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
 const canManageOrderFinance = hasPermission('order.finance.manage')
 const canManageOrderReview = hasPermission('order.review.manage')
+const canReviewFulfillment = hasPermission('order.fulfillment.review')
 const canManageServiceCategory = hasPermission('service_category.manage')
 const canUseAssets = hasPermission('asset.view')
 const canManageAssets = hasPermission('asset.manage')
@@ -273,7 +274,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageActivityReport"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
