@@ -1185,6 +1185,15 @@ export interface ProviderOrderSettlementRecord {
   provider_service_income_amount: number
   provider_settlement_amount: number
   distribution_plan?: ProviderOrderSettlementPlan | null
+  distribution_preflight?: {
+    status: 'deferred' | 'blocked' | 'registered'
+    status_label: string
+    reason_code: string
+    reason_message: string
+    failure_count: number
+    checked_at: string
+    next_retry_at: string | null
+  } | null
   distribution?: {
     req_date: string
     req_seq_id: string
@@ -1201,6 +1210,7 @@ export interface ProviderOrderSettlementRecord {
     bank_arrival_verified: false
     response_code: string
     attention_reason: string
+    evidence_conflict_code: string
     last_queried_at: string | null
     created_at: string
   } | null

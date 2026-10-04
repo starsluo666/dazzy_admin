@@ -231,7 +231,7 @@ onMounted(load)
           <el-table-column label="资金来源" min-width="140"><template #default="{ row }">{{ row.distribution_plan?.funding_type_label || '待核账' }}</template></el-table-column>
           <el-table-column label="账务状态" width="145"><template #default="{ row }"><el-tag :type="statusType(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
           <el-table-column label="业务准备" min-width="185"><template #default="{ row }"><el-tag :type="row.distribution_plan?.status === 'ready' ? 'success' : 'info'" effect="plain">{{ row.distribution_plan?.status_label || '尚未生成 · 需核账' }}</el-tag></template></el-table-column>
-          <el-table-column label="渠道分账" min-width="240"><template #default="{ row }"><el-tag :type="row.distribution?.status === 'succeeded' ? 'success' : 'info'" effect="plain">{{ row.distribution?.status_label || '尚未发起' }}</el-tag></template></el-table-column>
+          <el-table-column label="渠道分账" min-width="240"><template #default="{ row }"><el-tag :type="row.distribution?.attention_reason || row.distribution_preflight?.reason_code ? 'warning' : row.distribution?.status === 'succeeded' ? 'success' : 'info'" effect="plain">{{ row.distribution?.evidence_conflict_code ? '分账证据冲突 · 暂停提现' : row.distribution?.status_label || row.distribution_preflight?.status_label || '尚未发起' }}</el-tag></template></el-table-column>
           <el-table-column label="账务结算 / 冻结截止" min-width="180"><template #default="{ row }">{{ formatDateTime(row.settled_at || row.freeze_until) }}</template></el-table-column>
         </template>
         <el-table-column v-if="active !== 'exception'" label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
@@ -247,6 +247,16 @@ onMounted(load)
         <section v-else-if="settlementRow(selected)"><h3>结算分配</h3><dl><div><dt>净服务费</dt><dd>{{ formatAmount(selected.net_service_fee_amount) }}</dd></div><div><dt>平台抽成（扣费前）</dt><dd>{{ formatAmount(selected.platform_commission_amount) }}</dd></div><div><dt>交通及其他</dt><dd>{{ formatAmount(selected.net_transport_fee_amount + selected.net_other_fee_amount) }}</dd></div><div class="total"><dt>达人结算</dt><dd>{{ formatAmount(selected.provider_settlement_amount) }}</dd></div></dl><p>冻结期至 {{ formatDateTime(selected.freeze_until) }}</p><el-alert v-if="selected.dispute_reason" type="warning" :closable="false" :title="selected.dispute_reason" /></section>
         <section v-if="settlementRow(selected)">
           <h3>业务准备与渠道执行</h3>
+          <template v-if="selected.distribution_preflight && !selected.distribution">
+            <el-alert type="warning" :closable="false" :title="selected.distribution_preflight.status_label" :description="selected.distribution_preflight.reason_message" />
+            <dl>
+              <div><dt>预检查原因码</dt><dd>{{ selected.distribution_preflight.reason_code }}</dd></div>
+              <div><dt>同类连续失败</dt><dd>{{ selected.distribution_preflight.failure_count }} 次</dd></div>
+              <div><dt>最近预检查</dt><dd>{{ formatDateTime(selected.distribution_preflight.checked_at) }}</dd></div>
+              <div><dt>下次自动检查</dt><dd>{{ selected.distribution_preflight.next_retry_at ? formatDateTime(selected.distribution_preflight.next_retry_at) : '暂停自动执行，待人工核账' }}</dd></div>
+            </dl>
+            <p>尚未登记渠道分账请求，不代表资金已经转出；本地业务准备与渠道执行分别核验。</p>
+          </template>
           <template v-if="selected.distribution">
             <el-alert :type="selected.distribution.attention_reason ? 'warning' : 'info'" :closable="false" :title="selected.distribution.status_label" :description="selected.distribution.attention_reason || '渠道分账成功不等于银行卡到账；本页面不支持重发分账或自动回退。'" />
             <dl>
