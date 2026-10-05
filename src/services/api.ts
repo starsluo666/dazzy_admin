@@ -57,6 +57,8 @@ import type {
   ProviderOrderSummary,
   ProviderOrderSupportNote,
   ProviderOrderingSetting,
+  ProviderTrainingSetting,
+  TrainingCurriculum,
   ProviderOrderFinanceSummary,
   ProviderOrderPaymentRecord,
   ProviderOrderRefundRecord,
@@ -433,6 +435,9 @@ export const adminApi = {
     return request<{ id: string; url: string }>('/media/activity-covers/', { method: 'POST', body })
   },
   providerOrderingSetting: () => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/'),
+  providerTraining: () => request<ProviderTrainingSetting>('/admin/provider-training/'),
+  saveProviderTraining: (revision: number, draft: TrainingCurriculum) => request<ProviderTrainingSetting>('/admin/provider-training/', { method: 'PATCH', body: JSON.stringify({ revision, draft }) }),
+  publishProviderTraining: (revision: number) => request<ProviderTrainingSetting>('/admin/provider-training/publish/', { method: 'POST', body: JSON.stringify({ revision }) }),
   updateProviderOrderingSetting: (payload: Partial<ProviderOrderingSetting>) => request<ProviderOrderingSetting>('/admin/operation-settings/provider-ordering/', { method: 'PATCH', body: JSON.stringify(payload) }),
   async login(phone: string, password: string) {
     const data = await request<{ access: string }>('/admin/auth/login/', {

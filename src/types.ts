@@ -7,7 +7,19 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+
+export interface TrainingCurriculum {
+  title: string
+  pass_score: number
+  lessons: Array<{ id: string; title: string; content: string }>
+  questions: Array<{ id: string; title: string; options: string[]; correct_index: number; explanation: string }>
+}
+export interface ProviderTrainingSetting {
+  revision: number
+  draft: TrainingCurriculum
+  published: { version_id: number; title: string; published_at: string; lesson_count: number; question_count: number; pass_score: number } | null
+}
 
 export interface ReceivingWithdrawalForm {
   cash_type: '' | 'T1' | 'D1'

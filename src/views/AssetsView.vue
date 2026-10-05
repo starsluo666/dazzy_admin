@@ -107,7 +107,7 @@ onMounted(load)
         <el-button @click="query">查询</el-button>
         <template v-if="status === 'active' && canManage">
           <el-select v-model="uploadKind" style="width:100px"><el-option label="图标" value="icon"/><el-option label="图片" value="image"/></el-select>
-          <el-upload v-if="!preview" :show-file-list="false" accept="image/jpeg,image/png,image/webp" :http-request="upload" multiple><el-button type="primary" :icon="Plus" :loading="uploading">上传素材</el-button></el-upload>
+          <el-upload v-if="!preview" :show-file-list="false" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" :http-request="upload" multiple><el-button type="primary" :icon="Plus" :loading="uploading">上传素材</el-button></el-upload>
           <el-button v-else type="primary" :icon="Plus" disabled>上传素材</el-button>
         </template>
       </div>

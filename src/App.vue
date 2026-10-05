@@ -17,6 +17,7 @@ import ActivityCategoriesView from './views/ActivityCategoriesView.vue'
 import ActivityReportsView from './views/ActivityReportsView.vue'
 import AuditLogsView from './views/AuditLogsView.vue'
 import ProviderOrderingSettingsView from './views/ProviderOrderingSettingsView.vue'
+import ProviderTrainingView from './views/ProviderTrainingView.vue'
 import PlatformOperationSettingsView from './views/PlatformOperationSettingsView.vue'
 import ReceivingWithdrawalSettingsView from './views/ReceivingWithdrawalSettingsView.vue'
 import SystemManagementView from './views/SystemManagementView.vue'
@@ -242,6 +243,7 @@ onMounted(loadSession)
       :can-upload-assets="canManageAssets"
     />
     <AssetsView v-else-if="currentPage === 'assets'" :preview="preview" :can-manage="canManageAssets" />
+    <ProviderTrainingView v-else-if="currentPage === 'provider_training'" :preview="preview" />
     <ProviderOrderingSettingsView
       v-else-if="currentPage === 'provider_rules'"
       @open-audit="navigate('audit_logs')"

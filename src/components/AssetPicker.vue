@@ -72,11 +72,11 @@ onBeforeUnmount(() => { selectionVersion++; loadVersion++ })
     <div class="picker-toolbar">
       <el-input v-model="search" clearable placeholder="搜索素材文件名" :prefix-icon="Search" @keyup.enter="page = 1; load()" />
       <el-button @click="page = 1; load()">搜索</el-button>
-      <el-upload v-if="canUpload && !preview" :disabled="uploading" :show-file-list="false" accept="image/jpeg,image/png,image/webp" :http-request="upload">
+      <el-upload v-if="canUpload && !preview" :disabled="uploading" :show-file-list="false" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" :http-request="upload">
         <el-button type="primary" :loading="uploading" :icon="Plus">上传新图标</el-button>
       </el-upload>
     </div>
-    <p class="picker-help">选择后保存分类即可生效。支持 JPG、PNG、WebP；当前没有合适的图片可直接上传。</p>
+    <p class="picker-help">选择后保存分类即可生效。支持 JPG、PNG、WebP、HEIC/HEIF；苹果照片会自动转换，当前没有合适的图片可直接上传。</p>
     <div v-loading="loading" class="picker-grid">
       <button v-for="asset in items" :key="asset.id" type="button" class="picker-item" :class="{ selected: selectedId === asset.id }" @click="emit('select', asset); emit('update:modelValue', false)">
         <img :src="asset.url" :alt="asset.name" />

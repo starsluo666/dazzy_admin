@@ -632,7 +632,7 @@ onMounted(() => {
                     <span v-else>暂无默认封面</span>
                   </div>
                   <div><strong>活动默认封面</strong><small>用户未上传封面时使用；活动创建后固定，不随配置变更</small></div>
-                  <el-upload :show-file-list="false" accept="image/jpeg,image/png,image/webp" :http-request="uploadDefaultCover">
+                  <el-upload :show-file-list="false" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" :http-request="uploadDefaultCover">
                     <el-button :loading="coverUploading">上传封面</el-button>
                   </el-upload>
                   <el-button v-if="defaultCoverId" link type="danger" @click="defaultCoverId = null; defaultCoverUrl = null">清除</el-button>
