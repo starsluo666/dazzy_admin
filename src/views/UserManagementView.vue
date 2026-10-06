@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserCouponIssueDialog from '../components/UserCouponIssueDialog.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -25,9 +26,11 @@ const props = defineProps<{
   preview: boolean
   canManageStatus: boolean
   canManageRisk: boolean
+  canIssueCoupon: boolean
 }>()
 
 const rows = ref<AdminUser[]>([])
+const couponDialogVisible = ref(false)
 const selected = ref<AdminUser | null>(null)
 const summary = ref<AdminUserSummary>({ total: 0, providers: 0, flagged: 0, suspended: 0 })
 const search = ref('')
@@ -338,6 +341,7 @@ onMounted(load)
     <el-drawer v-model="drawerVisible" size="610px" :with-header="false" destroy-on-close>
       <div v-if="selected" v-loading="detailLoading" class="management-drawer">
         <header><div><h2>用户详情</h2><p>{{ selected.public_id }}</p></div><el-tag :type="accountTagType(selected.account_status)" effect="plain">{{ selected.account_status_label }}</el-tag><button aria-label="关闭用户详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button></header>
+        <el-button v-if="canIssueCoupon" type="primary" :disabled="selected.account_status !== 'active' || preview" @click="couponDialogVisible = true">发放优惠券</el-button>
         <section class="identity-card"><el-avatar :size="58" :src="selected.avatar_url || undefined">{{ selected.nickname.slice(0, 1) }}</el-avatar><div><h3>{{ selected.nickname }} <el-tag size="small" effect="plain">{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</el-tag></h3><p>{{ selected.phone_masked }} · {{ selected.gender_label }}</p><span>注册于 {{ formatDateTime(selected.date_joined) }}</span></div></section>
 
         <el-alert v-if="selected.risk_flag" class="risk-alert" type="warning" :closable="false" show-icon :title="`${selected.risk_flag.level_label}：${selected.risk_flag.reason}`" :description="`${selected.risk_flag.marked_by_name} · ${formatDateTime(selected.risk_flag.marked_at)}`" />
@@ -361,6 +365,7 @@ onMounted(load)
       </el-form>
       <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionForm.action === 'suspend' ? 'danger' : 'primary'" :loading="actionSaving" @click="submitAction">确认提交</el-button></template>
     </el-dialog>
+    <UserCouponIssueDialog v-model="couponDialogVisible" :user="selected" :can-issue="canIssueCoupon" :preview="preview" />
   </div>
 </template>
 

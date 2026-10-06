@@ -1,4 +1,5 @@
 import type {
+  CouponIssueBatch,
   AccountStatus,
   ActivityStatus,
   AdminActivity,
@@ -631,7 +632,7 @@ export const adminApi = {
   couponUsers: (search: string) => request<{ users: Array<{ public_id: string; nickname: string; phone_masked: string }> }>(
     `/admin/coupons/?user_search=${encodeURIComponent(search)}&page_size=1`,
   ),
-  couponTemplates: () => request<{ items: AdminCouponTemplate[] }>('/admin/coupon-templates/'),
+  couponTemplates: () => request<{ items: AdminCouponTemplate[]; can_issue_all: boolean }>('/admin/coupon-templates/'),
   createCouponTemplate: (payload: AdminCouponTemplateMutation) => request<AdminCouponTemplate>('/admin/coupon-templates/', {
     method: 'POST', body: JSON.stringify(payload),
   }),
@@ -639,8 +640,15 @@ export const adminApi = {
     method: 'PATCH', body: JSON.stringify(payload),
   }),
   deleteCouponTemplate: (publicId: string) => request<void>(`/admin/coupon-templates/${publicId}/`, { method: 'DELETE' }),
-  issueCoupon: (userPublicId: string, templatePublicId: string) => request<AdminCoupon>('/admin/coupons/', {
-    method: 'POST', body: JSON.stringify({ user_public_id: userPublicId, template_public_id: templatePublicId }),
+  issueCoupon: (userPublicId: string, templatePublicId: string, requestId: string) => request<AdminCoupon>('/admin/coupons/', {
+    method: 'POST', body: JSON.stringify({ user_public_id: userPublicId, template_public_id: templatePublicId, request_id: requestId }),
+  }),
+  couponBatches: () => request<{ items: CouponIssueBatch[] }>('/admin/coupon-batches/'),
+  previewCouponBatch: (templateId: string, requestId: string) => request<CouponIssueBatch>('/admin/coupon-batches/', {
+    method: 'POST', body: JSON.stringify({ template_public_id: templateId, request_id: requestId }),
+  }),
+  couponBatchAction: (id: string, action: 'confirm' | 'retry') => request<CouponIssueBatch>(`/admin/coupon-batches/${id}/`, {
+    method: 'POST', body: JSON.stringify({ action, confirmed: true }),
   }),
   revokeCoupon: (publicId: string, reason: string) => request<AdminCoupon>(`/admin/coupons/${publicId}/revoke/`, {
     method: 'POST', body: JSON.stringify({ reason }),

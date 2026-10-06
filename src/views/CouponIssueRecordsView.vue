@@ -26,7 +26,7 @@ const statusLabels: Record<string, string> = {
   available: '可用', reserved: '订单占用中', used: '已使用', expired: '已过期', revoked: '已撤销',
 }
 const sourceLabels: Record<string, string> = {
-  report_reward: '举报有奖', customer_service: '客服补偿', manual: '人工发放',
+  report_reward: '举报有奖', customer_service: '客服补偿', manual: '人工发放', bulk_manual: '全员发放',
   newcomer_gift: '新人礼包', invite_registration: '邀请注册奖励', invite_first_order: '邀请首单奖励',
 }
 const demoTemplates: AdminCouponTemplate[] = [

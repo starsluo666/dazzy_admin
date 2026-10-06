@@ -96,6 +96,7 @@ const canRetryTask = hasPermission('system.task.retry')
 const canManageSupportCase = hasPermission('support.case.manage')
 const canManageCoupon = hasPermission('coupon.manage')
 const canIssueCoupon = hasPermission('coupon.issue')
+const canViewCoupon = hasPermission('coupon.view')
 const canManageGrowth = hasPermission('growth.manage')
 const canManageWallet = hasPermission('wallet.manage')
 const canViewAudit = hasPermission('audit.view')
@@ -225,6 +226,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage-status="canManageUserStatus"
       :can-manage-risk="canManageUserRisk"
+      :can-issue-coupon="canIssueCoupon && canViewCoupon"
     />
     <ProviderManagementView
       v-else-if="currentPage === 'providers'"

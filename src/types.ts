@@ -1,3 +1,33 @@
+export interface CouponIssueBatch {
+  public_id: string
+  status: 'preview' | 'queued' | 'running' | 'partial' | 'completed'
+  template: { name: string; face_amount: number; min_order_amount: number; valid_days: number; description: string }
+  total: number
+  total_face_amount: number
+  pending: number
+  issued: number
+  failed: number
+  skipped: number
+  created_at: string
+  confirmed_at: string | null
+  finished_at: string | null
+  preview_expires_at: string
+}
+
+export interface ProviderCommissionOverview {
+  tiers: CommissionTier[]
+  tiers_source: 'provider' | 'platform'
+  period_source: 'provider' | 'platform'
+  provider_bonus_configured_rate: string
+  provider_bonus_turnover_amount: number
+  provider_bonus_period: 'month' | 'quarter' | 'year' | 'never'
+  provider_bonus_period_start: string | null
+  provider_bonus_snapshot_at: string
+  current_tier_index: number | null
+  next_tier_remaining_amount: number | null
+  categories: Array<{ category_id: number; category_name: string; base_provider_rate: string; provider_bonus_rate: string; provider_rate: string; platform_commission_rate: string }>
+}
+
 export interface AdminMe {
   user: { nickname: string; phone: string; avatar_url?: string }
   organization: { id?: number; name: string } | null
@@ -957,6 +987,7 @@ export interface AdminProviderRecentOrder {
 }
 
 export interface AdminProvider {
+  commission_overview?: ProviderCommissionOverview | null
   id: number
   public_id: string
   nickname: string

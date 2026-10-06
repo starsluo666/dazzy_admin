@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CouponBatchPanel from '../components/CouponBatchPanel.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
@@ -13,6 +14,8 @@ type UserOption = { public_id: string; nickname: string; phone_masked: string }
 const templates = ref<AdminCouponTemplate[]>([])
 const users = ref<UserOption[]>([])
 const selectedUser = ref('')
+const issueRequest = ref({ userId: '', key: '' })
+const canIssueAll = ref(false)
 const loading = ref(false)
 const userSearching = ref(false)
 const saving = ref(false)
@@ -34,9 +37,12 @@ const demoTemplates: AdminCouponTemplate[] = [
 async function load() {
   loading.value = true
   try {
-    templates.value = props.preview
-      ? structuredClone(demoTemplates)
-      : (await adminApi.couponTemplates()).items
+    if (props.preview) templates.value = structuredClone(demoTemplates)
+    else {
+      const data = await adminApi.couponTemplates()
+      templates.value = data.items
+      canIssueAll.value = data.can_issue_all
+    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '优惠券模板加载失败')
   } finally {
@@ -141,6 +147,7 @@ function openIssue(item: AdminCouponTemplate) {
   issueTemplate.value = item
   users.value = []
   selectedUser.value = ''
+  issueRequest.value = { userId: '', key: '' }
   userSearching.value = false
   issueDialogVisible.value = true
 }
@@ -184,7 +191,8 @@ async function issue() {
       '确认发放优惠券',
       { type: 'warning' },
     )
-    await adminApi.issueCoupon(selectedUser.value, issueTemplate.value.public_id)
+    if (issueRequest.value.userId !== selectedUser.value) issueRequest.value = { userId: selectedUser.value, key: crypto.randomUUID() }
+    await adminApi.issueCoupon(selectedUser.value, issueTemplate.value.public_id, issueRequest.value.key)
     issueDialogVisible.value = false
     ElMessage.success('优惠券已发放，用户将收到通知')
     await load()
@@ -226,6 +234,7 @@ onMounted(load)
       </el-table>
     </section>
 
+    <CouponBatchPanel v-if="canIssue && canIssueAll && !preview" :templates="templates" @changed="load" />
     <el-dialog v-model="editorVisible" :title="editing ? '编辑优惠券模板' : '新增优惠券模板'" width="620px" destroy-on-close>
       <el-form label-position="top">
         <el-form-item label="优惠券名称" required><el-input v-model="form.name" maxlength="80" show-word-limit placeholder="例如：新用户立减券" /></el-form-item>

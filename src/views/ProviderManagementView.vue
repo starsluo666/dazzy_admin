@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ProviderGallery from '../components/ProviderGallery.vue'
+import ProviderCommissionSummary from '../components/ProviderCommissionSummary.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -409,6 +410,7 @@ onMounted(load)
           </div>
           <p class="identity-note">仅显示脱敏资料。平台实名认证、资料保存和渠道开户是不同状态；此处不能手工标记分账成功。</p>
         </section>
+        <ProviderCommissionSummary v-if="selected.commission_overview" class="detail-section" :overview="selected.commission_overview" />
         <section class="detail-section commission-setting">
           <h3>专属营业额阶梯加成</h3>
           <p>留空沿用平台阶梯；只影响新订单，已创建订单按原快照结算。</p>
