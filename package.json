@@ -8,6 +8,7 @@
     "build": "vue-tsc -b && vite build",
     "test:provider-reviews": "node tests/providerReviews.test.cjs",
     "test:coupon-batches": "node tests/couponBatches.test.cjs",
+    "test:user-coupon:browser": "node tests/userCoupon.browser.cjs",
     "test:receiving-settings": "node tests/receivingSettings.test.cjs",
     "test:receiving-settings:browser": "node tests/receivingSettings.browser.cjs",
     "preview": "vite preview"

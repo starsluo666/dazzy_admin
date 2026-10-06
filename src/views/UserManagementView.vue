@@ -338,11 +338,28 @@ onMounted(load)
       <footer class="management-footer"><span>共 {{ total }} 条</span><el-pagination v-model:current-page="page" layout="prev, pager, next" :total="total" :page-size="pageSize" @current-change="load" /></footer>
     </section>
 
-    <el-drawer v-model="drawerVisible" size="610px" :with-header="false" destroy-on-close>
+    <el-drawer v-model="drawerVisible" size="min(610px, 100vw)" :with-header="false" destroy-on-close>
       <div v-if="selected" v-loading="detailLoading" class="management-drawer">
         <header><div><h2>用户详情</h2><p>{{ selected.public_id }}</p></div><el-tag :type="accountTagType(selected.account_status)" effect="plain">{{ selected.account_status_label }}</el-tag><button aria-label="关闭用户详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button></header>
-        <el-button v-if="canIssueCoupon" type="primary" :disabled="selected.account_status !== 'active' || preview" @click="couponDialogVisible = true">发放优惠券</el-button>
-        <section class="identity-card"><el-avatar :size="58" :src="selected.avatar_url || undefined">{{ selected.nickname.slice(0, 1) }}</el-avatar><div><h3>{{ selected.nickname }} <el-tag size="small" effect="plain">{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</el-tag></h3><p>{{ selected.phone_masked }} · {{ selected.gender_label }}</p><span>注册于 {{ formatDateTime(selected.date_joined) }}</span></div></section>
+        <section class="identity-card">
+          <el-avatar :size="58" :src="selected.avatar_url || undefined">{{ selected.nickname.slice(0, 1) }}</el-avatar>
+          <div class="identity-info">
+            <div class="identity-heading">
+              <h3>{{ selected.nickname }}</h3>
+              <el-tag size="small" effect="plain">{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</el-tag>
+            </div>
+            <p class="identity-contact">{{ selected.phone_masked }} · {{ selected.gender_label }}</p>
+            <p class="identity-joined">注册于 {{ formatDateTime(selected.date_joined) }}</p>
+          </div>
+          <el-button
+            v-if="canIssueCoupon"
+            class="identity-coupon-button"
+            type="primary"
+            plain
+            :disabled="selected.account_status !== 'active' || preview"
+            @click="couponDialogVisible = true"
+          >发放优惠券</el-button>
+        </section>
 
         <el-alert v-if="selected.risk_flag" class="risk-alert" type="warning" :closable="false" show-icon :title="`${selected.risk_flag.level_label}：${selected.risk_flag.reason}`" :description="`${selected.risk_flag.marked_by_name} · ${formatDateTime(selected.risk_flag.marked_at)}`" />
 
@@ -370,7 +387,72 @@ onMounted(load)
 </template>
 
 <style scoped>
-.user-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.management-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.management-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.management-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.management-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.management-summary .blue{color:#2679e9!important;background:#e9f1ff}.management-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.management-summary .purple{color:#7b61cf;background:#f0edff}.management-summary .red{color:#d9485f;background:#fff0f2}.management-summary .orange{color:#e97825!important;background:#fff0e6}.management-summary span{color:var(--muted);font-size:12px}.management-summary strong{font-size:25px}.management-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.management-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.user-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 120px 130px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.person-cell{display:flex;align-items:center;gap:10px}.person-cell div,.record-cell{display:flex;flex-direction:column;gap:4px}.person-cell strong,.record-cell strong{font-size:13px}.person-cell span,.record-cell span{color:var(--muted);font-size:12px}.normal-copy{display:inline-flex;align-items:center;gap:4px;color:#078d76}.management-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.management-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.management-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.management-drawer>header div{margin-right:auto}.management-drawer>header h2{margin:0;font-size:20px}.management-drawer>header p{max-width:350px;margin:5px 0 0;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis}.management-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.management-drawer>header button:hover{background:#f0f4f5}.identity-card{display:flex;gap:14px;margin:16px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.identity-card h3{display:flex;align-items:center;gap:8px;margin:2px 0 7px;font-size:17px}.identity-card p,.identity-card span{margin:0;color:#5e6877;font-size:12px}.identity-card span{display:block;margin-top:7px;color:var(--muted)}.risk-alert{margin:14px 20px 0;width:auto}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.account-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.account-overview div{display:flex;flex-direction:column;gap:5px}.account-overview span{color:var(--muted);font-size:12px}.account-overview strong{font-size:13px}.business-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.business-counts article{display:flex;align-items:baseline;gap:8px;padding:13px;border-radius:7px;background:#f4f9fa}.business-counts strong{color:var(--brand);font-size:22px}.business-counts span{color:var(--muted);font-size:12px}.compact-records{display:flex;flex-direction:column}.compact-records article{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:58px;border-bottom:1px solid #edf0f3}.compact-records article:last-child{border-bottom:0}.compact-records article>div{display:flex;flex-direction:column;gap:4px}.compact-records article>div:last-child{align-items:end}.compact-records strong,.compact-records b{font-size:13px}.compact-records b{color:var(--orange)}.compact-records span{color:var(--muted);font-size:11px}.drawer-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:610px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.drawer-actions>div{display:flex;gap:7px}.action-form{margin-top:18px}.action-form .el-select{width:100%}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.management-summary small{display:none}.user-filters{grid-template-columns:minmax(170px,1fr) 110px 120px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.management-summary button{transition:none}.management-summary button:hover{transform:none}}
+.user-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.management-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.management-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.management-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.management-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.management-summary .blue{color:#2679e9!important;background:#e9f1ff}.management-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.management-summary .purple{color:#7b61cf;background:#f0edff}.management-summary .red{color:#d9485f;background:#fff0f2}.management-summary .orange{color:#e97825!important;background:#fff0e6}.management-summary span{color:var(--muted);font-size:12px}.management-summary strong{font-size:25px}.management-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.management-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.user-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 120px 130px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.person-cell{display:flex;align-items:center;gap:10px}.person-cell div,.record-cell{display:flex;flex-direction:column;gap:4px}.person-cell strong,.record-cell strong{font-size:13px}.person-cell span,.record-cell span{color:var(--muted);font-size:12px}.normal-copy{display:inline-flex;align-items:center;gap:4px;color:#078d76}.management-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.management-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.management-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.management-drawer>header div{margin-right:auto}.management-drawer>header h2{margin:0;font-size:20px}.management-drawer>header p{max-width:350px;margin:5px 0 0;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis}.management-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.management-drawer>header button:hover{background:#f0f4f5}.risk-alert{margin:14px 20px 0;width:auto}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.account-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.account-overview div{display:flex;flex-direction:column;gap:5px}.account-overview span{color:var(--muted);font-size:12px}.account-overview strong{font-size:13px}.business-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.business-counts article{display:flex;align-items:baseline;gap:8px;padding:13px;border-radius:7px;background:#f4f9fa}.business-counts strong{color:var(--brand);font-size:22px}.business-counts span{color:var(--muted);font-size:12px}.compact-records{display:flex;flex-direction:column}.compact-records article{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:58px;border-bottom:1px solid #edf0f3}.compact-records article:last-child{border-bottom:0}.compact-records article>div{display:flex;flex-direction:column;gap:4px}.compact-records article>div:last-child{align-items:end}.compact-records strong,.compact-records b{font-size:13px}.compact-records b{color:var(--orange)}.compact-records span{color:var(--muted);font-size:11px}.drawer-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:610px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.drawer-actions>div{display:flex;gap:7px}.action-form{margin-top:18px}.action-form .el-select{width:100%}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.management-summary small{display:none}.user-filters{grid-template-columns:minmax(170px,1fr) 110px 120px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.management-summary button{transition:none}.management-summary button:hover{transform:none}}
 .address-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.address-section-title h3{margin:0;font-size:15px}.address-section-title span{color:var(--muted);font-size:12px}.address-records{display:flex;flex-direction:column;gap:10px}.address-records article{padding:14px;border:1px solid #e4eaed;border-radius:8px;background:#fbfcfd}.address-records header{display:flex;align-items:center;gap:9px}.address-records header strong{font-size:14px}.address-records p{margin:8px 0 12px;color:#4f5967;font-size:13px;line-height:1.55}.address-contact{display:grid;grid-template-columns:52px 1fr 48px 1fr;align-items:center;gap:7px;padding:10px 12px;border-radius:6px;background:#f1f7f8}.address-contact span{color:var(--muted);font-size:11px}.address-contact strong{font-size:12px}.address-records footer{display:flex;gap:16px;margin-top:10px;color:#75808e;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
 .management-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.user-filters{grid-template-columns:minmax(190px,1.3fr) 120px 130px 120px 66px 66px}@media(max-width:1360px){.user-filters{grid-template-columns:minmax(170px,1fr) 110px 120px 110px 62px 62px}}
+.identity-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  margin: 16px 20px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.identity-info { min-width: 0; }
+.identity-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-height: 32px;
+}
+.identity-heading h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.identity-heading .el-tag { flex-shrink: 0; }
+.identity-contact, .identity-joined {
+  margin: 4px 0 0;
+  color: #5e6877;
+  font-size: 12px;
+  line-height: 18px;
+}
+.identity-joined { color: var(--muted); }
+.identity-coupon-button {
+  --el-button-text-color: #087f83;
+  --el-button-bg-color: #e8f9f9;
+  --el-button-border-color: #c5eeee;
+  --el-button-hover-text-color: #076c70;
+  --el-button-hover-bg-color: #d8f4f4;
+  --el-button-hover-border-color: #a3dfe1;
+  --el-button-active-text-color: #076c70;
+  --el-button-active-bg-color: #c9eded;
+  --el-button-active-border-color: #a3dfe1;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: transform 120ms cubic-bezier(.23, 1, .32, 1);
+}
+.identity-coupon-button:active:not(:disabled) { transform: scale(.97); }
+.identity-coupon-button:focus-visible { outline: 2px solid #087f83; outline-offset: 3px; }
+.management-drawer > header > div { min-width: 0; }
+.management-drawer > header p { white-space: nowrap; }
+.drawer-actions { width: min(610px, 100vw); flex-wrap: wrap; gap: 10px; }
+@media (max-width: 600px) {
+  .identity-card { grid-template-columns: 58px minmax(0, 1fr); gap: 12px; }
+  .identity-coupon-button { grid-column: 2; justify-self: start; height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .identity-coupon-button { transition: none; }
+  .identity-coupon-button:active:not(:disabled) { transform: none; }
+}
 </style>
