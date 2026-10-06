@@ -87,7 +87,8 @@ async function restore(id: string) {
 }
 
 function referencesText(asset: AdminAsset) {
-  return asset.references.map((item) => `${item.type === 'service_category' ? '服务分类' : '活动标签'}：${item.name}`).join('；')
+  const labels = { service_category: '服务分类', activity_category: '活动标签', default_avatar: '系统素材' }
+  return asset.references.map((item) => `${labels[item.type]}：${item.name}`).join('；')
 }
 
 onMounted(load)

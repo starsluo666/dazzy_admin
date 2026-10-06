@@ -676,8 +676,8 @@ export interface AdminUserAddress {
 }
 
 export interface AdminAssetReference {
-  type: 'service_category' | 'activity_category'
-  id: number
+  type: 'service_category' | 'activity_category' | 'default_avatar'
+  id: number | string
   name: string
 }
 
