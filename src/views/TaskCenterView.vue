@@ -15,6 +15,7 @@ import {
 
 import { adminApi } from '../services/api'
 import { formatDateTime } from '../utils/format'
+import { useWorkRoute } from '../composables/workRoute'
 import type {
   AdminScheduledTask,
   ScheduledTaskStatus,
@@ -23,6 +24,7 @@ import type {
 } from '../types'
 
 const props = defineProps<{ preview: boolean; canRetry: boolean }>()
+const workRoute = useWorkRoute()
 const emit = defineEmits<{ openOrder: [orderNo: string]; openAudit: [] }>()
 
 const rows = ref<AdminScheduledTask[]>([])
@@ -59,7 +61,7 @@ const statuses = ref<Array<{ value: ScheduledTaskStatus; label: string }>>([
 ])
 const taskType = ref<ScheduledTaskType | ''>('')
 const statusFilter = ref<ScheduledTaskStatus | ''>('')
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const overdueOnly = ref(false)
 const page = ref(1)
 const pageSize = 20
@@ -176,6 +178,7 @@ async function load() {
       return
     }
     const data = await adminApi.scheduledTasks({
+      ...workRoute.query(),
       task_type: taskType.value,
       status: statusFilter.value,
       search: search.value.trim(),

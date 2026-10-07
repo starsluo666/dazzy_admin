@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -16,6 +17,7 @@ import { adminApi } from '../services/api'
 import type { ActivityStatus, AdminActivity, AdminActivitySummary } from '../types'
 import { formatDateTime as formatDate, formatMoney as money } from '../utils/format'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{
   preview: boolean
   canReview: boolean
@@ -25,7 +27,7 @@ const props = defineProps<{
 
 const rows = ref<AdminActivity[]>([])
 const summary = ref<AdminActivitySummary>({ total: 0, pending_review: 0, active: 0, ended: 0 })
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const statusFilter = ref<ActivityStatus | ''>(props.initialStatus || '')
 const cityFilter = ref('')
 const page = ref(1)
@@ -202,7 +204,7 @@ async function load() {
       summary.value = computeDemoSummary()
       return
     }
-    const data = await adminApi.activities({
+    const data = await adminApi.activities({...workRoute.query(),
       search: search.value.trim(), status: statusFilter.value, city_code: cityFilter.value,
       page: page.value, page_size: pageSize,
     })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ChatLineRound, CircleCheck, Headset, Refresh, Search, Tickets, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -7,6 +8,7 @@ import { adminApi } from '../services/api'
 import type { AdminSupportCase, SupportCaseStatus, SupportCaseSummary } from '../types'
 import { formatDateTime as format } from '../utils/format'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview?: boolean; canManage: boolean }>()
 const rows = ref<AdminSupportCase[]>([])
 const selected = ref<AdminSupportCase | null>(null)
@@ -17,7 +19,7 @@ const page = ref(1)
 const pageSize = 20
 const total = ref(0)
 const summary = ref<SupportCaseSummary>({ total: 0, pending: 0, processing: 0, reviewing: 0, resolved: 0 })
-const filters = reactive({ search: '', caseType: '', targetType: '', status: '', statusGroup: '', cityCode: '' })
+const filters = reactive({ search: workRoute.initialSearch, caseType: '', targetType: '', status: '', statusGroup: '', cityCode: '' })
 
 const summaryCards = computed(() => [
   { key: 'pending', label: '待受理', value: summary.value.pending, icon: Tickets, tone: 'blue' },
@@ -89,7 +91,7 @@ async function load() {
       summary.value = demoSummary()
       return
     }
-    const data = await adminApi.supportCases({
+    const data = await adminApi.supportCases({...workRoute.query(),
       search: filters.search.trim(),
       case_type: filters.caseType as never,
       target_type: filters.targetType as never,

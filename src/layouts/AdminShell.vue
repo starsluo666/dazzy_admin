@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
-import { ElNotification } from 'element-plus'
-import { Bell, Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, Tickets, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
+import { computed, ref, watch, type Component } from 'vue'
+import { Calendar, ChatLineRound, CircleCheck, Coin, DataAnalysis, Document, Grid, List, Operation, Setting, Tickets, User, UserFilled, Notebook, Timer } from '@element-plus/icons-vue'
 import { isAdminPage } from '../navigation'
-import { adminApi } from '../services/api'
+import OperationsInbox from '../components/OperationsInbox.vue'
+import type { WorkTarget } from '../utils/operationsWork'
 import type { AdminMe, AdminPage } from '../types'
-import { firstPendingProviderReview, providerReviewNotice, type ProviderReviewMode, type ProviderReviewSummary } from '../utils/providerReviews'
+import type { ProviderReviewMode } from '../utils/providerReviews'
 
 const props = defineProps<{ active: AdminPage; session: AdminMe | null; preview: boolean }>()
-const emit = defineEmits<{ navigate: [page: AdminPage]; reviewProvider: [mode: ProviderReviewMode]; logout: [] }>()
+const emit = defineEmits<{ navigate: [page: AdminPage]; reviewProvider: [mode: ProviderReviewMode]; openWork: [target: WorkTarget]; logout: [] }>()
 
 interface NavigationItem {
   key: string
@@ -36,7 +36,7 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   provider_training: ['operations-group'],
   activities: ['activities-group'], activity_categories: ['activities-group'], activity_reports: ['activities-group'],
   orders: ['orders-group'], after_sales: ['orders-group'],
-  settlements: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
+  settlements: ['finance-group'], finance_alerts: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
   support_cases: ['support-group'],
   coupons: ['marketing-group', 'coupon-management-group'],
   coupon_records: ['marketing-group', 'coupon-management-group'],
@@ -46,10 +46,6 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   system: ['system-group'], tasks: ['system-group'], audit_logs: ['system-group'],
 }
 const collapsedGroups = ref<Set<string>>(new Set(allNavigationGroups))
-const pendingProviderReviews = ref(0)
-const pendingProviderReviewMode = ref<ProviderReviewMode>('application')
-let previousProviderReviews: ProviderReviewSummary | null = null
-let providerReviewPollTimer: number | undefined
 
 const can = (permission: string) => Boolean(
   props.session?.permissions?.includes('*') || props.session?.permissions?.includes(permission),
@@ -77,6 +73,7 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'finance-group', label: '财务管理', icon: Coin, group: true, visible: can('order.finance.view') || can('activity_finance.view') || can('wallet.view') },
   { key: 'settlements', label: '达人订单财务', icon: Document, child: true, parent: 'finance-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
+  { key: 'finance_alerts', label: '资金异常核查', icon: Coin, child: true, parent: 'finance-group', enabled: can('order.finance.view') && can('order.finance.manage'), visible: can('order.finance.view') && can('order.finance.manage') },
   { key: 'activity_finance', label: '活动财务', icon: Calendar, child: true, parent: 'finance-group', enabled: can('activity_finance.view'), visible: can('activity_finance.view') },
   { key: 'wallets', label: '余额与充值', icon: Coin, child: true, parent: 'finance-group', enabled: can('wallet.view'), visible: can('wallet.view') },
   { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') || can('support.case.manage') },
@@ -116,6 +113,7 @@ const pageLabels: Record<AdminPage, string> = {
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
   settlements: '财务管理 / 达人订单财务',
+  finance_alerts: '财务管理 / 资金异常核查',
   activity_finance: '财务管理 / 活动财务',
   wallets: '财务管理 / 余额与充值',
   support_cases: '客服与投诉 / 客服工单',
@@ -150,7 +148,7 @@ function groupActive(key: string) {
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'activities-group' && ['activities', 'activity_categories', 'activity_reports'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
-    || (key === 'finance-group' && ['settlements', 'activity_finance', 'wallets'].includes(props.active))
+    || (key === 'finance-group' && ['settlements', 'finance_alerts', 'activity_finance', 'wallets'].includes(props.active))
     || (key === 'support-group' && props.active === 'support_cases')
     || (['marketing-group', 'coupon-management-group'].includes(key) && ['coupons', 'coupon_records'].includes(props.active))
     || (['marketing-group', 'growth-management-group'].includes(key) && ['newcomer_gift', 'invitation_rules', 'invitation_records'].includes(props.active))
@@ -168,45 +166,6 @@ watch(
   { immediate: true },
 )
 
-function openProviderReviews() {
-  if (can('provider.review')) emit('reviewProvider', pendingProviderReviewMode.value)
-}
-
-async function refreshProviderReviewSummary() {
-  if (!can('provider.review')) return
-  try {
-    const summary = props.preview
-      ? { applications: 0, onboarding: 3, profile_changes: 0, service_changes: 0, total: 3 }
-      : await adminApi.providerReviewSummary()
-    const previous = previousProviderReviews
-    pendingProviderReviews.value = summary.total
-    pendingProviderReviewMode.value = firstPendingProviderReview(summary)
-    previousProviderReviews = summary
-    const notice = providerReviewNotice(summary, previous)
-    if (!props.preview && notice) {
-      ElNotification({
-        title: previous === null ? '达人审核待办' : '有新的达人审核待办',
-        message: previous === null
-          ? `待处理：${notice.message}`
-          : `新增：${notice.message}；当前共 ${summary.total} 条待处理`,
-        type: 'warning',
-        duration: 6000,
-        onClick: () => emit('reviewProvider', notice.mode),
-      })
-    }
-  } catch {
-    // 顶栏提醒失败不阻断管理端的其他操作，下一个轮询周期会自动重试。
-  }
-}
-
-onMounted(() => {
-  void refreshProviderReviewSummary()
-  providerReviewPollTimer = window.setInterval(refreshProviderReviewSummary, 60_000)
-})
-
-onBeforeUnmount(() => {
-  if (providerReviewPollTimer !== undefined) window.clearInterval(providerReviewPollTimer)
-})
 </script>
 
 <template>
@@ -239,19 +198,7 @@ onBeforeUnmount(() => {
       <header class="topbar">
         <div class="breadcrumb">首页&nbsp;&nbsp;/&nbsp;&nbsp;<strong>{{ pageLabels[active] }}</strong></div>
         <el-input class="global-search" placeholder="搜索用户、订单、活动" clearable />
-        <el-badge
-          v-if="can('provider.review')"
-          :value="pendingProviderReviews"
-          :hidden="pendingProviderReviews === 0"
-          :max="99"
-        >
-          <button
-            class="notification-button"
-            type="button"
-            aria-label="打开达人审核待办"
-            @click="openProviderReviews"
-          ><el-icon class="top-icon"><Bell /></el-icon></button>
-        </el-badge>
+        <OperationsInbox :preview="preview" @open-work="emit('openWork', $event)" />
         <span class="scope">{{ scopeLabel }}</span>
         <el-dropdown @command="$emit('logout')"><div class="account"><el-avatar :size="34"><UserFilled /></el-avatar><span>{{ session?.user?.nickname || 'admin' }}⌄</span></div><template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
       </header>
@@ -259,25 +206,3 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
-
-<style scoped>
-.notification-button {
-  display: grid;
-  place-items: center;
-  padding: 5px;
-  border: 0;
-  border-radius: 6px;
-  color: #303847;
-  background: transparent;
-}
-
-.notification-button:hover {
-  color: var(--brand);
-  background: #eefafa;
-}
-
-.notification-button:focus-visible {
-  outline: 3px solid rgb(8 184 189 / 22%);
-  outline-offset: 2px;
-}
-</style>

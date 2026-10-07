@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "test:operations-work": "node tests/operationsWork.test.cjs",
+    "test:operations-work:browser": "node tests/operationsWork.browser.cjs",
+    "test:finance-work:browser": "node tests/financeWork.browser.cjs",
     "test:provider-reviews": "node tests/providerReviews.test.cjs",
     "test:coupon-batches": "node tests/couponBatches.test.cjs",
     "test:user-coupon:browser": "node tests/userCoupon.browser.cjs",

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -25,6 +26,7 @@ import type {
   ProviderOrderSummary,
 } from '../types'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; canAdjustCredit?: boolean; initialSearch?: string }>()
 const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
@@ -36,7 +38,7 @@ const anomaly = ref<FulfillmentAnomalyFilter>('all')
 const statusFilter = ref<ProviderOrderStatus | ''>('')
 const reviewAuditFilter = ref<'all' | 'pending' | 'approved' | 'rejected'>('all')
 const cityFilter = ref('')
-const search = ref(props.initialSearch || '')
+const search = ref(workRoute.initialSearch || props.initialSearch || '')
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -257,7 +259,7 @@ async function load() {
       }
       return
     }
-    const data = await adminApi.providerOrders({
+    const data = await adminApi.providerOrders({...workRoute.query(),
       stage: stage.value,
       anomaly: anomaly.value,
       status: statusFilter.value,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -25,6 +26,7 @@ import type {
   AfterSalesSummary,
 } from '../types'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean; canReview: boolean }>()
 
 const rows = ref<AdminAfterSalesCase[]>([])
@@ -33,7 +35,7 @@ const summary = ref<AfterSalesSummary>({ total: 0, pending: 0, processing: 0, ap
 const statusFilter = ref<AfterSalesCaseStatus | ''>('')
 const typeFilter = ref<AfterSalesCaseType | ''>('')
 const cityFilter = ref('')
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -164,7 +166,7 @@ async function load() {
       }
       return
     }
-    const data = await adminApi.afterSalesCases({
+    const data = await adminApi.afterSalesCases({...workRoute.query(),
       status: statusFilter.value,
       case_type: typeFilter.value,
       city_code: cityFilter.value,

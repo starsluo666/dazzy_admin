@@ -458,6 +458,17 @@ export const adminApi = {
     }
   },
   me: () => request<AdminMe>('/admin/me/'),
+  financeWork: (params: Record<string, string | number | undefined>) => request<{
+    items: import('../utils/operationsWork').FinanceWorkItem[]; total: number; page: number; page_size: number
+  }>(`/admin/work/finance/?${queryString(params)}`),
+  notificationChannels: () => request<{ channels: Array<{ key: string; label: string; enabled: boolean; status: string }> }>('/admin/work/channels/'),
+  workSummary: () => request<import('../utils/operationsWork').WorkSummary>('/admin/work/summary/'),
+  workItems: (queue: string, page = 1, unreadOnly = false) => request<{
+    items: import('../utils/operationsWork').WorkItem[]; total: number; page: number; page_size: number
+  }>(`/admin/work/items/?${queryString({ queue, page, unread_only: unreadOnly })}`),
+  readWorkItem: (item: import('../utils/operationsWork').WorkItem) => request('/admin/work/items/', {
+    method: 'POST', body: JSON.stringify({ queue: item.queue, object_id: item.object_id, event_version: item.event_version }),
+  }),
   overview: (days: 7 | 30 = 7) => requestLatest<{
     metrics: Record<string, number | null>
     trend: {
@@ -591,12 +602,13 @@ export const adminApi = {
     kind: ProviderChangeReviewKind,
     status: 'pending' | 'approved' | 'rejected' = 'pending',
     page = 1,
+    work: { todo?: string; work_id?: string } = {},
   ) => requestLatest<{
     items: ProviderChangeReview[]
     pagination: { page: number; page_size: number; total: number }
   }>(
     `provider-change-reviews-${kind}`,
-    `/admin/provider-change-reviews/?${queryString({ kind, status, page, page_size: 20 })}`,
+    `/admin/provider-change-reviews/?${queryString({ ...work, kind, status, page, page_size: 20 })}`,
   ),
   providerReviewSummary: () => requestLatest<{
     applications: number

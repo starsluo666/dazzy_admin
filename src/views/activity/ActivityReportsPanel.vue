@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -7,10 +8,11 @@ import { adminApi } from '../../services/api'
 import type { ActivityReportStatus, AdminActivityReport, AdminActivityReportSummary } from '../../types'
 import { formatDateTime as format } from '../../utils/format'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean; canManage: boolean }>()
 const rows = ref<AdminActivityReport[]>([])
 const summary = ref<AdminActivityReportSummary>({ total: 0, pending: 0, processing: 0, resolved: 0 })
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const statusFilter = ref<ActivityReportStatus | ''>('')
 const cityFilter = ref('')
 const loading = ref(false)
@@ -23,7 +25,7 @@ const demoRows = ref([demo(1,'pending','存在安全风险'),demo(2,'processing'
 const cards = computed(()=>[{key:'',label:'全部举报',value:summary.value.total},{key:'pending',label:'待处理',value:summary.value.pending},{key:'processing',label:'处理中',value:summary.value.processing},{key:'resolved',label:'已处理',value:summary.value.resolved}])
 function filteredDemo(){const keyword=search.value.trim();return demoRows.value.filter(item=>(!statusFilter.value||item.status===statusFilter.value)&&(!cityFilter.value||item.city_code===cityFilter.value)&&(!keyword||`${item.case_no}${item.activity_title}${item.reporter_name}`.includes(keyword)))}
 function demoSummary(){return{total:demoRows.value.length,pending:demoRows.value.filter(i=>i.status==='pending').length,processing:demoRows.value.filter(i=>i.status==='processing').length,resolved:demoRows.value.filter(i=>i.status==='resolved').length}}
-async function load(){loading.value=true;try{if(props.preview){rows.value=filteredDemo();summary.value=demoSummary();return}const data=await adminApi.activityReports({search:search.value.trim(),status:statusFilter.value,city_code:cityFilter.value,page_size:50});rows.value=data.items;summary.value=data.summary}catch(error){ElMessage.error(error instanceof Error?error.message:'举报数据加载失败')}finally{loading.value=false}}
+async function load(){loading.value=true;try{if(props.preview){rows.value=filteredDemo();summary.value=demoSummary();return}const data=await adminApi.activityReports({...workRoute.query(),search:search.value.trim(),status:statusFilter.value,city_code:cityFilter.value,page_size:50});rows.value=data.items;summary.value=data.summary}catch(error){ElMessage.error(error instanceof Error?error.message:'举报数据加载失败')}finally{loading.value=false}}
 function selectStatus(key:string){statusFilter.value=key as ActivityReportStatus|'';load()}
 function open(item:AdminActivityReport){selected.value=item;drawerVisible.value=true}
 async function action(type:'start_review'|'resolve'|'reject'){

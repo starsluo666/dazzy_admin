@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import ProviderGallery from '../components/ProviderGallery.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -14,6 +15,7 @@ import type {
 } from '../types'
 import { parseProviderReviewMode, parseProviderReviewStatus, providerReviewQueues } from '../utils/providerReviews'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean }>()
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +25,7 @@ const selected = ref<ProviderApplication | null>(null)
 const reviewMode = computed(() => parseProviderReviewMode(route.query.review))
 const statusFilter = computed(() => parseProviderReviewStatus(route.query.review_status, reviewMode.value))
 const cityFilter = ref('')
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const page = ref(1)
 const pageSize = 10
 const total = ref(0)
@@ -110,6 +112,7 @@ async function load() {
         reviewMode.value,
         changeStatusFilter.value,
         page.value,
+        workRoute.query(),
       )
       if (sequence !== loadSequence) return
       changeRows.value = data.items
@@ -126,7 +129,7 @@ async function load() {
       selected.value = items[0] || null
       return
     }
-    const data = await adminApi.providers({
+    const data = await adminApi.providers({...workRoute.query(),
       status: statusFilter.value,
       city_code: cityFilter.value,
       search: search.value.trim(),

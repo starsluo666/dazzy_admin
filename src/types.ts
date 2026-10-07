@@ -37,7 +37,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'finance_alerts' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
 
 export interface TrainingCurriculum {
   title: string

@@ -17,6 +17,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   'orders',
   'after_sales',
   'settlements',
+  'finance_alerts',
   'activity_finance',
   'wallets',
   'support_cases',
@@ -47,6 +48,7 @@ export const ADMIN_PAGE_PERMISSIONS: Record<AdminPage, string> = {
   orders: 'order.fulfillment.view',
   after_sales: 'order.after_sales.view',
   settlements: 'order.finance.view',
+  finance_alerts: 'order.finance.manage',
   activity_finance: 'activity_finance.view',
   wallets: 'wallet.view',
   support_cases: 'support.case.view',
@@ -70,7 +72,8 @@ export function canAccessAdminPage(
   preview = false,
 ) {
   return preview || Boolean(
-    permissions?.includes('*') || permissions?.includes(ADMIN_PAGE_PERMISSIONS[page]),
+    permissions?.includes('*') || (permissions?.includes(ADMIN_PAGE_PERMISSIONS[page])
+      && (page !== 'finance_alerts' || permissions.includes('order.finance.view'))),
   )
 }
 

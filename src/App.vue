@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
+import { createOperationsWork, operationsWorkKey } from './composables/operationsWork'
+import type { WorkTarget } from './utils/operationsWork'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import LoginView from './views/LoginView.vue'
@@ -29,6 +31,7 @@ import NewcomerGiftView from './views/NewcomerGiftView.vue'
 import InvitationRulesView from './views/InvitationRulesView.vue'
 import InvitationRecordsView from './views/InvitationRecordsView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
+import FinanceWorkView from './views/FinanceWorkView.vue'
 import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
 import WalletFinanceView from './views/WalletFinanceView.vue'
 import {
@@ -46,6 +49,8 @@ import type { AdminMe, AdminPage } from './types'
 import type { ProviderReviewMode } from './utils/providerReviews'
 
 const route = useRoute()
+const operationsWork = createOperationsWork()
+provide(operationsWorkKey, operationsWork)
 const router = useRouter()
 const session = ref<AdminMe | null>(null)
 const loading = ref(true)
@@ -102,6 +107,7 @@ const canManageWallet = hasPermission('wallet.manage')
 const canViewAudit = hasPermission('audit.view')
 
 setSessionExpiredHandler(() => {
+  operationsWork.clear()
   session.value = null
   loading.value = false
   setTimeout(() => {
@@ -162,6 +168,7 @@ async function logout() {
     await adminApi.logout()
   } finally {
     session.value = null
+    operationsWork.clear()
   }
 }
 
@@ -175,6 +182,10 @@ function navigate(page: AdminPage, queryOverrides: LocationQueryRaw = {}) {
   delete query.review
   delete query.review_status
   delete query.activity_status
+  delete query.todo
+  delete query.work_id
+  delete query.search
+  delete query.record_type
   Object.assign(query, queryOverrides)
   void router.push({ name: page, query })
 }
@@ -188,8 +199,12 @@ function openActivityReview() {
 }
 
 function openOrderFromTask(orderNo: string) {
-  orderSearch.value = orderNo
   navigate('orders')
+  orderSearch.value = orderNo
+}
+
+function openWork(target: WorkTarget) {
+  navigate(target.page, target.query)
 }
 
 watch(requestedPage, () => {
@@ -209,8 +224,10 @@ onMounted(loadSession)
     :preview="preview"
     @navigate="navigate"
     @review-provider="openProviderReview"
+    @open-work="openWork"
     @logout="logout"
   >
+    <div v-if="route.query.todo" class="work-filter-banner"><span>当前仅显示所选待办范围内的记录。</span><el-button link type="primary" @click="navigate(currentPage)">查看全部记录</el-button></div>
     <el-empty
       v-if="!firstAccessiblePage"
       description="当前账号尚未配置管理端页面权限，请联系平台管理员"
@@ -220,6 +237,7 @@ onMounted(loadSession)
       :preview="preview"
       @review-provider="openProviderReview"
       @review-activity="openActivityReview"
+      @open-work="openWork"
     />
     <UserManagementView
       v-else-if="currentPage === 'users'"
@@ -236,7 +254,7 @@ onMounted(loadSession)
       :can-review="canReviewProvider"
       @review="navigate('provider_reviews')"
     />
-    <ProviderReviewView v-else-if="currentPage === 'provider_reviews'" :preview="preview" />
+    <ProviderReviewView :key="route.fullPath" v-else-if="currentPage === 'provider_reviews'" :preview="preview" />
     <ServiceCategoriesView
       v-else-if="currentPage === 'services'"
       :preview="preview"
@@ -259,7 +277,7 @@ onMounted(loadSession)
       :can-view-audit="canViewAudit"
       @open-audit="navigate('audit_logs')"
     />
-    <ActivityManagementView
+    <ActivityManagementView :key="route.fullPath"
       v-else-if="currentPage === 'activities'"
       :preview="preview"
       :can-review="canReviewActivity"
@@ -273,23 +291,24 @@ onMounted(loadSession)
       :can-use-assets="canUseAssets"
       :can-upload-assets="canManageAssets"
     />
-    <ActivityReportsView
+    <ActivityReportsView :key="route.fullPath"
       v-else-if="currentPage === 'activity_reports'"
       :preview="preview"
       :can-manage="canManageActivityReport"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
-    <AfterSalesView
+    <FulfillmentOrdersView :key="route.fullPath" v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
+    <AfterSalesView :key="route.fullPath"
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
     />
-    <ProviderOrderFinanceView
+    <FinanceWorkView :key="route.fullPath" v-else-if="currentPage === 'finance_alerts'" :preview="preview" />
+    <ProviderOrderFinanceView :key="route.fullPath"
       v-else-if="currentPage === 'settlements'"
       :preview="preview"
       :can-manage="canManageOrderFinance"
     />
-    <ActivityFinancePanel
+    <ActivityFinancePanel :key="route.fullPath"
       v-else-if="currentPage === 'activity_finance'"
       :preview="preview"
       :can-manage-after-sales="canManageActivityAfterSales"
@@ -300,7 +319,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageWallet"
     />
-    <SupportCasesView
+    <SupportCasesView :key="route.fullPath"
       v-else-if="currentPage === 'support_cases'"
       :preview="preview"
       :can-manage="canManageSupportCase"
@@ -334,7 +353,7 @@ onMounted(loadSession)
       v-else-if="currentPage === 'system'"
       @open-audit="navigate('audit_logs')"
     />
-    <TaskCenterView
+    <TaskCenterView :key="route.fullPath"
       v-else-if="currentPage === 'tasks'"
       :preview="preview"
       :can-retry="canRetryTask"
@@ -344,3 +363,7 @@ onMounted(loadSession)
     <AuditLogsView v-else-if="currentPage === 'audit_logs'" />
   </AdminShell>
 </template>
+
+<style scoped>
+.work-filter-banner{padding:12px 24px;background:#edfafa;display:flex;gap:20px;align-items:center;font-size:13px;color:#48616b}
+</style>

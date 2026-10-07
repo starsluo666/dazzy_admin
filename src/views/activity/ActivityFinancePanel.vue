@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Clock, Lock, Money, Refresh, Search, Tickets, WalletFilled, WarningFilled } from '@element-plus/icons-vue'
@@ -15,10 +16,11 @@ import type {
   AdminActivitySettlement,
 } from '../../types'
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean; canManageAfterSales: boolean; canManageSettlement: boolean }>()
 type RecordType = 'payment' | 'refund' | 'after_sales' | 'settlement'
 
-const recordType = ref<RecordType>('payment')
+const recordType = ref<RecordType>(workRoute.recordType === 'refund' ? 'refund' : workRoute.recordType === 'after_sales' ? 'after_sales' : 'payment')
 const rows = ref<Array<AdminActivityParticipationPayment | AdminActivityParticipationRefund | AdminActivityAfterSales | AdminActivitySettlement>>([])
 const summary = ref<AdminActivityFinanceSummary>({
   paid_count: 0,
@@ -32,7 +34,7 @@ const summary = ref<AdminActivityFinanceSummary>({
   settled_count: 0,
   settled_amount: 0,
 })
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const statusFilter = ref('')
 const cityFilter = ref('')
 const page = ref(1)
@@ -213,7 +215,7 @@ async function load() {
       summary.value = { paid_count: 12, pending_payment_count: 3, refund_count: 6, refunded_amount: 28740, open_after_sales_count: 2, confirming_settlement_count: 3, frozen_settlement_count: 5, disputed_settlement_count: 1, settled_count: 8, settled_amount: 126800 }
       return
     }
-    const data = await adminApi.activityFinance({
+    const data = await adminApi.activityFinance({...workRoute.query(),
       record_type: recordType.value, search: search.value.trim(), status: statusFilter.value,
       city_code: cityFilter.value, page: page.value, page_size: pageSize,
     })

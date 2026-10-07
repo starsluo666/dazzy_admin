@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Coin, CreditCard, Refresh, Search, SuccessFilled, Tickets, WarningFilled } from '@element-plus/icons-vue'
@@ -15,8 +16,9 @@ import type {
 type RecordType = 'payment' | 'refund' | 'settlement' | 'exception'
 type FinanceRecord = ProviderOrderPaymentRecord | ProviderOrderRefundRecord | ProviderOrderSettlementRecord
 
+const workRoute = useWorkRoute()
 const props = defineProps<{ preview: boolean; canManage: boolean }>()
-const active = ref<RecordType>('payment')
+const active = ref<RecordType>(workRoute.recordType === 'refund' ? 'refund' : 'payment')
 const rows = ref<FinanceRecord[]>([])
 const summary = ref<ProviderOrderFinanceSummary>({
   paid_amount: 0,
@@ -25,7 +27,7 @@ const summary = ref<ProviderOrderFinanceSummary>({
   settled_amount: 0,
   exception_count: 0,
 })
-const search = ref('')
+const search = ref(workRoute.initialSearch)
 const cityCode = ref('')
 const statusFilter = ref('')
 const page = ref(1)
@@ -119,7 +121,7 @@ async function load() {
       total.value = rows.value.length
       return
     }
-    const data = await adminApi.providerOrderFinance({
+    const data = await adminApi.providerOrderFinance({...workRoute.query(),
       record_type: active.value,
       search: search.value.trim(),
       city_code: cityCode.value,
