@@ -25,7 +25,7 @@ import type {
   ProviderOrderSummary,
 } from '../types'
 
-const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; initialSearch?: string }>()
+const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; canAdjustCredit?: boolean; initialSearch?: string }>()
 const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
 const rows = ref<AdminProviderOrder[]>([])
@@ -422,6 +422,27 @@ async function reviewFulfillment() {
   } finally { fulfillmentSaving.value = false }
 }
 
+async function reverseTimeoutPenalty() {
+  const current = selected.value
+  if (!current?.timeout?.timed_out_at || current.timeout.credit_reversed_at || fulfillmentSaving.value
+    || !props.canAdjustCredit || !props.canReviewFulfillment) return
+  fulfillmentSaving.value = true
+  try {
+    const { value } = await ElMessageBox.prompt('核实申诉后仅撤销本单实际扣分（最高恢复至 100 分），不恢复订单、不撤销退款。', '超时扣分申诉通过', {
+      inputType: 'textarea', inputPlaceholder: '填写申诉证据和核实结论',
+      inputValidator: value => (value.trim().length >= 2 && value.trim().length <= 500) || '请填写 2–500 字的核实依据',
+      confirmButtonText: '撤销本单扣分', cancelButtonText: '取消',
+    })
+    if (props.preview) { ElMessage.info('预览模式不执行扣分撤销'); return }
+    const updated = await adminApi.reverseOrderTimeoutPenalty(current.order_no, value.trim())
+    if (selected.value?.order_no === current.order_no) selected.value = updated
+    rows.value = rows.value.map(item => item.order_no === updated.order_no ? updated : item)
+    ElMessage.success('已撤销本单扣分，订单及退款保持不变')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '撤销失败，请刷新后重试')
+  } finally { fulfillmentSaving.value = false }
+}
+
 async function moderateReview(action: 'approve' | 'reject' | 'hide' | 'restore') {
   if (!selected.value?.review || reviewSaving.value) return
   let reason = ''
@@ -501,6 +522,9 @@ onMounted(load)
           <el-option label="不限异常" value="all" />
           <el-option label="全部异常订单" value="any" />
           <el-option label="履约异常待审核" value="fulfillment_review" />
+          <el-option label="历史超时待核查" value="legacy_overdue" />
+          <el-option label="未出发超时取消" value="departure_timeout" />
+          <el-option label="退款异常待核实" value="refund_failed" />
           <el-option label="履约异常已恢复" value="fulfillment_resolved" />
           <el-option label="缺少集合照" value="missing_evidence" />
           <el-option label="履约时间线缺失" value="timeline_gap" />
@@ -611,6 +635,17 @@ onMounted(load)
           :description="selected.support_contacted_at ? `${selected.support_contacted_by_name || '客服'}于 ${formatDateTime(selected.support_contacted_at)} 完成登记，自动退款任务已停止。` : selected.provider_rejection_refund ? `退款单 ${selected.provider_rejection_refund.refund_no}，金额 ${formatAmount(selected.provider_rejection_refund.refund_amount)}。${selected.provider_rejection_refund.failure_reason || ''}` : `请在 ${formatDateTime(selected.support_contact_deadline_at)} 前完成有效联系，否则系统自动发起全额退款。`"
         />
 
+        <section v-if="selected.timeout?.departure_deadline_at" class="detail-section fulfillment-review-section">
+          <h3><el-icon><Clock /></el-icon> 未出发超时规则</h3>
+          <p>出发截止：{{ formatDateTime(selected.timeout.departure_deadline_at) }} · 本单约定扣分：{{ selected.timeout.configured_credit_penalty }} 分</p>
+          <template v-if="selected.timeout.timed_out_at">
+            <p>{{ selected.timeout.reason }} · {{ selected.timeout.refund_label }}。取消时间：{{ formatDateTime(selected.timeout.timed_out_at) }}</p>
+            <p>本单实际扣分 {{ selected.timeout.credit_points }} 分；{{ selected.timeout.credit_reversed_at ? `申诉撤销于 ${formatDateTime(selected.timeout.credit_reversed_at)}` : '如有申诉，请核对联系记录、履约证据及系统日志。' }}</p>
+            <el-button v-if="!selected.timeout.credit_reversed_at && canAdjustCredit && canReviewFulfillment" :loading="fulfillmentSaving" @click="reverseTimeoutPenalty">申诉通过，撤销本单扣分</el-button>
+            <p>取消及退款不可通过“恢复正常”撤回。退款异常请到退款管理核实渠道结果后处理，不要重复发起退款。</p>
+          </template>
+        </section>
+
         <section v-if="selected.fulfillment_revision" class="detail-section fulfillment-review-section">
           <h3><el-icon><Warning /></el-icon> 履约异常复核</h3>
           <p>本单容差：提前 {{ selected.fulfillment_policy.early_minutes }} 分钟 / 延后 {{ selected.fulfillment_policy.late_minutes }} 分钟</p>
@@ -619,7 +654,7 @@ onMounted(load)
             <span>记录时间 {{ formatDateTime(issue.recorded_at) }} · 预约节点 {{ formatDateTime(issue.expected_at) }}</span>
           </div>
           <p v-if="selected.fulfillment_review_required">自动确认与分账已暂停；客服审核期间不消耗用户剩余确认时长。</p>
-          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
+          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment && !selected.timeout?.timed_out_at && !['cancelled', 'refunded'].includes(selected.status)" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
           <p v-else-if="selected.fulfillment_review_required">需具有“审核履约异常并恢复自动流程”权限的客服处理。</p>
           <article v-for="review in selected.fulfillment_reviews" :key="review.revision" class="fulfillment-review-record">
             <strong>{{ review.reviewer_name || '客服' }} · {{ formatDateTime(review.reviewed_at) }}</strong>

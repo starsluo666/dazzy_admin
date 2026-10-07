@@ -50,6 +50,8 @@ const defaults: Record<FieldKey, number> = {
   provider_order_confirmation_timeout_days: 3,
   provider_order_early_tolerance_minutes: 30,
   provider_order_late_tolerance_minutes: 30,
+  provider_order_departure_grace_minutes: 30,
+  provider_order_no_departure_credit_penalty: 2,
   provider_order_review_timeout_days: 7,
   provider_order_settlement_freeze_days: 1,
   activity_payment_timeout_minutes: 30,
@@ -66,17 +68,31 @@ const defaults: Record<FieldKey, number> = {
 
 const rules: RuleDefinition[] = [
   {
+    key: 'provider_order_departure_grace_minutes', group: 'provider', label: '接单后未出发宽限',
+    unit: '分钟', min: 0, max: 180, step: 5,
+    help: '预约开始时间加宽限后，仍未出发且无履约记录，自动取消并发起剩余实付款退款（含路费）',
+    impact: '退款及信用分', scope: '新订单下单时固定；历史积压订单仅供客服筛查',
+    risk: '已有退款、分账、争议或履约凭证时转人工核实，不重复自动退款。',
+  },
+  {
+    key: 'provider_order_no_departure_credit_penalty', group: 'provider', label: '超时未出发扣分',
+    unit: '分', min: 0, max: 100, step: 1,
+    help: '每单只扣一次，最低扣至 0 分；设为 0 表示不扣分',
+    impact: '达人信用分', scope: '新订单下单时固定',
+    risk: '客服可凭申诉证据撤销本单扣分；撤销不恢复订单，也不撤销退款。',
+  },
+  {
     key: 'provider_order_early_tolerance_minutes', group: 'provider', label: '履约提前容差',
     unit: '分钟', min: 0, max: 180, step: 5,
     help: '开始或完成时间过早、按小时服务时长不足时，超出容差标记异常',
-    impact: '自动确认及分账', scope: '开始履约时固定规则，历史订单不追溯',
+    impact: '自动确认及分账', scope: '新订单下单时固定规则；旧订单首次履约时固定',
     risk: '超出容差需客服审核；按次服务不校验实际服务时长。',
   },
   {
     key: 'provider_order_late_tolerance_minutes', group: 'provider', label: '履约延后容差',
     unit: '分钟', min: 0, max: 180, step: 5,
     help: '开始或完成时间晚于预约时间且超出容差时标记异常',
-    impact: '自动确认及分账', scope: '开始履约时固定规则，历史订单不追溯',
+    impact: '自动确认及分账', scope: '新订单下单时固定规则；旧订单首次履约时固定',
     risk: '异常不等于违约，客服核实通过后恢复剩余确认时长和正常结算流程。',
   },
   {
@@ -496,13 +512,19 @@ onMounted(() => {
             />
           </section>
           <section v-if="showProvider && viewMode === 'flow'" class="fulfillment-tolerance-settings">
+            <h3>接单后未出发超时</h3>
+            <div class="tolerance-controls">
+              <label>开始后宽限 <el-input-number v-model="form.provider_order_departure_grace_minutes" :min="0" :max="180" :step="5" /> 分钟</label>
+              <label>每单扣减 <el-input-number v-model="form.provider_order_no_departure_credit_penalty" :min="0" :max="100" /> 分</label>
+            </div>
+            <p>仅新订单启用。未出发且无履约证据：取消并退还剩余实付款（含路费），每单扣分一次。已出发或有退款、争议、分账记录：客服核查，不自动退款扣分。预约开始前 30 分钟发送站内提醒。</p>
             <h3>履约时间容差</h3>
             <p>比较实际开始 / 完成与预约时间；按小时订单另校验实际服务时长。恰好在容差内不标异常。</p>
             <div class="tolerance-controls">
               <label>允许提前 <el-input-number v-model="form.provider_order_early_tolerance_minutes" :min="0" :max="180" :step="5" aria-label="允许提前分钟" /> 分钟</label>
               <label>允许延后 <el-input-number v-model="form.provider_order_late_tolerance_minutes" :min="0" :max="180" :step="5" aria-label="允许延后分钟" /> 分钟</label>
             </div>
-            <p>超出容差：暂停自动确认与分账，由客服复核。规则在开始履约时保存；不追溯历史订单。</p>
+            <p>超出容差：暂停自动确认与分账，由客服复核。新订单下单时固定规则；历史积压订单不自动退款扣分，可在履约订单中筛选核查。</p>
           </section>
           <div v-if="viewMode === 'flow'" class="flow-canvas">
             <section v-if="showProvider" class="flow-lane">

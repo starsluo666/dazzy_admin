@@ -278,7 +278,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageActivityReport"
     />
-    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
+    <FulfillmentOrdersView v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
     <AfterSalesView
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"

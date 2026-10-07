@@ -33,6 +33,10 @@ const summary = ref<ScheduledTaskSummary>({
 const taskTypes = ref<Array<{ value: ScheduledTaskType; label: string }>>([
   { value: 'provider_order_payment_expiry', label: '达人订单支付超时' },
   { value: 'provider_acceptance_timeout', label: '达人接单超时' },
+  { value: 'provider_departure_reminder', label: '达人出发提醒' },
+  { value: 'provider_departure_timeout', label: '达人未出发超时' },
+  { value: 'provider_start_timeout', label: '达人未开始服务核查' },
+  { value: 'provider_completion_timeout', label: '达人未提交完成核查' },
   { value: 'provider_rejection_support_timeout', label: '达人拒单客服处理超时' },
   { value: 'provider_order_confirmation_timeout', label: '达人订单确认超时' },
   { value: 'provider_order_review_timeout', label: '达人订单默认好评' },

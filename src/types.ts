@@ -180,6 +180,8 @@ export interface PlatformOperationSetting {
   provider_order_confirmation_timeout_days: number
   provider_order_early_tolerance_minutes: number
   provider_order_late_tolerance_minutes: number
+  provider_order_departure_grace_minutes: number
+  provider_order_no_departure_credit_penalty: number
   provider_order_review_timeout_days: number
   provider_order_settlement_freeze_days: number
   provider_commission_reset_period: 'month' | 'quarter' | 'year' | 'never'
@@ -218,6 +220,10 @@ export interface AdminAuditLog {
 export type ScheduledTaskType =
   | 'provider_order_payment_expiry'
   | 'provider_acceptance_timeout'
+  | 'provider_departure_reminder'
+  | 'provider_departure_timeout'
+  | 'provider_start_timeout'
+  | 'provider_completion_timeout'
   | 'provider_rejection_support_timeout'
   | 'provider_order_confirmation_timeout'
   | 'provider_order_review_timeout'
@@ -1096,6 +1102,9 @@ export type FulfillmentAnomalyFilter =
   | 'support_contact_overdue'
   | 'fulfillment_review'
   | 'fulfillment_resolved'
+  | 'legacy_overdue'
+  | 'departure_timeout'
+  | 'refund_failed'
 
 export interface FulfillmentAnomaly {
   code: Exclude<FulfillmentAnomalyFilter, 'all' | 'any'>
@@ -1372,6 +1381,15 @@ export interface SupportCaseSummary {
 }
 
 export interface AdminProviderOrder {
+  timeout?: {
+    departure_deadline_at: string | null
+    timed_out_at: string | null
+    reason: string
+    refund_label: string
+    credit_points: number
+    credit_reversed_at: string | null
+    configured_credit_penalty: number | null
+  }
   provider_contact_initiated_at: string | null
   departure_contact_confirmed_at: string | null
   fulfillment_review_required: boolean

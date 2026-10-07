@@ -736,6 +736,10 @@ export const adminApi = {
     request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/fulfillment-review/`, {
       method: 'POST', body: JSON.stringify({ revision, reason }),
     }),
+  reverseOrderTimeoutPenalty: (orderNo: string, reason: string) =>
+    request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/timeout-appeal/`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    }),
   addProviderOrderSupportNote: (
     orderNo: string,
     content: string,
