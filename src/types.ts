@@ -174,6 +174,8 @@ export interface AdminOrganizationMember {
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
 
 export interface PlatformOperationSetting {
+  support_refund_single_limit: number
+  support_refund_daily_limit: number
   discovery_cities: Array<{ city_code: string; city_name: string }>
   customer_service_phone: string
   provider_order_payment_timeout_minutes: number
@@ -390,6 +392,10 @@ export interface AdminActivityParticipationRefund extends ActivityParticipationR
 }
 
 export interface AdminActivityAfterSales {
+  payment_order_no?: string
+  requires_supervisor?: boolean
+  escalation_reason?: string
+  created_by_operator_name?: string | null
   case_no: string
   activity_id: number
   activity_title: string
@@ -1288,6 +1294,8 @@ export interface ProviderOrderFinanceSummary {
 }
 
 export interface AdminAfterSalesCase {
+  requires_supervisor?: boolean
+  escalation_reason?: string
   public_id: string
   case_no: string
   case_type: AfterSalesCaseType

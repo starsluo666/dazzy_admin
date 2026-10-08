@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RefundRequestDialog from '../components/RefundRequestDialog.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -27,7 +28,8 @@ import type {
 } from '../types'
 
 const workRoute = useWorkRoute()
-const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; canAdjustCredit?: boolean; initialSearch?: string }>()
+const props = defineProps<{ preview: boolean; canAddNote: boolean; canManageReview: boolean; canReviewFulfillment: boolean; canAdjustCredit?: boolean; initialSearch?: string; canCreateRefund?: boolean }>()
+const refundVisible = ref(false)
 const emit = defineEmits<{ openAfterSales: [orderNo: string] }>()
 
 const rows = ref<AdminProviderOrder[]>([])
@@ -310,6 +312,14 @@ function resetFilters() {
   search.value = ''
   page.value = 1
   load()
+}
+
+async function refreshAfterRefund() {
+  await load()
+  if (drawerVisible.value && selected.value && !props.preview) {
+    try { selected.value = await adminApi.providerOrder(selected.value.order_no) }
+    catch { ElMessage.warning('申请已登记，详情刷新失败，请重新打开订单核对') }
+  }
 }
 
 async function openDetail(row: AdminProviderOrder) {
@@ -738,8 +748,8 @@ onMounted(load)
           <p v-if="selected.note" class="customer-note">用户备注：{{ selected.note }}</p>
         </section>
 
-        <section v-if="selected.after_sales_cases.length" class="detail-section after-sales-section">
-          <div class="section-heading"><h3><el-icon><Warning /></el-icon> 关联售后</h3><el-button link type="primary" @click="emit('openAfterSales', selected!.order_no)">去处理售后</el-button></div>
+        <section v-if="canCreateRefund || selected.after_sales_cases.length" class="detail-section after-sales-section">
+          <div class="section-heading"><h3><el-icon><Warning /></el-icon> 关联售后</h3><div><el-button v-if="canCreateRefund" type="primary" plain @click="refundVisible = true">登记退款</el-button><el-button link type="primary" @click="emit('openAfterSales', selected!.order_no)">去处理售后</el-button></div></div>
           <div class="after-sales-list">
             <article v-for="item in selected.after_sales_cases" :key="item.case_no">
               <div><strong>{{ item.case_no }}</strong><span>{{ item.case_type_label }} · {{ formatDateTime(item.created_at) }}</span></div>
@@ -788,6 +798,7 @@ onMounted(load)
       </div>
     </el-drawer>
   </div>
+  <RefundRequestDialog v-model="refundVisible" kind="provider" :reference="selected?.order_no || ''" :preview="preview" @created="refreshAfterRefund" />
 </template>
 
 <style scoped>

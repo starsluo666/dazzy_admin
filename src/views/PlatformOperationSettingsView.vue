@@ -46,6 +46,8 @@ interface RuleDefinition {
 }
 
 const defaults: Record<FieldKey, number> = {
+  support_refund_single_limit: 0,
+  support_refund_daily_limit: 0,
   provider_order_payment_timeout_minutes: 15,
   provider_order_confirmation_timeout_days: 3,
   provider_order_early_tolerance_minutes: 30,
@@ -67,6 +69,10 @@ const defaults: Record<FieldKey, number> = {
 }
 
 const rules: RuleDefinition[] = [
+  { key: 'support_refund_single_limit', group: 'settlement', label: '客服单订单退款上限', unit: '元', min: 0, max: 100000, step: 10,
+    help: '按同一订单累计退款计算，不能拆单绕过；0 表示仅主管可审批', impact: '两类订单人工退款', scope: '提交审批时生效', risk: '仍须授予退款审批权限；主管不能绕过分账及结算拦截。' },
+  { key: 'support_refund_daily_limit', group: 'settlement', label: '客服每日退款审批上限', unit: '元', min: 0, max: 1000000, step: 100,
+    help: '每名审批人两类订单合计，按北京时间自然日计算；失败及处理中退款仍占额度', impact: '两类订单人工退款', scope: '提交审批时生效', risk: '0 表示仅主管可审批；超额仅转主管，不执行退款。' },
   {
     key: 'provider_order_departure_grace_minutes', group: 'provider', label: '接单后未出发宽限',
     unit: '分钟', min: 0, max: 180, step: 5,
@@ -314,13 +320,13 @@ function updateRule(key: FieldKey, value: number) {
 
 function toFormValue(key: FieldKey, value: number) {
   if (key === 'activity_service_fee_rate') return value * 100
-  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount') return value / 100
+  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount' || key.startsWith('support_refund_')) return value / 100
   return value
 }
 
 function toApiValue(key: FieldKey, value: number) {
   if (key === 'activity_service_fee_rate') return value / 100
-  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount') return Math.round(value * 100)
+  if (key === 'activity_min_aa_principal_amount' || key === 'activity_max_aa_principal_amount' || key.startsWith('support_refund_')) return Math.round(value * 100)
   return value
 }
 
@@ -738,6 +744,10 @@ onMounted(() => {
           </div>
 
           <section class="business-rules">
+            <h3>客服退款审批额度</h3>
+            <p>登记申请不会退款。必须另行授予退款审批权限；默认额度为 0，全部转主管。单订单累计额度防止拆单，日额度按审批人合并计算达人与活动报名退款（北京时间自然日），失败及处理中金额仍占用。主管也不能直接退已结算或已分账资金。</p>
+            <div class="business-rule-row"><span>单订单累计上限</span><el-input-number v-model="form.support_refund_single_limit" :min="0" :max="100000" :precision="2" aria-label="客服单订单退款上限" /><em>元</em></div>
+            <div class="business-rule-row"><span>每人每日上限</span><el-input-number v-model="form.support_refund_daily_limit" :min="0" :max="1000000" :precision="2" aria-label="客服每日退款审批上限" /><em>元</em></div>
             <h3>达人营业额阶梯加成</h3>
             <p>叠加在服务分类已有的达人分成比例上；按已确认完成订单的净服务费累计，正常资金冻结期也计入，争议中或取消的结算不计入。按自然月、季度或年度重置，永久累计不重置；新订单按当时档位固定比例，历史订单不追溯。加成最高抵扣该分类的平台抽成。</p>
             <div class="business-rule-row">

@@ -396,6 +396,13 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  refundPolicy: () => request<import('../utils/refunds').RefundPolicy>('/admin/refund-policy/'),
+  refundContext: (kind: 'provider' | 'activity', reference: string) => request<import('../utils/refunds').RefundContext>(
+    `/admin/refund-context/${kind}/${encodeURIComponent(reference)}/`),
+  createActivityRefundCase: (reference: string, principal: number, fee: number, reason: string) => request<{ case_no: string }>(
+    `/admin/activity-payments/${encodeURIComponent(reference)}/after-sales/`, {
+      method: 'POST', body: JSON.stringify({ requested_principal_amount: principal, requested_service_fee_amount: fee, reason }),
+    }),
   organizations: () => request<{ items: AdminOrganization[] }>('/admin/organizations/'),
   permissionCatalog: () => request<{
     groups: AdminPermissionGroup[]
@@ -557,7 +564,7 @@ export const adminApi = {
   ),
   reviewActivityAfterSales: (
     caseNo: string,
-    action: 'start_review' | 'approve' | 'reject',
+    action: 'start_review' | 'approve' | 'reject' | 'escalate',
     resultNote = '',
     approvedPrincipalAmount?: number,
     approvedServiceFeeAmount?: number,
@@ -819,7 +826,7 @@ export const adminApi = {
   }),
   reviewAfterSalesCase: (
     caseNo: string,
-    action: 'start_review' | 'approve' | 'reject' | 'retry_refund',
+    action: 'start_review' | 'approve' | 'reject' | 'retry_refund' | 'escalate',
     resultNote = '',
     approvedAmount?: number,
   ) => request<AdminAfterSalesCase>(

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RefundPolicyNotice from '../../components/RefundPolicyNotice.vue'
+import RefundRequestDialog from '../../components/RefundRequestDialog.vue'
 import { useWorkRoute } from '../../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -17,7 +19,9 @@ import type {
 } from '../../types'
 
 const workRoute = useWorkRoute()
-const props = defineProps<{ preview: boolean; canManageAfterSales: boolean; canManageSettlement: boolean }>()
+const props = defineProps<{ preview: boolean; canManageAfterSales: boolean; canManageSettlement: boolean; canCreateRefund?: boolean; canApproveRefund?: boolean; canSuperviseRefund?: boolean; canRetryRefund?: boolean }>()
+const refundVisible = ref(false), refundReference = ref('')
+function requestRefund(reference: string) { refundReference.value = reference; refundVisible.value = true }
 type RecordType = 'payment' | 'refund' | 'after_sales' | 'settlement'
 
 const recordType = ref<RecordType>(workRoute.recordType === 'refund' ? 'refund' : workRoute.recordType === 'after_sales' ? 'after_sales' : 'payment')
@@ -248,7 +252,7 @@ function openCase(item: AdminActivityAfterSales) {
 }
 
 function openApproval() {
-  if (!selectedCase.value || !props.canManageAfterSales) return
+  if (!selectedCase.value || !props.canManageAfterSales || !props.canApproveRefund) return
   approvalPrincipalYuan.value = selectedCase.value.requested_principal_amount / 100
   approvalServiceFeeYuan.value = selectedCase.value.requested_service_fee_amount / 100
   approvalNote.value = ''
@@ -261,7 +265,7 @@ function openSettlement(item: AdminActivitySettlement) {
 }
 
 async function retryActivityRefund(item: ActivityParticipationRefundSummary) {
-  if (!props.canManageAfterSales || retryingRefund.value) return
+  if (!props.canManageAfterSales || !props.canRetryRefund || retryingRefund.value) return
   try {
     await ElMessageBox.confirm(
       `确认重新执行退款单 ${item.refund_no}（${money(item.refund_amount)}）？${item.failure_reason ? ` 上次失败原因：${item.failure_reason}` : ''}`,
@@ -282,7 +286,7 @@ async function retryActivityRefund(item: ActivityParticipationRefundSummary) {
     if (selectedCase.value?.refund_order?.refund_no === item.refund_no) {
       selectedCase.value = { ...selectedCase.value, refund_order: refund }
     }
-    ElMessage.success('活动退款已重试成功')
+    ElMessage.success('已提交原退款单重试，请以退款结果为准')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '活动退款重试失败')
@@ -340,7 +344,7 @@ async function handleCase(action: 'start_review' | 'reject') {
 
 async function submitApproval() {
   const current = selectedCase.value
-  if (!current || !props.canManageAfterSales || handling.value) return
+  if (!current || !props.canManageAfterSales || !props.canApproveRefund || handling.value) return
   if (approvalPrincipalCents.value < 0 || approvalServiceFeeCents.value < 0) {
     ElMessage.warning('核准退款金额不能小于 0 元')
     return
@@ -365,6 +369,7 @@ async function submitApproval() {
 
   handling.value = true
   try {
+    await ElMessageBox.confirm(`确认核准 ${money(approvalTotalCents.value)} 退款并取消该用户报名？超过额度仅转主管，暂不退款。`, '确认活动退款审批', { type: 'warning', confirmButtonText: '确认审批', cancelButtonText: '返回核对' })
     if (props.preview) {
       const item = demoCases.value.find((entry) => entry.case_no === current.case_no)
       if (item) {
@@ -388,10 +393,11 @@ async function submitApproval() {
       )
     }
     approvalDialogVisible.value = false
-    ElMessage.success(`退款审批已提交，核准金额 ${money(approvalTotalCents.value)}`)
+    if (selectedCase.value?.requires_supervisor && ['pending','processing'].includes(selectedCase.value.status)) ElMessage.warning(selectedCase.value.escalation_reason || '已转主管审核，尚未退款')
+    else ElMessage.success(`退款已登记 ${money(approvalTotalCents.value)}，等待执行结果`)
     await load()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '退款审批失败')
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '退款审批失败')
   } finally {
     handling.value = false
   }
@@ -436,6 +442,18 @@ async function handleSettlement(action: 'freeze_dispute' | 'release_dispute' | '
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '结算操作失败')
   } finally { handling.value = false }
+}
+
+async function escalateCase() {
+  if (!selectedCase.value || handling.value || props.preview) return
+  handling.value = true
+  try {
+    const { value } = await ElMessageBox.prompt('转交后仅主管可以批准或驳回，本操作不会退款。', '转主管审核', { inputValidator: value => value.trim().length >= 5 || '请填写至少 5 个字的说明' })
+    selectedCase.value = await adminApi.reviewActivityAfterSales(selectedCase.value.case_no, 'escalate', value.trim())
+    ElMessage.success('已转主管审核')
+    await load()
+  } catch (cause) { if (cause !== 'cancel' && cause !== 'close') ElMessage.error(cause instanceof Error ? cause.message : '转交失败') }
+  finally { handling.value = false }
 }
 
 function paymentTag(status: string) {
@@ -493,6 +511,7 @@ onMounted(load)
         <el-table-column label="付款人" min-width="130"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.payer_name }}</strong><small>{{ row.payer_phone_masked }}</small></div></template></el-table-column>
         <el-table-column label="金额构成" min-width="150"><template #default="{ row }"><div class="primary-cell"><strong class="money">{{ money(row.payable_amount) }}</strong><small>AA {{ money(row.aa_principal_amount) }} + 服务费 {{ money(row.platform_service_fee_amount) }}</small></div></template></el-table-column>
         <el-table-column label="渠道" width="125" prop="channel_label" />
+        <el-table-column v-if="canCreateRefund" label="操作" width="100" fixed="right"><template #default="{ row }"><el-button v-if="['paid','partially_refunded'].includes(row.status)" link type="primary" @click="requestRefund(row.order_no)">登记退款</el-button></template></el-table-column>
         <el-table-column label="状态" width="105"><template #default="{ row }"><el-tag :type="paymentTag(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
         <el-table-column label="支付 / 失效时间" min-width="145"><template #default="{ row }"><div class="primary-cell"><strong>{{ formatDate(row.paid_at) }}</strong><small v-if="!row.paid_at">锁位至 {{ formatDate(row.expires_at) }}</small><small v-else>{{ row.gateway_trade_no }}</small></div></template></el-table-column>
       </el-table>
@@ -505,7 +524,7 @@ onMounted(load)
         <el-table-column label="扣留 / 归属" min-width="150"><template #default="{ row }"><div class="primary-cell"><strong>{{ money(row.retained_principal_amount + row.retained_service_fee_amount) }}</strong><small>{{ row.retained_principal_destination_label || '无扣除' }}</small></div></template></el-table-column>
         <el-table-column label="状态" min-width="150"><template #default="{ row }"><div class="primary-cell"><el-tag :type="caseTag(row.status)" effect="light">{{ row.status_label }}</el-tag><small v-if="row.failure_reason" class="failure-copy">{{ row.failure_reason }}</small></div></template></el-table-column>
         <el-table-column label="完成时间" min-width="135"><template #default="{ row }">{{ formatDate(row.refunded_at) }}</template></el-table-column>
-        <el-table-column v-if="canManageAfterSales" label="操作" width="86" fixed="right"><template #default="{ row }"><el-button v-if="row.status === 'failed'" link type="primary" :loading="retryingRefund === row.refund_no" @click="retryActivityRefund(row)">重试</el-button><span v-else>—</span></template></el-table-column>
+        <el-table-column v-if="canManageAfterSales && canRetryRefund" label="操作" width="86" fixed="right"><template #default="{ row }"><el-button v-if="row.status === 'failed'" link type="primary" :loading="retryingRefund === row.refund_no" @click="retryActivityRefund(row)">重试</el-button><span v-else>—</span></template></el-table-column>
       </el-table>
 
       <el-table v-else-if="recordType === 'after_sales'" v-loading="loading" :data="rows" height="calc(100vh - 424px)" empty-text="暂无退款售后记录">
@@ -534,6 +553,8 @@ onMounted(load)
     <el-drawer v-model="drawerVisible" size="560px" destroy-on-close>
       <template #header><div class="drawer-heading"><span>活动退款 / 售后</span><el-tag v-if="selectedCase" :type="caseTag(selectedCase.status)">{{ selectedCase.status_label }}</el-tag></div></template>
       <div v-if="selectedCase" class="case-detail">
+        <el-alert v-if="selectedCase.requires_supervisor && ['pending','processing'].includes(selectedCase.status)" :title="`待主管审核：${selectedCase.escalation_reason || ''}`" type="warning" :closable="false" />
+        <p v-if="selectedCase.created_by_operator_name">客服登记：{{ selectedCase.created_by_operator_name }}</p>
         <section class="case-hero"><small>{{ selectedCase.case_no }}</small><h2>{{ selectedCase.activity_title }}</h2><p>{{ selectedCase.applicant_name }} · {{ selectedCase.applicant_phone_masked }} · {{ selectedCase.city_name }}</p></section>
         <section class="case-card"><header><h3>用户诉求</h3><el-tag effect="plain">{{ selectedCase.reason_label }}</el-tag></header><p>{{ selectedCase.description }}</p><div class="evidence-note">已提交 {{ selectedCase.evidence_count }} 份证明材料，材料查看需走受控访问链路</div></section>
         <section class="amount-grid"><article><span>申请退 AA 本金</span><strong>{{ money(selectedCase.requested_principal_amount) }}</strong></article><article><span>申请退平台服务费</span><strong>{{ money(selectedCase.requested_service_fee_amount) }}</strong></article><article class="total"><span>申请退款合计</span><strong>{{ money(selectedCase.requested_amount) }}</strong></article></section>
@@ -543,18 +564,20 @@ onMounted(load)
       <template #footer>
         <div v-if="selectedCase && canManageAfterSales && ['pending','processing'].includes(selectedCase.status)" class="case-actions">
           <el-button v-if="selectedCase.status === 'pending'" :loading="handling" @click="handleCase('start_review')">领取处理</el-button>
-          <el-button :disabled="handling" @click="handleCase('reject')">驳回申请</el-button>
-          <el-button type="primary" :loading="handling" @click="openApproval">核准退款</el-button>
+          <el-button v-if="!selectedCase.requires_supervisor || canSuperviseRefund" :disabled="handling" @click="handleCase('reject')">驳回申请</el-button>
+          <el-button v-if="!selectedCase.requires_supervisor" :disabled="handling" @click="escalateCase">转主管审核</el-button>
+          <el-button v-if="canApproveRefund && (!selectedCase.requires_supervisor || canSuperviseRefund)" type="primary" :loading="handling" @click="openApproval">核准退款</el-button>
         </div>
-        <div v-else-if="selectedCase?.refund_order?.status === 'failed' && canManageAfterSales" class="case-actions"><el-button @click="drawerVisible = false">关闭</el-button><el-button type="primary" :loading="retryingRefund === selectedCase.refund_order.refund_no" @click="retryActivityRefund(selectedCase.refund_order)">重试退款</el-button></div>
+        <div v-else-if="selectedCase?.refund_order?.status === 'failed' && canManageAfterSales && canRetryRefund" class="case-actions"><el-button @click="drawerVisible = false">关闭</el-button><el-button type="primary" :loading="retryingRefund === selectedCase.refund_order.refund_no" @click="retryActivityRefund(selectedCase.refund_order)">重试退款</el-button></div>
         <el-button v-else @click="drawerVisible = false">关闭</el-button>
       </template>
     </el-drawer>
 
     <el-dialog v-model="approvalDialogVisible" title="核准活动退款" width="520px" append-to-body destroy-on-close>
+      <RefundPolicyNotice :preview="preview" kind="activity" :reference="selectedCase?.payment_order_no" />
       <div v-if="selectedCase" class="approval-form">
         <el-alert
-          title="可按实际责任分别核准 AA 本金和平台服务费，退款将原路退回。"
+          title="核准后原路退款并取消该用户报名（部分退款也会取消）。超额只转主管审核，不执行退款。"
           type="info"
           :closable="false"
           show-icon
@@ -605,7 +628,7 @@ onMounted(load)
       </div>
       <template #footer>
         <el-button :disabled="handling" @click="approvalDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="handling" @click="submitApproval">确认并原路退款</el-button>
+        <el-button type="primary" :loading="handling" @click="submitApproval">提交退款审批</el-button>
       </template>
     </el-dialog>
 
@@ -628,6 +651,7 @@ onMounted(load)
       </template>
     </el-drawer>
   </div>
+  <RefundRequestDialog v-model="refundVisible" kind="activity" :reference="refundReference" :preview="preview" @created="load" />
 </template>
 
 <style scoped>

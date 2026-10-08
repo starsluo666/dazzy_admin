@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RefundRequestDialog from '../components/RefundRequestDialog.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -22,10 +23,13 @@ const props = defineProps<{
   preview: boolean
   canReview: boolean
   canManage: boolean
+  canCreateRefund?: boolean
   initialStatus?: 'pending_review' | ''
 }>()
 
 const rows = ref<AdminActivity[]>([])
+const refundVisible = ref(false), refundReference = ref('')
+function requestRefund(reference: string) { refundReference.value = reference; refundVisible.value = true }
 const summary = ref<AdminActivitySummary>({ total: 0, pending_review: 0, active: 0, ended: 0 })
 const search = ref(workRoute.initialSearch)
 const statusFilter = ref<ActivityStatus | ''>(props.initialStatus || '')
@@ -426,7 +430,7 @@ onMounted(load)
         <section class="detail-card"><header><h3>集合地点</h3></header><p class="location-name">{{ selected.meeting_place_name }}</p><p class="muted">{{ selected.meeting_address }}</p><p class="coordinate">管理坐标：{{ selected.source_longitude }}, {{ selected.source_latitude }}</p></section>
         <section class="detail-card content-card"><header><h3>活动内容</h3></header><h4>活动介绍</h4><p>{{ selected.description }}</p><h4>参与规则</h4><p>{{ selected.participation_rules }}</p><h4>退款规则快照</h4><ul class="refund-rule-list"><li v-for="line in refundRuleLines(selected.refund_rule_snapshot)" :key="line">{{ line }}</li></ul></section>
 
-        <section v-if="selected.participants.length" class="detail-card"><header><h3>报名用户（{{ selected.participants.length }}）</h3></header><div class="participant-list"><div v-for="participant in selected.participants" :key="participant.public_id"><el-avatar :size="32">{{ participant.nickname.slice(0, 1) }}</el-avatar><span><strong>{{ participant.nickname }}</strong><small>{{ participant.phone_masked }} · {{ formatDate(participant.joined_at) }}</small></span><el-tag type="success" size="small" effect="plain">{{ participant.status_label }}</el-tag></div></div></section>
+        <section v-if="selected.participants.length" class="detail-card"><header><h3>报名用户（{{ selected.participants.length }}）</h3></header><div class="participant-list"><div v-for="participant in selected.participants" :key="participant.public_id"><el-avatar :size="32">{{ participant.nickname.slice(0, 1) }}</el-avatar><span><strong>{{ participant.nickname }}</strong><small>{{ participant.phone_masked }} · {{ formatDate(participant.joined_at) }}</small></span><el-tag type="success" size="small" effect="plain">{{ participant.status_label }}</el-tag><template v-if="canCreateRefund"><el-button v-for="payment in (participant.payment_orders || []).filter(p => ['paid','partially_refunded'].includes(p.status))" :key="payment.order_no" link type="primary" @click="requestRefund(payment.order_no)">登记退款</el-button></template></div></div></section>
 
         <section v-if="selected.reviewed_at" class="detail-card review-result"><header><h3>审核记录</h3></header><p><strong>{{ selected.reviewed_by_name }}</strong> 于 {{ formatDate(selected.reviewed_at) }} 完成审核</p><p v-if="selected.rejection_reason" class="reject-reason">驳回原因：{{ selected.rejection_reason }}</p></section>
         <section v-if="selected.cancelled_at" class="detail-card review-result"><header><h3>取消记录</h3></header><p><strong>{{ selected.cancelled_by_name }}</strong> 于 {{ formatDate(selected.cancelled_at) }} 取消活动</p><p class="reject-reason">取消原因：{{ selected.cancellation_reason }}</p></section>
@@ -439,6 +443,7 @@ onMounted(load)
       </template>
     </el-drawer>
   </div>
+  <RefundRequestDialog v-model="refundVisible" kind="activity" :reference="refundReference" :preview="preview" @created="load" />
 </template>
 
 <style scoped>

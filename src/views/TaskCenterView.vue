@@ -23,7 +23,10 @@ import type {
   ScheduledTaskType,
 } from '../types'
 
-const props = defineProps<{ preview: boolean; canRetry: boolean }>()
+const props = defineProps<{ preview: boolean; canRetry: boolean; canRetryRefund?: boolean }>()
+function mayRetry(task: AdminScheduledTask) {
+  return props.canRetry && (!['provider_order_refund', 'activity_participation_refund'].includes(task.task_type) || props.canRetryRefund)
+}
 const workRoute = useWorkRoute()
 const emit = defineEmits<{ openOrder: [orderNo: string]; openAudit: [] }>()
 
@@ -243,7 +246,7 @@ async function openDetail(row: AdminScheduledTask) {
 }
 
 async function retryTask(task: AdminScheduledTask) {
-  if (!props.canRetry || retryingId.value) return
+  if (!mayRetry(task) || retryingId.value) return
   try {
     await ElMessageBox.confirm(
       `确认重新执行“${task.task_type_label}”吗？重试仍会校验关联业务当前状态，不会强制覆盖业务状态。`,
@@ -368,7 +371,7 @@ onMounted(load)
           <template #default="scope">
             <el-button link type="primary" @click.stop="openDetail(scope.row)">详情</el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && canRetry"
+              v-if="scope.row.status === 'failed' && mayRetry(scope.row)"
               link
               type="danger"
               :icon="RefreshRight"
@@ -439,7 +442,7 @@ onMounted(load)
             @click="emit('openOrder', selected.business_key)"
           >查看关联订单</el-button>
           <el-button
-            v-if="selected.status === 'failed' && canRetry"
+            v-if="selected.status === 'failed' && mayRetry(selected)"
             type="danger"
             :icon="RefreshRight"
             :loading="retryingId === selected.public_id"

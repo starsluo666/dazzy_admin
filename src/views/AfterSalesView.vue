@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RefundPolicyNotice from '../components/RefundPolicyNotice.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -27,7 +28,7 @@ import type {
 } from '../types'
 
 const workRoute = useWorkRoute()
-const props = defineProps<{ preview: boolean; canReview: boolean }>()
+const props = defineProps<{ preview: boolean; canReview: boolean; canCreate?: boolean; canApprove?: boolean; canSupervise?: boolean }>()
 
 const rows = ref<AdminAfterSalesCase[]>([])
 const selected = ref<AdminAfterSalesCase | null>(null)
@@ -287,12 +288,17 @@ function openAction(mode: 'approve' | 'reject') {
 }
 
 async function submitAction() {
-  if (!selected.value) return
+  if (!selected.value || saving.value) return
+  if (actionMode.value === 'approve' && !props.canApprove) return
   if (actionForm.value.resultNote.trim().length < 5) return ElMessage.warning('审核结论至少填写 5 个字')
   if (actionMode.value === 'approve' && actionForm.value.approvedAmountYuan <= 0) {
     return ElMessage.warning('退款申请的核准金额必须大于 0')
   }
   saving.value = true
+  if (actionMode.value === 'approve') {
+    try { await ElMessageBox.confirm(`确认核准退款 ${formatMoney(Math.round(actionForm.value.approvedAmountYuan * 100))}？额度不足时仅转主管，不发起退款。`, '确认退款审批', { type: 'warning', confirmButtonText: '确认审批', cancelButtonText: '返回核对' }) }
+    catch { saving.value = false; return }
+  }
   try {
     const approvedAmount = Math.round(actionForm.value.approvedAmountYuan * 100)
     selected.value = props.preview
@@ -312,7 +318,8 @@ async function submitAction() {
         actionMode.value === 'approve' ? approvedAmount : undefined,
       )
     actionVisible.value = false
-    ElMessage.success(actionMode.value === 'approve' ? '审核通过，退款已发起' : '售后申请已驳回')
+    if (actionMode.value === 'approve' && selected.value.requires_supervisor && ['pending','processing'].includes(selected.value.status)) ElMessage.warning(selected.value.escalation_reason || '已转主管审核，尚未发起退款')
+    else ElMessage.success(actionMode.value === 'approve' ? '审核通过，退款已登记，等待执行结果' : '售后申请已驳回')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '审核提交失败')
@@ -321,6 +328,16 @@ async function submitAction() {
   }
 }
 
+async function escalateCase() {
+  if (!selected.value || saving.value || props.preview) return
+  saving.value = true
+  try {
+    const { value } = await ElMessageBox.prompt('转交后仅主管可以批准或驳回，本操作不会退款。', '转主管审核', { inputValidator: value => value.trim().length >= 5 || '请填写至少 5 个字的说明' })
+    selected.value = await adminApi.reviewAfterSalesCase(selected.value.case_no, 'escalate', value.trim())
+    ElMessage.success('已转主管审核'); await load()
+  } catch (cause) { if (cause !== 'cancel' && cause !== 'close') ElMessage.error(cause instanceof Error ? cause.message : '转交失败') }
+  finally { saving.value = false }
+}
 onMounted(load)
 </script>
 
@@ -333,7 +350,7 @@ onMounted(load)
       </div>
       <div class="heading-actions">
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button>
-        <el-button v-if="canReview" type="primary" :icon="Plus" @click="openCreate">登记售后</el-button>
+        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="openCreate">登记售后</el-button>
       </div>
     </header>
 
@@ -342,7 +359,7 @@ onMounted(load)
       type="warning"
       :closable="false"
       show-icon
-      title="当前阶段仅完成售后审核闭环"
+      title="审核通过不等于退款成功"
       description="退款审核、退款单和订单状态分别留痕；只有渠道退款成功后，订单才会更新为已退款。"
     />
 
@@ -478,8 +495,9 @@ onMounted(load)
 
         <footer v-if="canReview && ['pending', 'processing'].includes(selected.status)" class="case-actions">
           <el-button v-if="selected.status === 'pending'" :icon="EditPen" :loading="saving" @click="startReview">开始处理</el-button>
-          <div><el-button type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button type="primary" @click="openAction('approve')">审核通过</el-button></div>
+          <div><el-button v-if="!selected.requires_supervisor || canSupervise" type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button v-if="canApprove && (!selected.requires_supervisor || canSupervise)" type="primary" @click="openAction('approve')">核准退款</el-button><el-button v-if="!selected.requires_supervisor" @click="escalateCase">转主管审核</el-button></div>
         </footer>
+        <el-alert v-if="selected.requires_supervisor && ['pending','processing'].includes(selected.status)" :title="`已转主管审核：${selected.escalation_reason || ''}`" type="warning" :closable="false" />
       </div>
     </el-drawer>
 
@@ -497,7 +515,8 @@ onMounted(load)
     </el-dialog>
 
     <el-dialog v-model="actionVisible" :title="actionMode === 'approve' ? '审核通过' : '驳回申请'" width="500px" destroy-on-close>
-      <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="通过后将创建退款单并立即发起原路退款" />
+      <RefundPolicyNotice v-if="actionMode === 'approve'" :preview="preview" kind="provider" :reference="selected?.order_no" />
+      <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="授权及额度校验通过后生成退款单；超过额度只转主管审核，不发起退款。退款成功以服务端核验为准。" />
       <el-form label-position="top">
         <el-form-item v-if="actionMode === 'approve'" label="核准退款金额（元）" required><el-input-number v-model="actionForm.approvedAmountYuan" :min="0" :max="(selected?.requested_amount || 0) / 100" :precision="2" :step="10" controls-position="right" /></el-form-item>
         <el-form-item label="审核结论" required><el-input v-model="actionForm.resultNote" type="textarea" :rows="4" maxlength="1000" show-word-limit placeholder="说明核查依据、处理结论及后续动作" /></el-form-item>

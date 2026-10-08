@@ -85,6 +85,11 @@ const canManageProvider = hasPermission('provider.manage')
 const canAdjustProviderCredit = hasPermission('provider.credit.adjust')
 const canReviewProvider = hasPermission('provider.review')
 const canReviewAfterSales = hasPermission('order.after_sales.review')
+const canCreateProviderRefund = computed(() => hasPermission('order.after_sales.create').value && hasPermission('order.after_sales.view').value)
+const canCreateActivityRefund = computed(() => hasPermission('activity_after_sales.create').value && hasPermission('activity_finance.view').value)
+const canApproveRefund = computed(() => hasPermission('refund.approve').value || hasPermission('refund.supervise').value)
+const canSuperviseRefund = hasPermission('refund.supervise')
+const canRetryRefund = hasPermission('refund.retry')
 const canManageOrderFinance = hasPermission('order.finance.manage')
 const canManageOrderReview = hasPermission('order.review.manage')
 const canReviewFulfillment = hasPermission('order.fulfillment.review')
@@ -282,6 +287,7 @@ onMounted(loadSession)
       :preview="preview"
       :can-review="canReviewActivity"
       :can-manage="canManageActivity"
+      :can-create-refund="canCreateActivityRefund"
       :initial-status="route.query.activity_status === 'pending_review' ? 'pending_review' : ''"
     />
     <ActivityCategoriesView
@@ -296,23 +302,31 @@ onMounted(loadSession)
       :preview="preview"
       :can-manage="canManageActivityReport"
     />
-    <FulfillmentOrdersView :key="route.fullPath" v-else-if="currentPage === 'orders'" :preview="preview" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="navigate('after_sales')" />
+    <FulfillmentOrdersView :key="route.fullPath" v-else-if="currentPage === 'orders'" :preview="preview" :can-create-refund="canCreateProviderRefund" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="(orderNo) => navigate('after_sales', { search: orderNo })" />
     <AfterSalesView :key="route.fullPath"
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
       :can-review="canReviewAfterSales"
+      :can-create="canCreateProviderRefund"
+      :can-approve="canApproveRefund"
+      :can-supervise="canSuperviseRefund"
     />
     <FinanceWorkView :key="route.fullPath" v-else-if="currentPage === 'finance_alerts'" :preview="preview" />
     <ProviderOrderFinanceView :key="route.fullPath"
       v-else-if="currentPage === 'settlements'"
       :preview="preview"
       :can-manage="canManageOrderFinance"
+      :can-retry-refund="canRetryRefund"
     />
     <ActivityFinancePanel :key="route.fullPath"
       v-else-if="currentPage === 'activity_finance'"
       :preview="preview"
       :can-manage-after-sales="canManageActivityAfterSales"
       :can-manage-settlement="canManageActivitySettlement"
+      :can-create-refund="canCreateActivityRefund"
+      :can-approve-refund="canApproveRefund"
+      :can-supervise-refund="canSuperviseRefund"
+      :can-retry-refund="canRetryRefund"
     />
     <WalletFinanceView
       v-else-if="currentPage === 'wallets'"
@@ -357,6 +371,7 @@ onMounted(loadSession)
       v-else-if="currentPage === 'tasks'"
       :preview="preview"
       :can-retry="canRetryTask"
+      :can-retry-refund="canRetryRefund"
       @open-order="openOrderFromTask"
       @open-audit="navigate('audit_logs')"
     />

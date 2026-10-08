@@ -17,7 +17,7 @@ type RecordType = 'payment' | 'refund' | 'settlement' | 'exception'
 type FinanceRecord = ProviderOrderPaymentRecord | ProviderOrderRefundRecord | ProviderOrderSettlementRecord
 
 const workRoute = useWorkRoute()
-const props = defineProps<{ preview: boolean; canManage: boolean }>()
+const props = defineProps<{ preview: boolean; canManage: boolean; canRetryRefund?: boolean }>()
 const active = ref<RecordType>(workRoute.recordType === 'refund' ? 'refund' : 'payment')
 const rows = ref<FinanceRecord[]>([])
 const summary = ref<ProviderOrderFinanceSummary>({
@@ -142,7 +142,7 @@ function switchTab(key: RecordType) { active.value = key; statusFilter.value = '
 function resetFilters() { search.value = ''; cityCode.value = ''; statusFilter.value = ''; page.value = 1; load() }
 function openDetail(row: FinanceRecord) { selected.value = row; drawerVisible.value = true }
 async function retryRefund(row: ProviderOrderRefundRecord) {
-  if (!props.canManage || retrying.value) return
+  if (!props.canManage || !props.canRetryRefund || retrying.value) return
   try {
     await ElMessageBox.confirm(
       `确认重新执行退款单 ${row.refund_no}（${formatAmount(row.refund_amount)}）？${row.failure_reason ? ` 上次失败原因：${row.failure_reason}` : ''}`,
@@ -223,7 +223,7 @@ onMounted(load)
           <el-table-column label="退款金额" min-width="120"><template #default="{ row }"><strong class="refund-amount">-{{ formatAmount(row.refund_amount) }}</strong></template></el-table-column>
           <el-table-column label="状态" width="115"><template #default="{ row }"><el-tag :type="statusType(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
           <el-table-column label="申请时间" min-width="175"><template #default="{ row }">{{ formatDateTime(row.requested_at) }}</template></el-table-column>
-          <el-table-column v-if="active === 'exception'" label="操作" width="128" fixed="right"><template #default="{ row }"><el-button link type="primary" :loading="retrying === row.refund_no" :disabled="!canManage" @click.stop="retryRefund(row)">重试</el-button><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
+          <el-table-column v-if="active === 'exception'" label="操作" width="128" fixed="right"><template #default="{ row }"><el-button link type="primary" :loading="retrying === row.refund_no" :disabled="!canManage || !canRetryRefund" @click.stop="retryRefund(row)">重试</el-button><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
         </template>
         <template v-else>
           <el-table-column label="结算单 / 订单" min-width="210"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.settlement_no }}</strong><span>{{ row.order_no }}</span></div></template></el-table-column>
