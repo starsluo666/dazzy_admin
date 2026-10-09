@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RefundPolicyNotice from '../components/RefundPolicyNotice.vue'
+import TerminationReviewDialog from '../components/TerminationReviewDialog.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -45,6 +46,7 @@ const detailLoading = ref(false)
 const drawerVisible = ref(false)
 const createVisible = ref(false)
 const actionVisible = ref(false)
+const terminationVisible = ref(false)
 const saving = ref(false)
 const actionMode = ref<'approve' | 'reject'>('approve')
 const createForm = ref({
@@ -56,6 +58,7 @@ const createForm = ref({
 const actionForm = ref({ approvedAmountYuan: 0, resultNote: '' })
 
 const statusOptions: Array<{ value: AfterSalesCaseStatus; label: string }> = [
+  { value: 'resolved', label: '已处理·无需退款' },
   { value: 'pending', label: '待处理' },
   { value: 'processing', label: '处理中' },
   { value: 'approved', label: '已同意·待退款' },
@@ -63,6 +66,7 @@ const statusOptions: Array<{ value: AfterSalesCaseStatus; label: string }> = [
   { value: 'rejected', label: '已驳回' },
 ]
 const typeOptions: Array<{ value: AfterSalesCaseType; label: string }> = [
+  { value: 'early_termination', label: '提前终止服务' },
   { value: 'refund', label: '退款申请' },
   { value: 'service_dispute', label: '服务争议' },
   { value: 'provider_cancel', label: '达人取消' },
@@ -279,6 +283,7 @@ async function startReview() {
 
 function openAction(mode: 'approve' | 'reject') {
   if (!selected.value) return
+  if (mode === 'approve' && selected.value.termination) { terminationVisible.value = true; return }
   actionMode.value = mode
   actionForm.value = {
     approvedAmountYuan: mode === 'approve' ? selected.value.requested_amount / 100 : 0,
@@ -360,7 +365,7 @@ onMounted(load)
       :closable="false"
       show-icon
       title="审核通过不等于退款成功"
-      description="退款审核、退款单和订单状态分别留痕；只有渠道退款成功后，订单才会更新为已退款。"
+      description="退款审核、退款单和履约状态分别留痕；提前终止订单保持终止状态，退款是否到账以服务端核验结果为准。"
     />
 
     <section class="after-sales-summary" aria-label="退款售后概况">
@@ -447,7 +452,7 @@ onMounted(load)
         <section class="case-section case-overview">
           <div><span>售后类型</span><strong>{{ selected.case_type_label }}</strong></div>
           <div><span>处理状态</span><strong>{{ selected.status_label }}</strong></div>
-          <div><span>申请金额</span><strong class="amount">{{ formatAmount(selected.requested_amount) }}</strong></div>
+          <div><span>{{ selected.termination ? '申请时可退上限' : '申请金额' }}</span><strong class="amount">{{ formatAmount(selected.requested_amount) }}</strong></div>
           <div><span>核准金额</span><strong class="amount">{{ formatAmount(selected.approved_amount) }}</strong></div>
           <div><span>登记人员</span><strong>{{ selected.creator_name }}</strong></div>
           <div><span>登记时间</span><strong>{{ formatDateTime(selected.created_at) }}</strong></div>
@@ -482,6 +487,13 @@ onMounted(load)
           </div>
         </section>
 
+        <section v-if="selected.termination" class="case-section">
+          <h3>提前终止服务</h3>
+          <p class="reason-copy">申请方：{{ selected.termination.requested_by === 'provider' ? '达人' : '用户' }}<br>申报结束：{{ formatDateTime(selected.termination.reported_ended_at) }}</p>
+          <p v-if="selected.termination.decision" class="reason-copy">核定结束：{{ formatDateTime(selected.termination.decision.ended_at) }}<br>责任归属：{{ selected.termination.decision.responsibility_label }}<br>服务费退款 {{ formatMoney(selected.termination.decision.component_refunds.service) }} · 交通费退款 {{ formatMoney(selected.termination.decision.component_refunds.transport) }} · 其他退款 {{ formatMoney(selected.termination.decision.component_refunds.other) }}</p>
+          <el-alert :title="selected.termination.finance_label" :closable="false" type="info" />
+        </section>
+
         <section v-if="selected.result_note" class="case-section">
           <h3><el-icon><CircleCheck /></el-icon> 审核结论</h3>
           <p class="reason-copy">{{ selected.result_note }}</p>
@@ -495,7 +507,7 @@ onMounted(load)
 
         <footer v-if="canReview && ['pending', 'processing'].includes(selected.status)" class="case-actions">
           <el-button v-if="selected.status === 'pending'" :icon="EditPen" :loading="saving" @click="startReview">开始处理</el-button>
-          <div><el-button v-if="!selected.requires_supervisor || canSupervise" type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button v-if="canApprove && (!selected.requires_supervisor || canSupervise)" type="primary" @click="openAction('approve')">核准退款</el-button><el-button v-if="!selected.requires_supervisor" @click="escalateCase">转主管审核</el-button></div>
+          <div><el-button v-if="!selected.requires_supervisor || canSupervise" type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button v-if="canApprove && (!selected.requires_supervisor || canSupervise)" type="primary" @click="openAction('approve')">{{ selected.termination ? '核定终止与退款' : '核准退款' }}</el-button><el-button v-if="!selected.requires_supervisor" @click="escalateCase">转主管审核</el-button></div>
         </footer>
         <el-alert v-if="selected.requires_supervisor && ['pending','processing'].includes(selected.status)" :title="`已转主管审核：${selected.escalation_reason || ''}`" type="warning" :closable="false" />
       </div>
@@ -506,7 +518,7 @@ onMounted(load)
       <el-form label-position="top">
         <el-form-item label="关联订单号" required><el-input v-model="createForm.orderNo" placeholder="请输入完整达人订单号" /></el-form-item>
         <div class="form-grid">
-          <el-form-item label="售后类型" required><el-select v-model="createForm.caseType"><el-option v-for="item in typeOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+          <el-form-item label="售后类型" required><el-select v-model="createForm.caseType"><el-option v-for="item in typeOptions.filter(option => option.value !== 'early_termination')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
           <el-form-item label="申请退款金额（元）" :required="createForm.caseType === 'refund'"><el-input-number v-model="createForm.requestedAmountYuan" :min="0" :precision="2" :step="10" controls-position="right" /></el-form-item>
         </div>
         <el-form-item label="申请原因" required><el-input v-model="createForm.reason" type="textarea" :rows="4" maxlength="1000" show-word-limit placeholder="记录用户诉求、已核实事实和相关说明" /></el-form-item>
@@ -514,6 +526,7 @@ onMounted(load)
       <template #footer><el-button @click="createVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="createCase">确认登记</el-button></template>
     </el-dialog>
 
+    <TerminationReviewDialog v-if="terminationVisible && selected?.termination" :item="selected" :preview="preview" @close="terminationVisible = false" @saved="item => { selected = item; terminationVisible = false; load() }" />
     <el-dialog v-model="actionVisible" :title="actionMode === 'approve' ? '审核通过' : '驳回申请'" width="500px" destroy-on-close>
       <RefundPolicyNotice v-if="actionMode === 'approve'" :preview="preview" kind="provider" :reference="selected?.order_no" />
       <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="授权及额度校验通过后生成退款单；超过额度只转主管审核，不发起退款。退款成功以服务端核验为准。" />

@@ -1085,6 +1085,7 @@ export interface AdminProviderSummary {
 }
 
 export type ProviderOrderStatus =
+  | 'terminated'
   | 'pending_payment'
   | 'pending_acceptance'
   | 'pending_support'
@@ -1125,8 +1126,24 @@ export interface ProviderOrderSupportNote {
   created_at: string
 }
 
-export type AfterSalesCaseType = 'refund' | 'service_dispute' | 'provider_cancel' | 'other'
-export type AfterSalesCaseStatus = 'pending' | 'processing' | 'approved' | 'refunded' | 'rejected'
+export type AfterSalesCaseType = 'refund' | 'service_dispute' | 'provider_cancel' | 'other' | 'early_termination'
+export type AfterSalesCaseStatus = 'pending' | 'processing' | 'approved' | 'refunded' | 'rejected' | 'resolved'
+
+export interface TerminationSummary {
+  requested_by: 'customer' | 'provider'
+  reported_ended_at: string
+  service_started_at: string
+  scheduled_ends_at: string
+  refundable_components: { service: number; transport: number; other: number }
+  finance_state: string
+  finance_label: string
+  decision?: {
+    ended_at: string
+    responsibility: 'provider' | 'customer' | 'both' | 'neither'
+    responsibility_label: string
+    component_refunds: { service: number; transport: number; other: number }
+  }
+}
 
 export type ProviderPaymentStatus = 'pending_payment' | 'paid' | 'closed' | 'partially_refunded' | 'refunded'
 export type ProviderRefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed'
@@ -1294,6 +1311,7 @@ export interface ProviderOrderFinanceSummary {
 }
 
 export interface AdminAfterSalesCase {
+  termination?: TerminationSummary | null
   requires_supervisor?: boolean
   escalation_reason?: string
   public_id: string

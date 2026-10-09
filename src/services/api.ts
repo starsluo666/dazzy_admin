@@ -824,6 +824,12 @@ export const adminApi = {
       reason,
     }),
   }),
+  resolveTermination: (caseNo: string, data: {
+    ended_at: string; responsibility: 'provider' | 'customer' | 'both' | 'neither'
+    component_refunds: { service: number; transport: number; other: number }; result_note: string
+  }) => request<AdminAfterSalesCase>(`/admin/order-after-sales/${encodeURIComponent(caseNo)}/action/`, {
+    method: 'POST', body: JSON.stringify({ action: 'resolve_termination', ...data }),
+  }),
   reviewAfterSalesCase: (
     caseNo: string,
     action: 'start_review' | 'approve' | 'reject' | 'retry_refund' | 'escalate',

@@ -79,6 +79,7 @@ const statusLabels: Record<ProviderOrderStatus, string> = {
   pending_confirmation: '待确认',
   pending_review: '待评价',
   completed: '已完成',
+  terminated: '已提前终止',
   cancelled: '已取消',
   after_sales: '售后中',
   refunded: '已退款',
@@ -220,7 +221,7 @@ function filteredDemoRows() {
   let items = demoRows()
   if (stage.value === 'active') items = items.filter((item) => ['departed', 'in_service'].includes(item.status))
   if (stage.value === 'pending_confirmation') items = items.filter((item) => item.status === 'pending_confirmation')
-  if (stage.value === 'ended') items = items.filter((item) => ['pending_review', 'completed', 'cancelled', 'after_sales', 'refunded'].includes(item.status))
+  if (stage.value === 'ended') items = items.filter((item) => ['pending_review', 'completed', 'terminated', 'cancelled', 'after_sales', 'refunded'].includes(item.status))
   if (statusFilter.value) items = items.filter((item) => item.status === statusFilter.value)
   if (anomaly.value === 'any') items = items.filter((item) => item.anomalies.length)
   if (!['all', 'any'].includes(anomaly.value)) {
@@ -666,7 +667,7 @@ onMounted(load)
             <span>记录时间 {{ formatDateTime(issue.recorded_at) }} · 预约节点 {{ formatDateTime(issue.expected_at) }}</span>
           </div>
           <p v-if="selected.fulfillment_review_required">自动确认与分账已暂停；客服审核期间不消耗用户剩余确认时长。</p>
-          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment && !selected.timeout?.timed_out_at && !['cancelled', 'refunded'].includes(selected.status)" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
+          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment && !selected.timeout?.timed_out_at && !['cancelled', 'refunded', 'terminated'].includes(selected.status)" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
           <p v-else-if="selected.fulfillment_review_required">需具有“审核履约异常并恢复自动流程”权限的客服处理。</p>
           <article v-for="review in selected.fulfillment_reviews" :key="review.revision" class="fulfillment-review-record">
             <strong>{{ review.reviewer_name || '客服' }} · {{ formatDateTime(review.reviewed_at) }}</strong>
