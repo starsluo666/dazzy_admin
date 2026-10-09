@@ -102,6 +102,8 @@ export interface AdminWallet {
 }
 
 export interface AdminRechargeOrder {
+  discount_usage?: 'consumption' | 'recharge'
+  discount_rate_bps?: number
   order_no: string
   nickname: string
   phone: string

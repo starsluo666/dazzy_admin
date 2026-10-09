@@ -118,7 +118,7 @@ onMounted(loadRows)
 <template>
   <section class="wallet-finance">
     <header class="page-head">
-      <div><h1>余额与充值</h1><p>查看用户钱包、充值订单，并配置按购买张数生效的充值折扣</p></div>
+      <div><h1>余额与充值</h1><p>查看用户钱包、充值订单，并配置充值后享受的达人服务消费折扣</p></div>
       <el-tag type="info" effect="plain">每张固定面值 {{ money(100000) }}</el-tag>
     </header>
 
@@ -148,7 +148,7 @@ onMounted(loadRows)
           <el-table-column label="充值单 / 用户" min-width="230"><template #default="{ row }"><div class="primary-cell"><strong>{{ row.order_no }}</strong><span>{{ row.nickname || '未设置昵称' }} · {{ row.phone }}</span></div></template></el-table-column>
           <el-table-column label="购买" min-width="110"><template #default="{ row }">{{ row.quantity }} 张</template></el-table-column>
           <el-table-column label="面值到账" min-width="130"><template #default="{ row }"><strong>{{ money(row.credited_amount) }}</strong></template></el-table-column>
-          <el-table-column label="优惠 / 实付" min-width="160"><template #default="{ row }"><div class="primary-cell"><strong class="amount">{{ money(row.payable_amount) }}</strong><span>优惠 {{ money(row.discount_amount) }}</span></div></template></el-table-column>
+          <el-table-column label="实付 / 折扣权益" min-width="180"><template #default="{ row }"><div class="primary-cell"><strong class="amount">{{ money(row.payable_amount) }}</strong><span>{{ row.discount_usage === 'consumption' ? `消费 ${rateLabel(row.discount_rate_bps)}` : `历史充值优惠 ${money(row.discount_amount)}` }}</span></div></template></el-table-column>
           <el-table-column label="状态" min-width="110"><template #default="{ row }"><el-tag :type="row.status === 'paid' ? 'success' : row.status === 'closed' ? 'info' : 'warning'">{{ row.status_label }}</el-tag></template></el-table-column>
           <el-table-column label="创建时间" min-width="180"><template #default="{ row }">{{ formatTime(row.created_at) }}</template></el-table-column>
         </el-table>
@@ -161,18 +161,18 @@ onMounted(loadRows)
         <el-card shadow="never">
           <template #header><div class="card-title"><strong>基础规则</strong><el-switch v-model="form.is_enabled" active-text="开放充值" :disabled="!canManage" /></div></template>
           <el-form label-position="top">
-            <el-form-item label="单张面值"><el-input-number :model-value="1000" :disabled="true" :precision="2" /><p>当前业务规则固定为每张 1000 元，购买多张时按档位计算实付。</p></el-form-item>
+            <el-form-item label="单张面值"><el-input-number :model-value="1000" :disabled="true" :precision="2" /><p>每张 1000 元，实付与到账金额相同；档位折扣用于后续达人服务消费。</p></el-form-item>
             <el-form-item label="单次最多购买"><el-input-number v-model="form.max_quantity_per_order" :min="1" :max="99" :disabled="!canManage" /><span class="suffix">张</span></el-form-item>
             <el-form-item label="用户端说明"><el-input v-model="form.rules_text" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="!canManage" /></el-form-item>
           </el-form>
         </el-card>
         <el-card shadow="never">
-          <template #header><div class="card-title"><div><strong>张数折扣</strong><small>匹配不高于购买张数的最高档位</small></div><el-button v-if="canManage" text type="primary" @click="addTier">新增档位</el-button></div></template>
-          <div v-if="!form.tiers.length" class="empty-tiers">未配置时按原价充值</div>
+          <template #header><div class="card-title"><div><strong>消费折扣档位</strong><small>按本次充值张数匹配档位，随该批余额用完为止</small></div><el-button v-if="canManage" text type="primary" @click="addTier">新增档位</el-button></div></template>
+          <div v-if="!form.tiers.length" class="empty-tiers">未配置时不附带消费折扣，充值实付与到账金额仍相同</div>
           <div v-for="(tier, index) in form.tiers" :key="index" class="tier-row">
-            <span>购买满</span><el-input-number v-model="tier.min_quantity" :min="1" :max="form.max_quantity_per_order" :disabled="!canManage" /><span>张，按</span><el-input-number v-model="tier.discount_rate_bps" :min="1" :max="10000" :step="100" :disabled="!canManage" /><strong>{{ rateLabel(tier.discount_rate_bps) }}</strong><el-button v-if="canManage" text type="danger" @click="removeTier(index)">删除</el-button>
+            <span>购买满</span><el-input-number v-model="tier.min_quantity" :min="1" :max="form.max_quantity_per_order" :disabled="!canManage" /><span>张，消费享</span><el-input-number v-model="tier.discount_rate_bps" :min="1" :max="10000" :step="100" :disabled="!canManage" /><strong>{{ rateLabel(tier.discount_rate_bps) }}</strong><el-button v-if="canManage" text type="danger" @click="removeTier(index)">删除</el-button>
           </div>
-          <div class="example">示例：购买 2 张、配置 9.5 折，余额到账 {{ money(200000) }}，外部实付 {{ money(190000) }}。</div>
+          <div class="example">示例：购买 2 张、配置 9.5 折，实付与到账均为 {{ money(200000) }}。下单先减券，再按可用余额最优档位整单打折，最后加路费。95 折余额仅剩 50 元时，100 元服务仍应付 95 元；无其他余额时，余额付 50 元、微信补 45 元。</div>
         </el-card>
       </div>
       <div class="save-bar"><span>折扣和面值会写入订单快照，修改配置不会影响历史充值单。</span><el-button type="primary" :loading="saving" :disabled="!canManage" @click="saveConfig">保存配置</el-button></div>
