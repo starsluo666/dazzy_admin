@@ -174,6 +174,8 @@ export interface AdminOrganizationMember {
 export interface ProviderOrderingSetting { location_report_interval_seconds: number; location_timeout_minutes: number; max_location_accuracy_m: number; acceptance_timeout_minutes: number; updated_at: string }
 
 export interface PlatformOperationSetting {
+  provider_cancellation_enabled: boolean
+  provider_cancellation_config: { transit_minutes?: number; transit_early_amount?: number; transit_late_amount?: number; wait_minutes?: number; no_show_amount?: number; arrived_penalty_percent?: number }
   support_refund_single_limit: number
   support_refund_daily_limit: number
   discovery_cities: Array<{ city_code: string; city_name: string }>
@@ -1407,6 +1409,11 @@ export interface SupportCaseSummary {
 }
 
 export interface AdminProviderOrder {
+  cancellation?: {
+    policy: { version?: string; clauses?: string[] }; transport_mode_label: string; arrived_at: string | null
+    wait_state: string; wait_deadline_at: string | null; finance_notice: string
+    decision: { rule?: string; label?: string; refund_amount?: number; retained_amount?: number; retained_travel_amount?: number; compensation_amount?: number; retained_service_amount?: number }
+  }
   timeout?: {
     departure_deadline_at: string | null
     timed_out_at: string | null

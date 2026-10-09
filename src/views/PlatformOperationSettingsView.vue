@@ -25,6 +25,7 @@ import type { AdminAuditLog, PlatformOperationSetting } from '../types'
 import { formatDateTime } from '../utils/format'
 
 type FieldKey = Exclude<keyof PlatformOperationSetting,
+  'provider_cancellation_enabled' | 'provider_cancellation_config' |
   'updated_at' | 'default_activity_cover_id' | 'default_activity_cover_url' | 'customer_service_phone' | 'discovery_cities'
   | 'provider_commission_reset_period' | 'provider_commission_tiers'
   | 'report_coupon_amount' | 'report_coupon_min_order_amount' | 'report_coupon_valid_days'>
@@ -267,7 +268,10 @@ const couponFaceYuan = ref(20)
 const couponThresholdYuan = ref(100)
 const couponValidDays = ref(365)
 const savedBusinessRules = ref('')
+const cancellation = reactive({ enabled: false, transitMinutes: 20, earlyYuan: 30, lateYuan: 80, waitMinutes: 20, noShowYuan: 50, penaltyPercent: 30 })
+const cancellationDefaults = { ...cancellation }
 const businessRulesSnapshot = computed(() => JSON.stringify({
+  cancellation,
   period: resetPeriod.value, tiers: tierRows.value,
   face: couponFaceYuan.value, threshold: couponThresholdYuan.value, days: couponValidDays.value,
 }))
@@ -284,6 +288,13 @@ const isDirty = computed(() => rules.some((rule) => form[rule.key] !== savedSnap
   || businessRulesSnapshot.value !== savedBusinessRules.value)
 
 function loadBusinessRules(data: PlatformOperationSetting) {
+  const config = data.provider_cancellation_config || {}
+  Object.assign(cancellation, {
+    enabled: data.provider_cancellation_enabled ?? false,
+    transitMinutes: config.transit_minutes ?? 20, earlyYuan: (config.transit_early_amount ?? 3000) / 100,
+    lateYuan: (config.transit_late_amount ?? 8000) / 100, waitMinutes: config.wait_minutes ?? 20,
+    noShowYuan: (config.no_show_amount ?? 5000) / 100, penaltyPercent: config.arrived_penalty_percent ?? 30,
+  })
   resetPeriod.value = data.provider_commission_reset_period
   tierRows.value = data.provider_commission_tiers.map((tier) => ({
     thresholdYuan: tier.threshold_amount / 100, bonusRate: Number(tier.bonus_rate),
@@ -332,6 +343,7 @@ function toApiValue(key: FieldKey, value: number) {
 
 function restoreDefaults() {
   Object.assign(form, defaults)
+  Object.assign(cancellation, cancellationDefaults)
   resetPeriod.value = 'month'
   tierRows.value = []
   couponFaceYuan.value = 20
@@ -346,6 +358,7 @@ function cancelChanges() {
   defaultCoverUrl.value = savedDefaultCoverUrl.value
   customerServicePhone.value = savedCustomerServicePhone.value
   const saved = JSON.parse(savedBusinessRules.value || '{}')
+  Object.assign(cancellation, saved.cancellation || cancellationDefaults)
   resetPeriod.value = saved.period || 'month'
   tierRows.value = saved.tiers || []
   couponFaceYuan.value = saved.face ?? 20
@@ -422,6 +435,12 @@ async function save() {
       rules.map((rule) => [rule.key, toApiValue(rule.key, form[rule.key])]),
     ) as Partial<PlatformOperationSetting>
     payload.default_activity_cover_id = defaultCoverId.value
+    payload.provider_cancellation_enabled = cancellation.enabled
+    payload.provider_cancellation_config = {
+      transit_minutes: cancellation.transitMinutes, transit_early_amount: Math.round(cancellation.earlyYuan * 100),
+      transit_late_amount: Math.round(cancellation.lateYuan * 100), wait_minutes: cancellation.waitMinutes,
+      no_show_amount: Math.round(cancellation.noShowYuan * 100), arrived_penalty_percent: cancellation.penaltyPercent,
+    }
     payload.customer_service_phone = customerServicePhone.value.trim()
     payload.provider_commission_reset_period = resetPeriod.value
     payload.provider_commission_tiers = tierRows.value.map((tier) => ({
@@ -516,6 +535,21 @@ onMounted(() => {
               placeholder="例如：400-123-4567"
               aria-label="客服电话"
             />
+          </section>
+          <section v-if="showProvider" class="fulfillment-tolerance-settings">
+            <h3>用户取消订单规则</h3>
+            <el-switch v-model="cancellation.enabled" active-text="新订单启用" inactive-text="暂不启用" />
+            <p>仅影响发布后下单并同意规则的订单；历史订单保持原规则。出行方式和规则版本随订单保存，关闭开关不会改变已下单规则。</p>
+            <div class="tolerance-controls">
+              <label>公交／地铁分界 <el-input-number v-model="cancellation.transitMinutes" :min="1" :max="180" :precision="0" /> 分钟（含）</label>
+              <label>时限内空单费 <el-input-number v-model="cancellation.earlyYuan" :min="0" :max="1000" :precision="2" /> 元</label>
+              <label>超过时限空单费 <el-input-number v-model="cancellation.lateYuan" :min="cancellation.earlyYuan" :max="1000" :precision="2" /> 元</label>
+              <label>到场联系不上等待 <el-input-number v-model="cancellation.waitMinutes" :min="1" :max="180" :precision="0" /> 分钟</label>
+              <label>等待超时空单费 <el-input-number v-model="cancellation.noShowYuan" :min="0" :max="1000" :precision="2" /> 元</label>
+              <label>到达后取消违约金 <el-input-number v-model="cancellation.penaltyPercent" :min="0" :max="100" :precision="0" /> % 服务费</label>
+            </div>
+            <p>公交／地铁 30／80 元不另加路费。其余路费按下单实付往返交通费；空单费和违约金按原订单比例分成。扣费不叠加且不超过实付金额。有争议暂停自动处理。</p>
+            <el-alert title="上线前请完成规则告知审核和小额测试。取消后的剩余款仅计算权益、等待财务核账，暂不自动分账或计入可提现余额。" type="warning" :closable="false" show-icon />
           </section>
           <section v-if="showProvider && viewMode === 'flow'" class="fulfillment-tolerance-settings">
             <h3>接单后未出发超时</h3>

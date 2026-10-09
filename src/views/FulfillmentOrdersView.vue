@@ -700,6 +700,21 @@ onMounted(load)
         </section>
 
         <section class="detail-section">
+          <template v-if="selected.cancellation?.policy.version">
+            <h3>本单取消规则与处理</h3>
+            <p>出行方式：{{ selected.cancellation.transport_mode_label }} · {{ selected.cancellation.policy.version }}</p>
+            <p>首次有效到场：{{ formatDateTime(selected.cancellation.arrived_at) }} · 等待状态：{{ selected.cancellation.wait_state || '未发起' }}</p>
+            <p v-if="selected.cancellation.wait_deadline_at">失联等待截止：{{ formatDateTime(selected.cancellation.wait_deadline_at) }}</p>
+            <div v-if="selected.cancellation.decision.rule" class="price-breakdown">
+              <p>{{ selected.cancellation.decision.label }}</p>
+              <div><span>保留往返交通费</span><strong>{{ formatAmount(selected.cancellation.decision.retained_travel_amount || 0) }}</strong></div>
+              <div><span>空单补偿／违约金</span><strong>{{ formatAmount(selected.cancellation.decision.compensation_amount || 0) }}</strong></div>
+              <div><span>保留服务费</span><strong>{{ formatAmount(selected.cancellation.decision.retained_service_amount || 0) }}</strong></div>
+              <div><span>应退金额（到账以退款单为准）</span><strong>{{ formatAmount(selected.cancellation.decision.refund_amount || 0) }}</strong></div>
+              <el-alert v-if="selected.cancellation.finance_notice" :title="selected.cancellation.finance_notice" type="warning" :closable="false" />
+            </div>
+            <el-collapse><el-collapse-item title="查看下单时同意的完整规则" name="cancellation-rules"><p v-for="(line, index) in selected.cancellation.policy.clauses" :key="index">{{ index + 1 }}. {{ line }}</p></el-collapse-item></el-collapse>
+          </template>
           <h3><el-icon><DocumentChecked /></el-icon> 履约时间线</h3>
           <div class="fulfillment-timeline">
             <div v-for="item in timeline" :key="item.label" :class="{ pending: !item.value }">
