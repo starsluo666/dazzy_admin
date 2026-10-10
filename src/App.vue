@@ -31,6 +31,7 @@ import CouponIssueRecordsView from './views/CouponIssueRecordsView.vue'
 import NewcomerGiftView from './views/NewcomerGiftView.vue'
 import InvitationRulesView from './views/InvitationRulesView.vue'
 import InvitationRecordsView from './views/InvitationRecordsView.vue'
+import ProviderInvitesView from './views/ProviderInvitesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import FinanceWorkView from './views/FinanceWorkView.vue'
 import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
@@ -110,6 +111,9 @@ const canManageCouponCampaign = hasPermission('coupon_campaign.manage')
 const canIssueCoupon = hasPermission('coupon.issue')
 const canViewCoupon = hasPermission('coupon.view')
 const canManageGrowth = hasPermission('growth.manage')
+const canManageProviderInvites = hasPermission('provider_invite.manage')
+const canReviewProviderInvites = hasPermission('provider_invite.review')
+const canPayProviderInvites = hasPermission('provider_invite.pay')
 const canManageWallet = hasPermission('wallet.manage')
 const canViewAudit = hasPermission('audit.view')
 
@@ -366,6 +370,10 @@ onMounted(loadSession)
       v-else-if="currentPage === 'invitation_records'"
       :preview="preview"
     />
+    <ProviderInvitesView v-else-if="currentPage === 'provider_invites'" :preview="preview"
+      :can-manage="canManageProviderInvites"
+      :can-review="canReviewProviderInvites"
+      :can-pay="canPayProviderInvites" />
     <SystemManagementView
       v-else-if="currentPage === 'system'"
       @open-audit="navigate('audit_logs')"

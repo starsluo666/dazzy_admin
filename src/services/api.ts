@@ -397,6 +397,14 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  providerInviteConfig: () => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/'),
+  saveProviderInviteConfig: (data: import('../types/providerInvites').InviteConfig) => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/', { method: 'PUT', body: JSON.stringify(data) }),
+  providerInviteSources: (params: Record<string, string | number>) => request<import('../types/providerInvites').InvitePage<import('../types/providerInvites').InviteSource>>(`/admin/provider-invites/sources/?${queryString(params)}`),
+  createProviderInviteSource: (name: string) => request<import('../types/providerInvites').InviteSource>('/admin/provider-invites/sources/', { method: 'POST', body: JSON.stringify({ name, active: true }) }),
+  updateProviderInviteSource: (source: import('../types/providerInvites').InviteSource) => request<import('../types/providerInvites').InviteSource>(`/admin/provider-invites/sources/${source.public_id}/`, { method: 'PATCH', body: JSON.stringify(source) }),
+  providerInviteQr: (id: string) => request<import('../types/providerInvites').InviteSource>(`/admin/provider-invites/sources/${id}/`),
+  providerInviteRewards: (params: Record<string, string | number>) => request<import('../types/providerInvites').RewardPage>(`/admin/provider-invites/rewards/?${queryString(params)}`),
+  providerInviteRewardAction: (id: string, data: import('../types/providerInvites').RewardAction) => request<import('../types/providerInvites').InviteReward>(`/admin/provider-invites/rewards/${id}/action/`, { method: 'POST', body: JSON.stringify(data) }),
   refundPolicy: () => request<import('../utils/refunds').RefundPolicy>('/admin/refund-policy/'),
   refundContext: (kind: 'provider' | 'activity', reference: string) => request<import('../utils/refunds').RefundContext>(
     `/admin/refund-context/${kind}/${encodeURIComponent(reference)}/`),

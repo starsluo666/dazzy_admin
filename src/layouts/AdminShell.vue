@@ -29,6 +29,7 @@ const allNavigationGroups = [
   'growth-management-group',
 ]
 const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
+  provider_invites: ['marketing-group'],
   users: ['users-group'],
   coupon_campaigns: ['operations-group'],
   providers: ['providers-group'], provider_reviews: ['providers-group'],
@@ -80,7 +81,8 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'wallets', label: '余额与充值', icon: Coin, child: true, parent: 'finance-group', enabled: can('wallet.view'), visible: can('wallet.view') },
   { key: 'support-group', label: '客服与投诉', icon: ChatLineRound, group: true, visible: can('support.case.view') || can('support.case.manage') },
   { key: 'support_cases', label: '客服工单', icon: List, child: true, parent: 'support-group', enabled: can('support.case.view'), visible: can('support.case.view') },
-  { key: 'marketing-group', label: '营销管理', icon: Tickets, group: true, visible: can('coupon.view') || can('growth.view') },
+  { key: 'marketing-group', label: '营销管理', icon: Tickets, group: true, visible: can('coupon.view') || can('growth.view') || can('provider_invite.view') },
+  { key: 'provider_invites', label: '达人邀请', icon: UserFilled, child: true, parent: 'marketing-group', enabled: can('provider_invite.view'), visible: can('provider_invite.view') },
   { key: 'coupon-management-group', label: '优惠券管理', icon: Tickets, group: true, parent: 'marketing-group', depth: 2, visible: can('coupon.view') },
   { key: 'coupons', label: '优惠券模板', icon: Grid, child: true, parent: 'coupon-management-group', depth: 3, enabled: can('coupon.view'), visible: can('coupon.view') },
   { key: 'coupon_records', label: '发放记录', icon: List, child: true, parent: 'coupon-management-group', depth: 3, enabled: can('coupon.view'), visible: can('coupon.view') },
@@ -99,6 +101,7 @@ const scopeLabel = computed(() => props.session?.data_scope === 'all'
     ? `${props.session.city_codes.length}个城市`
     : '本组织')
 const pageLabels: Record<AdminPage, string> = {
+  provider_invites: '营销管理 / 达人邀请',
   coupon_campaigns: '运营配置 / 领券活动',
   dashboard: '运营总览',
   users: '用户管理 / 用户列表',
