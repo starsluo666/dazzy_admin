@@ -1,4 +1,5 @@
 import type {
+  AdminCouponCampaign, CouponCampaignInput, CouponCampaignRule, CouponCampaignClaim,
   CouponIssueBatch,
   AccountStatus,
   ActivityStatus,
@@ -652,6 +653,10 @@ export const adminApi = {
     `/admin/coupons/?user_search=${encodeURIComponent(search)}&page_size=1`,
   ),
   couponTemplates: () => request<{ items: AdminCouponTemplate[]; can_issue_all: boolean }>('/admin/coupon-templates/'),
+  couponCampaigns: (page = 1) => request<{ items: AdminCouponCampaign[]; templates: Array<CouponCampaignRule & { public_id: string }>; pagination: { total: number } }>(`/admin/coupon-campaigns/?page=${page}`),
+  saveCouponCampaign: (id: string | null, payload: CouponCampaignInput) => request<AdminCouponCampaign>(id ? `/admin/coupon-campaigns/${id}/` : '/admin/coupon-campaigns/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
+  couponCampaignAction: (id: string, action: 'publish' | 'offline', revision: number) => request<AdminCouponCampaign>(`/admin/coupon-campaigns/${id}/`, { method: 'POST', body: JSON.stringify({ action, revision, confirmed: true }) }),
+  couponCampaignClaims: (id: string, page = 1) => request<{ items: CouponCampaignClaim[]; pagination: { total: number } }>(`/admin/coupon-campaigns/${id}/claims/?page=${page}`),
   createCouponTemplate: (payload: AdminCouponTemplateMutation) => request<AdminCouponTemplate>('/admin/coupon-templates/', {
     method: 'POST', body: JSON.stringify(payload),
   }),

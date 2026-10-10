@@ -37,7 +37,24 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'finance_alerts' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'coupon_campaigns' | 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'finance_alerts' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+
+export interface CouponCampaignRule {
+  name: string; face_amount: number; min_order_amount: number; valid_days: number; description: string
+}
+export interface CouponCampaignInput {
+  name: string; banner_id: string; template_public_id: string; starts_at: string; ends_at: string
+  stock: number; sort_order: number; revision?: number
+}
+export interface AdminCouponCampaign extends CouponCampaignInput {
+  public_id: string; banner_url: string; status: 'draft' | 'published' | 'offline'
+  state: string; coupon: CouponCampaignRule; issued_count: number; remaining_count: number; used_count: number
+  published_at: string | null; revision: number; updated_at: string
+}
+export interface CouponCampaignClaim {
+  user_public_id: string; nickname: string; phone_masked: string; claimed_at: string
+  coupon: { public_id: string; status: string; expires_at: string }
+}
 
 export interface TrainingCurriculum {
   title: string

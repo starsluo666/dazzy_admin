@@ -14,6 +14,7 @@ import AfterSalesView from './views/AfterSalesView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
 import AssetsView from './views/AssetsView.vue'
+import CouponCampaignsView from './views/CouponCampaignsView.vue'
 import ActivityManagementView from './views/ActivityManagementView.vue'
 import ActivityCategoriesView from './views/ActivityCategoriesView.vue'
 import ActivityReportsView from './views/ActivityReportsView.vue'
@@ -105,6 +106,7 @@ const canManageActivitySettlement = hasPermission('activity_settlement.manage')
 const canRetryTask = hasPermission('system.task.retry')
 const canManageSupportCase = hasPermission('support.case.manage')
 const canManageCoupon = hasPermission('coupon.manage')
+const canManageCouponCampaign = hasPermission('coupon_campaign.manage')
 const canIssueCoupon = hasPermission('coupon.issue')
 const canViewCoupon = hasPermission('coupon.view')
 const canManageGrowth = hasPermission('growth.manage')
@@ -268,6 +270,7 @@ onMounted(loadSession)
       :can-upload-assets="canManageAssets"
     />
     <AssetsView v-else-if="currentPage === 'assets'" :preview="preview" :can-manage="canManageAssets" />
+    <CouponCampaignsView v-else-if="currentPage === 'coupon_campaigns'" :preview="preview" :can-manage="canManageCouponCampaign" :can-use-assets="canUseAssets" :can-upload-assets="canManageAssets" />
     <ProviderTrainingView v-else-if="currentPage === 'provider_training'" :preview="preview" />
     <ProviderOrderingSettingsView
       v-else-if="currentPage === 'provider_rules'"

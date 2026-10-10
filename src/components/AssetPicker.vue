@@ -6,12 +6,13 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { adminApi } from '../services/api'
 import type { AdminAsset } from '../types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   selectedId: string | null
   canUpload: boolean
   preview?: boolean
-}>()
+  kind?: 'icon' | 'image'
+}>(), { kind: 'icon' })
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   select: [asset: AdminAsset | null]
@@ -30,12 +31,12 @@ async function load() {
   if (props.preview) { items.value = []; total.value = 0; return }
   loading.value = true
   try {
-    const result = await adminApi.assets({ kind: 'icon', status: 'active', search: search.value.trim(), page: page.value, page_size: 24 })
+    const result = await adminApi.assets({ kind: props.kind, status: 'active', search: search.value.trim(), page: page.value, page_size: 24 })
     if (version !== loadVersion) return
     items.value = result.items
     total.value = result.pagination.total
   } catch (error) {
-    if (version === loadVersion) ElMessage.error(error instanceof Error ? error.message : '图标加载失败')
+    if (version === loadVersion) ElMessage.error(error instanceof Error ? error.message : '素材加载失败')
   } finally { if (version === loadVersion) loading.value = false }
 }
 
@@ -43,16 +44,16 @@ async function upload(options: UploadRequestOptions) {
   const version = selectionVersion
   uploading.value = true
   try {
-    const asset = await adminApi.uploadAsset(options.file, 'icon')
+    const asset = await adminApi.uploadAsset(options.file, props.kind)
     options.onSuccess(asset)
     if (!props.modelValue || version !== selectionVersion) return
     search.value = ''
     page.value = 1
     emit('select', asset)
     emit('update:modelValue', false)
-    ElMessage.success('图标已上传并选中')
+    ElMessage.success('素材已上传并选中')
   } catch (error) {
-    const message = error instanceof Error ? error.message : '图标上传失败'
+    const message = error instanceof Error ? error.message : '素材上传失败'
     ElMessage.error(message)
     options.onError(Object.assign(new Error(message), { status: 0, method: 'POST', url: '' }))
   } finally { uploading.value = false }
@@ -68,25 +69,25 @@ onBeforeUnmount(() => { selectionVersion++; loadVersion++ })
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" title="选择图标" width="720px" append-to-body destroy-on-close @update:model-value="emit('update:modelValue', $event)">
+  <el-dialog :model-value="modelValue" :title="kind === 'image' ? '选择活动图片' : '选择图标'" width="720px" append-to-body destroy-on-close @update:model-value="emit('update:modelValue', $event)">
     <div class="picker-toolbar">
       <el-input v-model="search" clearable placeholder="搜索素材文件名" :prefix-icon="Search" @keyup.enter="page = 1; load()" />
       <el-button @click="page = 1; load()">搜索</el-button>
       <el-upload v-if="canUpload && !preview" :disabled="uploading" :show-file-list="false" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" :http-request="upload">
-        <el-button type="primary" :loading="uploading" :icon="Plus">上传新图标</el-button>
+        <el-button type="primary" :loading="uploading" :icon="Plus">{{ kind === 'image' ? '上传新图片' : '上传新图标' }}</el-button>
       </el-upload>
     </div>
-    <p class="picker-help">选择后保存分类即可生效。支持 JPG、PNG、WebP、HEIC/HEIF；苹果照片会自动转换，当前没有合适的图片可直接上传。</p>
+    <p class="picker-help">从素材库选择后，请保存配置。支持 JPG、PNG、WebP、HEIC/HEIF；苹果照片会自动转换，当前没有合适的图片可直接上传。</p>
     <div v-loading="loading" class="picker-grid">
       <button v-for="asset in items" :key="asset.id" type="button" class="picker-item" :class="{ selected: selectedId === asset.id }" @click="emit('select', asset); emit('update:modelValue', false)">
         <img :src="asset.url" :alt="asset.name" />
         <span :title="asset.name">{{ asset.name }}</span>
         <small v-if="selectedId === asset.id">当前使用</small>
       </button>
-      <el-empty v-if="!loading && !items.length" :description="preview ? '预览模式不显示真实素材' : '暂无图标，上传一张即可使用'" />
+      <el-empty v-if="!loading && !items.length" :description="preview ? '预览模式不显示真实素材' : '暂无素材，上传一张即可使用'" />
     </div>
     <div class="picker-footer">
-      <el-button @click="emit('select', null); emit('update:modelValue', false)">不使用图标</el-button>
+      <el-button @click="emit('select', null); emit('update:modelValue', false)">{{ kind === 'image' ? '清除选择' : '不使用图标' }}</el-button>
       <el-pagination v-model:current-page="page" :page-size="24" :total="total" layout="prev, pager, next" @current-change="load" />
     </div>
   </el-dialog>

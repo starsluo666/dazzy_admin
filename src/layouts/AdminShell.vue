@@ -30,6 +30,7 @@ const allNavigationGroups = [
 ]
 const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   users: ['users-group'],
+  coupon_campaigns: ['operations-group'],
   providers: ['providers-group'], provider_reviews: ['providers-group'],
   services: ['operations-group'], assets: ['operations-group'], platform_settings: ['operations-group'], provider_rules: ['operations-group'],
   receiving_settings: ['operations-group'],
@@ -57,7 +58,8 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
   { key: 'providers', label: '达人列表', icon: List, child: true, parent: 'providers-group', enabled: can('provider.view'), visible: can('provider.view') },
   { key: 'provider_reviews', label: '达人审核', icon: CircleCheck, child: true, parent: 'providers-group', enabled: can('provider.review'), visible: can('provider.review') },
-  { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('asset.view') || can('operations.manage') },
+  { key: 'operations-group', label: '运营配置', icon: Operation, group: true, visible: can('service_category.view') || can('asset.view') || can('operations.manage') || can('coupon_campaign.view') },
+  { key: 'coupon_campaigns', label: '领券活动', icon: Tickets, child: true, parent: 'operations-group', enabled: can('coupon_campaign.view'), visible: can('coupon_campaign.view') },
   { key: 'services', label: '服务分类', icon: Grid, child: true, parent: 'operations-group', enabled: can('service_category.view'), visible: can('service_category.view') },
   { key: 'assets', label: '素材库', icon: Grid, child: true, parent: 'operations-group', enabled: can('asset.view'), visible: can('asset.view') },
   { key: 'platform_settings', label: '平台参数', icon: Setting, child: true, parent: 'operations-group', enabled: can('operations.manage'), visible: can('operations.manage') },
@@ -97,6 +99,7 @@ const scopeLabel = computed(() => props.session?.data_scope === 'all'
     ? `${props.session.city_codes.length}个城市`
     : '本组织')
 const pageLabels: Record<AdminPage, string> = {
+  coupon_campaigns: '运营配置 / 领券活动',
   dashboard: '运营总览',
   users: '用户管理 / 用户列表',
   providers: '达人管理 / 达人列表',
@@ -152,7 +155,7 @@ function groupActive(key: string) {
     || (key === 'support-group' && props.active === 'support_cases')
     || (['marketing-group', 'coupon-management-group'].includes(key) && ['coupons', 'coupon_records'].includes(props.active))
     || (['marketing-group', 'growth-management-group'].includes(key) && ['newcomer_gift', 'invitation_rules', 'invitation_records'].includes(props.active))
-    || (key === 'operations-group' && ['services', 'assets', 'platform_settings', 'receiving_settings', 'provider_rules', 'provider_training'].includes(props.active))
+    || (key === 'operations-group' && ['coupon_campaigns', 'services', 'assets', 'platform_settings', 'receiving_settings', 'provider_rules', 'provider_training'].includes(props.active))
     || (key === 'system-group' && ['system', 'tasks', 'audit_logs'].includes(props.active))
 }
 
