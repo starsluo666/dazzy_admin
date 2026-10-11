@@ -475,6 +475,12 @@ onBeforeUnmount(() => { loadSequence += 1 })
           <h3>实名认证</h3>
           <p :class="{ 'name-warning': !selectedChange.identity_name_matches }">认证姓名：{{ selectedChange.identity_real_name || '—' }} {{ selectedChange.identity_name_matches ? '' : '（与申请姓名不一致）' }}</p>
           <p>证件号：{{ selectedChange.identity?.number_masked || '—' }}</p>
+          <div v-if="selectedChange.identity?.verification">
+            <p>腾讯云身份证验真：{{ selectedChange.identity.verification.status_label }} · {{ selectedChange.identity.verification.message }}</p>
+            <p v-if="selectedChange.identity.verification.similarity !== null">人像相似度：{{ selectedChange.identity.verification.similarity }}</p>
+            <p v-if="selectedChange.identity.verification.request_id">请求编号：{{ selectedChange.identity.verification.request_id }}</p>
+            <p>本人自拍未进行活体检测，请客服人工对照身份证人像，并核对国徽面及有效期。</p>
+          </div>
           <div class="identity-photos"><el-image v-if="selectedChange.identity?.front_photo_url" :src="selectedChange.identity.front_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.front_photo_url]" /><el-image v-if="selectedChange.identity?.back_photo_url" :src="selectedChange.identity.back_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.back_photo_url]" /><el-image v-if="selectedChange.identity?.face_photo_url" :src="selectedChange.identity.face_photo_url" fit="cover" :preview-src-list="[selectedChange.identity.face_photo_url]" /></div>
         </section>
         <section v-if="selectedChange.profile_revision"><h3>达人资料</h3><p>达人名：{{ selectedChange.profile_revision.display_name }}</p><p>城市与范围：{{ selectedChange.profile_revision.service_city_name }} · {{ selectedChange.profile_revision.max_service_radius_km }}km</p><p class="bio">{{ selectedChange.profile_revision.bio }}</p><ProviderGallery :media="selectedChange.profile_revision.media" :cover="selectedChange.profile_revision.lifestyle_photo_url" /></section>

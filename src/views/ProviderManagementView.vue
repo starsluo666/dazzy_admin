@@ -379,13 +379,21 @@ onMounted(load)
           <div class="identity-review">
             <div class="identity-fields">
               <span>入驻申请姓名</span><strong>{{ selected.application_real_name || '—' }}</strong>
-              <span>认证资料姓名</span><strong>{{ selected.identity_real_name || '尚未填写' }}</strong>
+              <span>{{ selected.identity_verification?.required ? '证件识别姓名' : '认证资料姓名' }}</span><strong>{{ selected.identity_real_name || '待身份证验真识别' }}</strong>
               <span v-if="selected.identity_number_masked">证件号码</span><strong v-if="selected.identity_number_masked">{{ selected.identity_number_masked }}</strong>
               <span v-if="selected.identity_submitted_at">提交时间</span><strong v-if="selected.identity_submitted_at">{{ formatDateTime(selected.identity_submitted_at) }}</strong>
             </div>
             <el-alert v-if="selected.application_real_name && selected.identity_real_name && selected.application_real_name.trim() !== selected.identity_real_name.trim()" type="warning" :closable="false" title="两处姓名不一致，达人无法提交实名认证；请先核对身份证与入驻资料。" />
             <div v-if="selected.identity_front_photo_url || selected.identity_back_photo_url || selected.identity_face_photo_url" class="identity-photos"><el-image v-for="(url,label) in { '身份证人像面':selected.identity_front_photo_url,'身份证国徽面':selected.identity_back_photo_url,'本人核验照片':selected.identity_face_photo_url }" :key="label" :src="url || ''" :preview-src-list="url ? [url] : []" fit="cover" preview-teleported><template #error><span>{{ label }}未上传</span></template></el-image></div>
             <el-alert v-if="selected.identity_rejection_reason" type="error" :closable="false" :title="selected.identity_rejection_reason" />
+            <div v-if="selected.identity_verification" class="identity-note">
+              <strong>腾讯云身份证验真：{{ selected.identity_verification.status_label }}</strong>
+              <p>{{ selected.identity_verification.message }}</p>
+              <p v-if="selected.identity_verification.similarity !== null">人像相似度：{{ selected.identity_verification.similarity }}</p>
+              <p v-if="selected.identity_verification.checked_at">验真时间：{{ formatDateTime(selected.identity_verification.checked_at) }}</p>
+              <p v-if="selected.identity_verification.request_id">请求编号：{{ selected.identity_verification.request_id }}</p>
+              <p>本人自拍仅供客服人工核对，未进行活体检测；请对照身份证人像，并检查国徽面有效期。</p>
+            </div>
             <div v-if="selected.identity_status === 'unverified'" class="identity-note">达人尚未提交实名认证</div>
             <div v-if="canReview && selected.status === 'approved' && ['unverified', 'rejected'].includes(selected.identity_status)" class="identity-actions"><el-button @click="openNameCorrection">更正入驻申请姓名</el-button></div>
             <div v-if="canReview && selected.identity_status === 'pending'" class="identity-actions"><el-button :loading="identityReviewing" @click="reviewIdentity('reject')">驳回认证</el-button><el-button type="primary" :loading="identityReviewing" @click="reviewIdentity('approve')">通过认证</el-button></div>

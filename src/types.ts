@@ -955,6 +955,18 @@ export interface ProviderServiceRevisionReview {
   submitted_at: string
 }
 
+export interface IdentityVerificationSummary {
+  enabled: boolean
+  required: boolean
+  status: 'not_checked' | 'processing' | 'passed' | 'failed' | 'error'
+  status_label: string
+  message: string
+  checked_at: string | null
+  request_id: string
+  result_code: string
+  similarity: string | null
+}
+
 export interface ProviderChangeReview {
   id: number
   kind: ProviderChangeReviewKind
@@ -970,6 +982,7 @@ export interface ProviderChangeReview {
   rejection_reason: string
   identity?: {
     status: string
+    verification?: IdentityVerificationSummary
     number_masked: string
     front_photo_url: string | null
     back_photo_url: string | null
@@ -1068,6 +1081,7 @@ export interface AdminProvider {
   application_real_name: string
   identity_real_name: string
   identity_number_masked: string
+  identity_verification?: IdentityVerificationSummary | null
   identity_front_photo_url: string | null
   identity_back_photo_url: string | null
   identity_face_photo_url: string | null
