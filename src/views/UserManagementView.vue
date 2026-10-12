@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UserCouponIssueDialog from '../components/UserCouponIssueDialog.vue'
-import { computed, onMounted, reactive, ref } from 'vue'
+import UserInvitationPanel from '../components/UserInvitationPanel.vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   CircleCheck,
@@ -214,17 +215,26 @@ function selectSummary(key: string) {
   load()
 }
 
-async function openDetail(row: AdminUser) {
-  selected.value = row
+let detailVersion = 0
+watch(drawerVisible, (visible) => {
+  if (!visible) { detailVersion++; detailLoading.value = false }
+})
+
+async function openDetail(row: AdminUser | string) {
+  const version = ++detailVersion
+  const publicId = typeof row === 'string' ? row : row.public_id
+  if (typeof row !== 'string') selected.value = row
+  couponDialogVisible.value = false
   drawerVisible.value = true
   if (props.preview) return
   detailLoading.value = true
   try {
-    selected.value = await adminApi.user(row.public_id)
+    const user = await adminApi.user(publicId)
+    if (version === detailVersion) selected.value = user
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '用户详情加载失败')
+    if (version === detailVersion) ElMessage.error(error instanceof Error ? error.message : '用户详情加载失败')
   } finally {
-    detailLoading.value = false
+    if (version === detailVersion) detailLoading.value = false
   }
 }
 
@@ -360,6 +370,8 @@ onMounted(load)
             @click="couponDialogVisible = true"
           >发放优惠券</el-button>
         </section>
+
+        <UserInvitationPanel v-if="drawerVisible" :key="selected.public_id" :user-id="selected.public_id" :preview="preview" @open-user="openDetail" />
 
         <el-alert v-if="selected.risk_flag" class="risk-alert" type="warning" :closable="false" show-icon :title="`${selected.risk_flag.level_label}：${selected.risk_flag.reason}`" :description="`${selected.risk_flag.marked_by_name} · ${formatDateTime(selected.risk_flag.marked_at)}`" />
 

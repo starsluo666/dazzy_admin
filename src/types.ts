@@ -895,6 +895,23 @@ export interface AdminUserSummary {
   suspended: number
 }
 
+export interface AdminInvitationUser {
+  public_id: string
+  nickname: string
+  phone_masked: string
+  invited_at: string
+}
+
+export interface AdminUserInvitations {
+  inviter: AdminInvitationUser | null
+  inviter_restricted: boolean
+  items: Array<AdminInvitationUser & { order_count: number; latest_order_at: string | null }>
+  summary: { invitee_count: number; ordering_user_count: number; order_count: number }
+  pagination: { page: number; page_size: number; total: number }
+  filters: { date_from: string | null; date_to: string | null; timezone: string }
+  data_scope: 'all' | 'cities'
+}
+
 export interface ProviderApplication {
   id: number
   public_id: string

@@ -45,6 +45,7 @@ import type {
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
   AdminUser,
+  AdminUserInvitations,
   AdminUserSummary,
   AfterSalesCaseStatus,
   AfterSalesCaseType,
@@ -653,6 +654,8 @@ export const adminApi = {
     summary: AdminUserSummary
   }>('admin-users', `/admin/users/?${queryString(query)}`),
   user: (publicId: string) => request<AdminUser>(`/admin/users/${publicId}/`),
+  userInvitations: (publicId: string, query: { date_from?: string; date_to?: string; page?: number; page_size?: number }) =>
+    request<AdminUserInvitations>(`/admin/users/${publicId}/invitations/?${queryString(query)}`),
   coupons: (query: AdminCouponQuery = {}) => requestLatest<{
     items: AdminCoupon[]
     pagination: { page: number; page_size: number; total: number }

@@ -25,10 +25,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url())
       if (!url.pathname.includes('/api/v1/')) return url.origin === new URL(base).origin ? route.continue() : route.abort()
-      let data = { items: [], pagination: { total: 0 }, counters: {} }
+      let data = { items: [], pagination: { total: 0 }, counters: {}, todos: [] }
       if (url.pathname.endsWith('/auth/refresh/')) data = { access: 'local-test-only' }
       else if (url.pathname.endsWith('/admin/me/')) data = { user: { nickname: '测试运营', phone: '' }, organization: null, role_name: '测试', permissions, data_scope: 'all', city_codes: [] }
       else if (url.pathname.endsWith('/admin/users/')) data = { items: [user], pagination: { total: 1 }, summary: { total: 1, providers: 1, flagged: 0, suspended: 0 } }
+      else if (url.pathname.endsWith('/invitations/')) data = { inviter: null, inviter_restricted: false, items: [], summary: { invitee_count: 0, ordering_user_count: 0, order_count: 0 }, pagination: { total: 0 }, filters: { date_from: null, date_to: null }, data_scope: 'all' }
       else if (url.pathname.includes('/admin/users/')) data = user
       else if (url.pathname.endsWith('/coupon-templates/')) data = { items: [template] }
       else if (url.pathname.endsWith('/admin/coupons/') && request.method() === 'POST') {
@@ -44,7 +45,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
       await page.getByRole('button', { name: '查看详情', exact: true }).click()
       await page.locator('.identity-card').waitFor()
       await page.locator('.management-drawer > .el-loading-mask').waitFor({ state: 'hidden' })
-      await page.locator('.el-drawer').evaluate(async element => {
+      await page.locator('.el-drawer:has(.management-drawer)').evaluate(async element => {
         await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {})))
       })
     }
@@ -55,7 +56,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
     for (const width of [1440, 1180, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 })
       await page.waitForFunction(() => {
-        const drawer = document.querySelector('.el-drawer').getBoundingClientRect()
+        const drawer = document.querySelector('.el-drawer:has(.management-drawer)').getBoundingClientRect()
         return Math.abs(drawer.width - Math.min(610, innerWidth)) < 0.1
       })
       const layout = await card.evaluate(element => {
