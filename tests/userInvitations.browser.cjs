@@ -38,9 +38,9 @@ async function main() {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url())
       if (!url.pathname.includes('/api/v1/')) return url.origin === origin ? route.continue() : route.abort()
-      let data = { items: [], pagination: { total: 0 }, counters: {} }
+      let data = { items: [], pagination: { total: 0, page: 1, page_size: 20 }, counters: {} }
       if (url.pathname.endsWith('/auth/refresh/')) data = { access: 'local-test-only' }
-      else if (url.pathname.endsWith('/admin/me/')) data = { user: { nickname: '测试客服', phone: '' }, organization: null, role_name: '客服', permissions: ['user.view'], data_scope: 'all', city_codes: [] }
+      else if (url.pathname.endsWith('/admin/me/')) data = { user: { nickname: '测试客服', phone: '' }, organization: null, role_name: '客服', permissions: ['user.view', 'coupon.view', 'coupon_campaign.view', 'coupon_campaign.manage'], data_scope: 'all', city_codes: [] }
       else if (url.pathname.endsWith('/admin/users/')) data = { items: [user(owner)], pagination: { total: 1 }, summary: { total: 1, providers: 0, flagged: 0, suspended: 0 } }
       else if (url.pathname.endsWith('/invitations/')) {
         const query = Object.fromEntries(url.searchParams)
@@ -78,6 +78,16 @@ async function main() {
       await page.goto(`${origin}/#/users`)
       await page.reload()
       await page.getByRole('button', { name: '查看详情', exact: true }).click()
+      await page.locator('.management-drawer > .el-loading-mask').waitFor({ state: 'hidden' })
+      assert.equal(await panel.locator('.panel-toggle').getAttribute('aria-expanded'), 'false')
+      assert.equal(await panel.locator('.el-date-editor').count(), 0)
+      assert.equal(requests.length, 0, 'collapsed panel must not request statistics')
+      if (process.env.TEST_SCREENSHOT_DIR) {
+        fs.mkdirSync(process.env.TEST_SCREENSHOT_DIR, { recursive: true })
+        await panel.screenshot({ path: path.join(process.env.TEST_SCREENSHOT_DIR, 'user-invitations-collapsed.png') })
+      }
+      await panel.locator('.panel-toggle').focus()
+      await panel.locator('.panel-toggle').press('Enter')
       await panel.locator('.invitation-total b').getByText('78', { exact: true }).waitFor()
     }
     const assertTotal = async value => {
@@ -89,9 +99,26 @@ async function main() {
       await inputs.nth(0).press('Tab')
       await inputs.nth(1).fill(end)
       await inputs.nth(1).press('Enter')
-      await panel.getByRole('heading').click()
+      await panel.locator('.filter-label').click()
+    }
+    const assertChineseCalendar = async () => {
+      const calendar = page.locator('.el-picker-panel:visible')
+      await calendar.first().waitFor()
+      const text = await calendar.first().innerText()
+      assert.match(text, /年/)
+      assert.match(text, /月/)
+      assert.doesNotMatch(text, /January|February|March|April|May|June|July|August|September|October|November|December|Sun|Mon|Tue|Wed|Thu|Fri|Sat/)
+      const weekdays = await calendar.first().locator('.el-date-table th').allTextContents()
+      assert.ok(weekdays.length >= 7)
+      assert.ok(weekdays.every(day => /^[日一二三四五六]$/.test(day.trim())))
+      return calendar.first()
     }
     await open()
+    assert.equal(await page.locator('html').getAttribute('lang'), 'zh-CN')
+    assert.equal(requests.length, 1)
+    await panel.locator('.el-range-input').first().click()
+    await assertChineseCalendar()
+    await panel.locator('.filter-label').click()
     assert.equal(await panel.locator('.invitee-person').count(), 10)
     assert.match(await panel.locator('.invitee-person').first().innerText(), /被邀请用户12/)
     assert.match(await panel.locator('.order-time').first().innerText(), /2026-10-12 12:00/)
@@ -99,11 +126,24 @@ async function main() {
     await panel.getByRole('button', { name: '被邀请用户2', exact: true }).waitFor()
     await assertTotal(78)
     assert.equal(await panel.locator('.invitee-person').count(), 2)
+    const requestCountBeforeFold = requests.length
+    await panel.locator('.panel-toggle').focus()
+    await panel.locator('.panel-toggle').press('Enter')
+    assert.equal(await panel.locator('.panel-toggle').getAttribute('aria-expanded'), 'false')
+    assert.equal(await panel.locator('.invitation-total').count(), 0)
+    await panel.locator('.panel-toggle').press('Space')
+    await assertTotal(78)
+    assert.equal(requests.length, requestCountBeforeFold, 'reopening preserves page without duplicate requests')
+    assert.equal(await panel.locator('.invitee-person').count(), 2)
     await filter('2026-10-02', '2026-10-04')
     await assertTotal(9)
     assert.equal(requests.at(-1).page, '1')
     assert.equal(requests.at(-1).date_from, '2026-10-02')
     assert.equal(requests.at(-1).date_to, '2026-10-04')
+    await panel.locator('.panel-toggle').click()
+    await panel.locator('.panel-toggle').click()
+    await assertTotal(9)
+    assert.equal(await panel.locator('.el-range-input').first().inputValue(), '2026-10-02')
     assert.match(await panel.locator('.invitee-person').first().innerText(), /被邀请用户4/)
     assert.ok(await panel.getByText('暂无有效订单').count() > 0)
 
@@ -145,17 +185,36 @@ async function main() {
     await panel.getByRole('button', { name: '刷新', exact: true }).click()
     await page.getByRole('button', { name: '关闭用户详情' }).click()
     await page.getByRole('button', { name: '查看详情', exact: true }).click()
+    assert.equal(await panel.locator('.panel-toggle').getAttribute('aria-expanded'), 'false')
+    await panel.locator('.panel-toggle').click()
     await assertTotal(78)
     await panel.getByRole('button', { name: '上级邀请人', exact: true }).click()
     await page.locator('.identity-heading h3').getByText('上级邀请人', { exact: true }).waitFor()
+    assert.equal(await panel.locator('.panel-toggle').getAttribute('aria-expanded'), 'false')
+    await panel.locator('.panel-toggle').click()
     await panel.getByText('无邀请人', { exact: true }).waitFor()
     await panel.getByText('暂无直接邀请用户', { exact: true }).waitFor()
     releaseHeld()
     await heldDone
     await page.waitForTimeout(150)
     await assertTotal(0)
+    // Global locale also applies to date ranges and date/time pickers on other pages.
+    await page.getByRole('button', { name: '关闭用户详情' }).click()
+    await page.goto(`${origin}/#/coupon-records`)
+    await page.getByPlaceholder('发放开始日期').click()
+    await assertChineseCalendar()
+    await page.goto(`${origin}/#/coupon-campaigns`)
+    await page.getByRole('button', { name: '新建领券活动', exact: true }).click()
+    await page.getByPlaceholder('请选择开始时间').click()
+    const datetime = await assertChineseCalendar()
+    await datetime.getByRole('button', { name: '确定', exact: true }).waitFor()
+    assert.ok(await datetime.getByPlaceholder('选择时间').count() > 0)
+    assert.match(await datetime.innerText(), /此刻/)
+    if (process.env.TEST_SCREENSHOT_DIR) {
+      await datetime.screenshot({ path: path.join(process.env.TEST_SCREENSHOT_DIR, 'admin-calendar-chinese.png') })
+    }
     assert.deepEqual(errors, [])
-    console.log('PASS: dates, timezone, ordering, zero rows, cross-page total, reset, retry, stale responses, linked inviter and responsive layout; mocked APIs only')
+    console.log('PASS: default collapse, lazy load, keyboard toggle, preserved pagination/filter, global Chinese date/time pickers, dates, totals, retries, stale responses and layouts; mocked APIs only')
   } finally {
     if (browser) await browser.close()
     await new Promise(resolve => server.close(resolve))
