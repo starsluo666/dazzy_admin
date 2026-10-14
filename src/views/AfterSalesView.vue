@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import RefundPolicyNotice from '../components/RefundPolicyNotice.vue'
 import TerminationReviewDialog from '../components/TerminationReviewDialog.vue'
+import FulfillmentRefundDialog from '../components/FulfillmentRefundDialog.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -47,6 +48,7 @@ const drawerVisible = ref(false)
 const createVisible = ref(false)
 const actionVisible = ref(false)
 const terminationVisible = ref(false)
+const fulfillmentVisible = ref(false)
 const saving = ref(false)
 const actionMode = ref<'approve' | 'reject'>('approve')
 const createForm = ref({
@@ -66,6 +68,7 @@ const statusOptions: Array<{ value: AfterSalesCaseStatus; label: string }> = [
   { value: 'rejected', label: '已驳回' },
 ]
 const typeOptions: Array<{ value: AfterSalesCaseType; label: string }> = [
+  { value: 'fulfillment_dispute', label: '履约异常售后' },
   { value: 'early_termination', label: '提前终止服务' },
   { value: 'refund', label: '退款申请' },
   { value: 'service_dispute', label: '服务争议' },
@@ -283,6 +286,7 @@ async function startReview() {
 
 function openAction(mode: 'approve' | 'reject') {
   if (!selected.value) return
+  if (mode === 'approve' && selected.value.fulfillment) { fulfillmentVisible.value = true; return }
   if (mode === 'approve' && selected.value.termination) { terminationVisible.value = true; return }
   actionMode.value = mode
   actionForm.value = {
@@ -324,7 +328,7 @@ async function submitAction() {
       )
     actionVisible.value = false
     if (actionMode.value === 'approve' && selected.value.requires_supervisor && ['pending','processing'].includes(selected.value.status)) ElMessage.warning(selected.value.escalation_reason || '已转主管审核，尚未发起退款')
-    else ElMessage.success(actionMode.value === 'approve' ? '审核通过，退款已登记，等待执行结果' : '售后申请已驳回')
+    else ElMessage.success(actionMode.value === 'approve' ? '审核通过，退款已登记，等待执行结果' : selected.value.fulfillment ? '已退回履约核查，异常仍待审核' : '售后申请已驳回')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '审核提交失败')
@@ -446,13 +450,13 @@ onMounted(load)
           <button aria-label="关闭退款售后详情" @click="drawerVisible = false"><el-icon><Close /></el-icon></button>
         </header>
 
-        <el-alert v-if="selected.status === 'approved'" class="drawer-message" type="warning" :closable="false" show-icon title="审核已通过，退款处理中" description="退款完成后系统会自动更新售后单、支付单与订单状态。" />
+        <el-alert v-if="selected.status === 'approved'" class="drawer-message" type="warning" :closable="false" show-icon :title="selected.refund_order?.status === 'failed' ? '退款异常，等待核实' : '审核已通过，退款处理中'" :description="selected.refund_order?.status === 'failed' ? '请核查原退款单及渠道结果，勿重复登记退款。' : '退款完成后系统会自动更新售后单、支付单与订单状态。'" />
         <el-alert v-if="selected.status === 'refunded'" class="drawer-message" type="success" :closable="false" show-icon title="退款已完成" :description="`退款单 ${selected.refund_order?.refund_no || '已生成'} 已按原支付路径处理。`" />
 
         <section class="case-section case-overview">
           <div><span>售后类型</span><strong>{{ selected.case_type_label }}</strong></div>
           <div><span>处理状态</span><strong>{{ selected.status_label }}</strong></div>
-          <div><span>{{ selected.termination ? '申请时可退上限' : '申请金额' }}</span><strong class="amount">{{ formatAmount(selected.requested_amount) }}</strong></div>
+          <div><span>{{ selected.termination || selected.fulfillment ? '申请时可退上限' : '申请金额' }}</span><strong class="amount">{{ formatAmount(selected.requested_amount) }}</strong></div>
           <div><span>核准金额</span><strong class="amount">{{ formatAmount(selected.approved_amount) }}</strong></div>
           <div><span>登记人员</span><strong>{{ selected.creator_name }}</strong></div>
           <div><span>登记时间</span><strong>{{ formatDateTime(selected.created_at) }}</strong></div>
@@ -494,6 +498,12 @@ onMounted(load)
           <el-alert :title="selected.termination.finance_label" :closable="false" type="info" />
         </section>
 
+        <section v-if="selected.fulfillment" class="case-section">
+          <h3>履约异常核查</h3>
+          <p v-if="selected.fulfillment.decision" class="reason-copy">{{ selected.fulfillment.decision.responsibility_label }} · {{ selected.fulfillment.decision.label }}<br>核实时间：{{ formatDateTime(selected.fulfillment.decision.occurred_at) }}<br>服务费退款 {{ formatMoney(selected.fulfillment.decision.component_refunds.service) }} · 交通费退款 {{ formatMoney(selected.fulfillment.decision.component_refunds.transport) }} · 其他退款 {{ formatMoney(selected.fulfillment.decision.component_refunds.other) }}</p>
+          <el-alert :title="selected.fulfillment.finance_label" :closable="false" type="info" />
+          <el-button v-if="canReview && ['pending', 'processing'].includes(selected.status)" type="primary" class="fulfillment-review-button" @click="fulfillmentVisible = true">核实责任与退款</el-button>
+        </section>
         <section v-if="selected.result_note" class="case-section">
           <h3><el-icon><CircleCheck /></el-icon> 审核结论</h3>
           <p class="reason-copy">{{ selected.result_note }}</p>
@@ -507,7 +517,7 @@ onMounted(load)
 
         <footer v-if="canReview && ['pending', 'processing'].includes(selected.status)" class="case-actions">
           <el-button v-if="selected.status === 'pending'" :icon="EditPen" :loading="saving" @click="startReview">开始处理</el-button>
-          <div><el-button v-if="!selected.requires_supervisor || canSupervise" type="danger" plain @click="openAction('reject')">驳回申请</el-button><el-button v-if="canApprove && (!selected.requires_supervisor || canSupervise)" type="primary" @click="openAction('approve')">{{ selected.termination ? '核定终止与退款' : '核准退款' }}</el-button><el-button v-if="!selected.requires_supervisor" @click="escalateCase">转主管审核</el-button></div>
+          <div><el-button v-if="!selected.requires_supervisor || canSupervise" type="danger" plain @click="openAction('reject')">{{ selected.fulfillment ? '退回履约核查' : '驳回申请' }}</el-button><el-button v-if="!selected.fulfillment && canApprove && (!selected.requires_supervisor || canSupervise)" type="primary" @click="openAction('approve')">{{ selected.termination ? '核定终止与退款' : '核准退款' }}</el-button><el-button v-if="!selected.requires_supervisor" @click="escalateCase">转主管审核</el-button></div>
         </footer>
         <el-alert v-if="selected.requires_supervisor && ['pending','processing'].includes(selected.status)" :title="`已转主管审核：${selected.escalation_reason || ''}`" type="warning" :closable="false" />
       </div>
@@ -518,7 +528,7 @@ onMounted(load)
       <el-form label-position="top">
         <el-form-item label="关联订单号" required><el-input v-model="createForm.orderNo" placeholder="请输入完整达人订单号" /></el-form-item>
         <div class="form-grid">
-          <el-form-item label="售后类型" required><el-select v-model="createForm.caseType"><el-option v-for="item in typeOptions.filter(option => option.value !== 'early_termination')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+          <el-form-item label="售后类型" required><el-select v-model="createForm.caseType"><el-option v-for="item in typeOptions.filter(option => !['early_termination', 'fulfillment_dispute'].includes(option.value))" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
           <el-form-item label="申请退款金额（元）" :required="createForm.caseType === 'refund'"><el-input-number v-model="createForm.requestedAmountYuan" :min="0" :precision="2" :step="10" controls-position="right" /></el-form-item>
         </div>
         <el-form-item label="申请原因" required><el-input v-model="createForm.reason" type="textarea" :rows="4" maxlength="1000" show-word-limit placeholder="记录用户诉求、已核实事实和相关说明" /></el-form-item>
@@ -527,19 +537,22 @@ onMounted(load)
     </el-dialog>
 
     <TerminationReviewDialog v-if="terminationVisible && selected?.termination" :item="selected" :preview="preview" @close="terminationVisible = false" @saved="item => { selected = item; terminationVisible = false; load() }" />
-    <el-dialog v-model="actionVisible" :title="actionMode === 'approve' ? '审核通过' : '驳回申请'" width="500px" destroy-on-close>
+    <FulfillmentRefundDialog v-if="fulfillmentVisible && selected?.fulfillment" :item="selected" :preview="preview" @close="fulfillmentVisible = false" @saved="item => { selected = item; fulfillmentVisible = false; load() }" />
+    <el-dialog v-model="actionVisible" :title="actionMode === 'approve' ? '审核通过' : selected?.fulfillment ? '退回履约核查' : '驳回申请'" width="500px" destroy-on-close>
+      <el-alert v-if="actionMode === 'reject' && selected?.fulfillment" class="form-alert" type="warning" :closable="false" title="本操作不退款，也不恢复正常。订单返回履约核查，自动确认和分账继续暂停。" />
       <RefundPolicyNotice v-if="actionMode === 'approve'" :preview="preview" kind="provider" :reference="selected?.order_no" />
       <el-alert v-if="actionMode === 'approve'" class="form-alert" type="warning" :closable="false" show-icon title="授权及额度校验通过后生成退款单；超过额度只转主管审核，不发起退款。退款成功以服务端核验为准。" />
       <el-form label-position="top">
         <el-form-item v-if="actionMode === 'approve'" label="核准退款金额（元）" required><el-input-number v-model="actionForm.approvedAmountYuan" :min="0" :max="(selected?.requested_amount || 0) / 100" :precision="2" :step="10" controls-position="right" /></el-form-item>
         <el-form-item label="审核结论" required><el-input v-model="actionForm.resultNote" type="textarea" :rows="4" maxlength="1000" show-word-limit placeholder="说明核查依据、处理结论及后续动作" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionMode === 'approve' ? 'primary' : 'danger'" :loading="saving" @click="submitAction">确认{{ actionMode === 'approve' ? '通过' : '驳回' }}</el-button></template>
+      <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionMode === 'approve' ? 'primary' : 'danger'" :loading="saving" @click="submitAction">确认{{ actionMode === 'approve' ? '通过' : selected?.fulfillment ? '退回' : '驳回' }}</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
+.fulfillment-review-button { margin-top: 14px; }
 .after-sales-page{min-height:calc(100vh - 76px)}.after-sales-heading{margin-bottom:14px}.heading-actions{display:flex;gap:10px}.payment-boundary{margin-bottom:14px}.after-sales-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:14px}.after-sales-summary button{position:relative;display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;min-height:92px;padding:16px 18px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.after-sales-summary button:hover{border-color:#9cdfe0;box-shadow:0 10px 28px rgba(29,72,87,.08);transform:translateY(-1px)}.after-sales-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.after-sales-summary button.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(8,184,189,.1)}.after-sales-summary .el-icon{grid-row:1/3;width:44px;height:44px;border-radius:12px;font-size:23px}.after-sales-summary .el-icon.cyan{background:#e4f8f8}.after-sales-summary .el-icon.blue{color:#2679e9!important;background:#e9f1ff}.after-sales-summary .el-icon.orange{background:#fff0e6}.after-sales-summary .el-icon.red{color:#d9485f;background:#fff0f2}.after-sales-summary span{color:var(--muted);font-size:13px}.after-sales-summary strong{font-size:27px}.after-sales-summary small{position:absolute;right:16px;bottom:16px;color:#9aa1ab}.after-sales-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.after-sales-filters{display:grid;grid-template-columns:minmax(250px,1.5fr) 130px 140px 145px 68px 68px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.case-identity{display:flex;flex-direction:column;gap:5px}.case-identity strong{font-size:13px}.case-identity span{color:var(--muted);font-size:12px}.refund-amount{color:var(--orange);font-size:14px}.after-sales-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.after-sales-drawer{min-height:100%;padding-bottom:96px;background:#f7f9fb}.after-sales-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.after-sales-drawer>header div{margin-right:auto}.after-sales-drawer>header h2{margin:0;font-size:20px}.after-sales-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.after-sales-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.after-sales-drawer>header button:hover{background:#f0f4f5}.drawer-message{margin:16px 20px 0;width:auto}.case-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.case-section h3{display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:15px}.case-section h3 .el-icon{color:var(--brand);font-size:18px}.case-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.case-overview div{display:flex;flex-direction:column;gap:6px}.case-overview span{color:var(--muted);font-size:12px}.case-overview strong{font-size:14px}.case-overview .amount{color:var(--orange);font-size:17px}.order-card{padding:14px;border:1px solid #e5eaed;border-radius:7px;background:#fbfcfd}.order-card header{display:flex;align-items:center;justify-content:space-between}.order-card p{margin:8px 0;color:#4f5967;font-size:13px}.order-card div{display:flex;gap:14px;color:var(--muted);font-size:12px}.order-card b{margin-left:auto;color:#394351}.reason-copy{margin:0;color:#3d4755;font-size:14px;line-height:1.75;white-space:pre-wrap}.review-meta{margin-top:12px;color:var(--muted);font-size:12px}.case-actions{position:fixed;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;width:600px;padding:14px 20px;border-top:1px solid var(--line);background:#fff;box-shadow:0 -8px 24px rgba(32,45,55,.06)}.form-alert{margin-bottom:16px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form-grid :deep(.el-select),.form-grid :deep(.el-input-number),:deep(.el-input-number){width:100%}:deep(.after-sales-row){cursor:pointer}:deep(.el-drawer__body){padding:0}:deep(.el-table__row:hover td){background:#f2fbfb!important}@media(max-width:1360px){.after-sales-filters{grid-template-columns:minmax(220px,1fr) 120px 130px 135px 66px 66px}.after-sales-summary button{padding:14px}.after-sales-summary small{display:none}}@media(prefers-reduced-motion:reduce){.after-sales-summary button{transition:none}.after-sales-summary button:hover{transform:none}}
 .after-sales-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
 .evidence-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.evidence-grid :deep(.el-image){width:100%;aspect-ratio:1;border:1px solid var(--line);border-radius:7px;background:#f3f6f7;cursor:zoom-in}

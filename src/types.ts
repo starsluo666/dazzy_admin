@@ -1178,7 +1178,7 @@ export interface ProviderOrderSupportNote {
   created_at: string
 }
 
-export type AfterSalesCaseType = 'refund' | 'service_dispute' | 'provider_cancel' | 'other' | 'early_termination'
+export type AfterSalesCaseType = 'refund' | 'service_dispute' | 'provider_cancel' | 'other' | 'early_termination' | 'fulfillment_dispute'
 export type AfterSalesCaseStatus = 'pending' | 'processing' | 'approved' | 'refunded' | 'rejected' | 'resolved'
 
 export interface TerminationSummary {
@@ -1363,6 +1363,16 @@ export interface ProviderOrderFinanceSummary {
 }
 
 export interface AdminAfterSalesCase {
+  fulfillment?: {
+    revision: number
+    finance_state: string
+    finance_label: string
+    decision: {
+      responsibility_label: string; occurred_at: string; label: string
+      component_refunds: { service: number; transport: number; other: number }
+      refund_amount: number; remaining_amount: number
+    } | null
+  } | null
   termination?: TerminationSummary | null
   requires_supervisor?: boolean
   escalation_reason?: string
@@ -1479,7 +1489,7 @@ export interface AdminProviderOrder {
   fulfillment_revision: number
   fulfillment_policy: { version?: number; early_minutes?: number; late_minutes?: number }
   fulfillment_issues: { code: string; label: string; revision: number; recorded_at: string; expected_at: string; resolved_at: string | null; delta_seconds: number }[]
-  fulfillment_reviews: { revision: number; reason: string; reviewed_at: string; reviewer_name: string }[]
+  fulfillment_reviews: { revision: number; reason: string; reviewed_at: string; reviewer_name: string; outcome?: string; case_no?: string }[]
   confirmation_remaining_seconds: number | null
   completion_location: null | { longitude: string; latitude: string; accuracy_m: string | null }
   public_id: string

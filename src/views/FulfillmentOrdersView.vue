@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RefundRequestDialog from '../components/RefundRequestDialog.vue'
+import FulfillmentRefundDialog from '../components/FulfillmentRefundDialog.vue'
 import { useWorkRoute } from '../composables/workRoute'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -21,6 +22,7 @@ import { adminApi } from '../services/api'
 import { formatDateTime, formatMoney as formatAmount, formatServiceWindow } from '../utils/format'
 import type {
   AdminProviderOrder,
+  AdminAfterSalesCase,
   FulfillmentAnomalyFilter,
   FulfillmentStage,
   ProviderOrderStatus,
@@ -55,6 +57,34 @@ const noteSaving = ref(false)
 const marksCustomerContact = ref(false)
 const reviewSaving = ref(false)
 const fulfillmentSaving = ref(false)
+const fulfillmentCase = ref<AdminAfterSalesCase | null>(null)
+const activeFulfillmentCase = computed(() => selected.value?.after_sales_cases.find(item =>
+  item.case_type === 'fulfillment_dispute' && ['pending', 'processing', 'approved'].includes(item.status)))
+
+async function handleFulfillmentProblem(action: 'transfer' | 'investigate') {
+  const current = selected.value
+  if (!current || fulfillmentSaving.value || !props.canReviewFulfillment || props.preview) return
+  if (action === 'transfer' && !props.canCreateRefund) return
+  fulfillmentSaving.value = true
+  try {
+    const { value } = await ElMessageBox.prompt(
+      action === 'transfer' ? '登记问题后继续暂停自动确认与分账。核实责任并预览退款方案后，由有权限的人员审批；已有售后会进入原单。' : '记录本次核查进展，继续保留异常及资金冻结。',
+      action === 'transfer' ? '存在问题，转售后处理' : '继续核查',
+      { inputType: 'textarea', inputPlaceholder: '填写已核实情况、双方诉求及证据线索', confirmButtonText: '确认登记', cancelButtonText: '取消',
+        inputValidator: value => value.trim().length >= 5 && value.trim().length <= 1000 || '请填写 5–1000 字的核查说明' })
+    if (action === 'transfer') {
+      const item = await adminApi.transferFulfillmentCase(current.order_no, current.fulfillment_revision, value.trim())
+      if (item.fulfillment && ['pending', 'processing'].includes(item.status)) fulfillmentCase.value = item
+      else emit('openAfterSales', current.order_no)
+      ElMessage.success('已进入售后处理；本操作未退款')
+    } else {
+      selected.value = await adminApi.investigateFulfillment(current.order_no, current.fulfillment_revision, value.trim())
+      ElMessage.success('核查进展已记录，订单继续待审核')
+    }
+    await refreshAfterRefund()
+  } catch (cause) { if (cause !== 'cancel' && cause !== 'close') ElMessage.error(cause instanceof Error ? cause.message : '处理失败，请刷新核对') }
+  finally { fulfillmentSaving.value = false }
+}
 
 const supportContactDeadlinePassed = computed(() => Boolean(
   selected.value?.support_contact_deadline_at
@@ -667,10 +697,16 @@ onMounted(load)
             <span>记录时间 {{ formatDateTime(issue.recorded_at) }} · 预约节点 {{ formatDateTime(issue.expected_at) }}</span>
           </div>
           <p v-if="selected.fulfillment_review_required">自动确认与分账已暂停；客服审核期间不消耗用户剩余确认时长。</p>
-          <el-button v-if="selected.fulfillment_review_required && canReviewFulfillment && !selected.timeout?.timed_out_at && !['cancelled', 'refunded', 'terminated'].includes(selected.status)" type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
+          <div v-if="activeFulfillmentCase" class="fulfillment-actions"><el-tag type="warning">已转售后 · {{ activeFulfillmentCase.status_label }}</el-tag><el-button type="primary" plain @click="emit('openAfterSales', selected.order_no)">处理原售后单</el-button></div>
+          <div v-else-if="selected.fulfillment_review_required && canReviewFulfillment && !selected.timeout?.timed_out_at && !['cancelled', 'refunded', 'terminated'].includes(selected.status)" class="fulfillment-actions">
+            <el-button type="primary" :loading="fulfillmentSaving" @click="reviewFulfillment">核实无误，恢复正常</el-button>
+            <el-button v-if="canCreateRefund" type="danger" plain :disabled="fulfillmentSaving" @click="handleFulfillmentProblem('transfer')">存在问题，处理售后</el-button>
+            <el-button :disabled="fulfillmentSaving" @click="handleFulfillmentProblem('investigate')">继续核查</el-button>
+          </div>
           <p v-else-if="selected.fulfillment_review_required">需具有“审核履约异常并恢复自动流程”权限的客服处理。</p>
-          <article v-for="review in selected.fulfillment_reviews" :key="review.revision" class="fulfillment-review-record">
+          <article v-for="(review, index) in selected.fulfillment_reviews" :key="`${review.revision}-${index}`" class="fulfillment-review-record">
             <strong>{{ review.reviewer_name || '客服' }} · {{ formatDateTime(review.reviewed_at) }}</strong>
+            <p>{{ review.outcome === 'investigating' ? '继续核查' : review.outcome === 'after_sales' ? '已转售后' : review.outcome === 'after_sales_decided' ? '售后已裁定' : '核实无误，恢复正常' }} <span v-if="review.case_no">· {{ review.case_no }}</span></p>
             <p>{{ review.reason }}</p>
           </article>
         </section>
@@ -815,6 +851,7 @@ onMounted(load)
     </el-drawer>
   </div>
   <RefundRequestDialog v-model="refundVisible" kind="provider" :reference="selected?.order_no || ''" :preview="preview" @created="refreshAfterRefund" />
+  <FulfillmentRefundDialog v-if="fulfillmentCase" :item="fulfillmentCase" :preview="preview" @close="fulfillmentCase = null" @saved="() => { fulfillmentCase = null; refreshAfterRefund() }" />
 </template>
 
 <style scoped>
@@ -825,6 +862,8 @@ onMounted(load)
 .after-sales-list{display:flex;flex-direction:column;gap:8px}.after-sales-list article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #e8ecef;border-radius:7px;background:#fbfcfc}.after-sales-list article>div{display:flex;align-items:flex-end;gap:8px}.after-sales-list article>div:first-child{min-width:0;flex-direction:column;align-items:flex-start;gap:4px}.after-sales-list strong{font-size:13px}.after-sales-list span{color:var(--muted);font-size:11px}.after-sales-list b{color:var(--orange);font-size:13px}.after-sales-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
 .support-contact-choice{display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:10px 12px;border-radius:7px;background:#fff8e8}.support-contact-choice>span{color:var(--muted);font-size:11px}
 .fulfillment-review-section p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.fulfillment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.fulfillment-actions .el-button { margin-left: 0; }
 .fulfillment-issue { display: flex; flex-direction: column; gap: 8px; padding: 12px; margin-bottom: 10px; border-radius: 8px; background: #fff8ed; font-size: 13px; }
 .fulfillment-issue span { color: var(--muted); font-size: 12px; }
 .fulfillment-review-record { padding: 12px; margin-top: 14px; border-radius: 8px; background: #f2f8f6; font-size: 13px; }

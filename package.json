@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:fulfillment-refunds:browser": "node tests/fulfillmentRefunds.browser.cjs",
     "test:staff-refunds:browser": "node tests/staffRefunds.browser.cjs",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",

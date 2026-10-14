@@ -1,3 +1,4 @@
+import type { FulfillmentRefundContext, FulfillmentRefundInput, FulfillmentRefundQuote } from '../utils/fulfillmentRefunds'
 import type {
   AdminCouponCampaign, CouponCampaignInput, CouponCampaignRule, CouponCampaignClaim,
   CouponIssueBatch,
@@ -775,6 +776,20 @@ export const adminApi = {
     request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/timeout-appeal/`, {
       method: 'POST', body: JSON.stringify({ reason }),
     }),
+  transferFulfillmentCase: (orderNo: string, revision: number, reason: string) =>
+    request<AdminAfterSalesCase>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/fulfillment-after-sales/`, {
+      method: 'POST', body: JSON.stringify({ action: 'transfer', revision, reason }),
+    }),
+  investigateFulfillment: (orderNo: string, revision: number, reason: string) =>
+    request<AdminProviderOrder>(`/admin/provider-orders/${encodeURIComponent(orderNo)}/fulfillment-after-sales/`, {
+      method: 'POST', body: JSON.stringify({ action: 'investigate', revision, reason }),
+    }),
+  fulfillmentRefundContext: (caseNo: string) => request<FulfillmentRefundContext>(
+    `/admin/order-after-sales/${encodeURIComponent(caseNo)}/fulfillment-context/`),
+  previewFulfillmentRefund: (caseNo: string, data: FulfillmentRefundInput) => request<FulfillmentRefundQuote>(
+    `/admin/order-after-sales/${encodeURIComponent(caseNo)}/fulfillment-preview/`, { method: 'POST', body: JSON.stringify(data) }),
+  resolveFulfillmentRefund: (caseNo: string, token: string) => request<AdminAfterSalesCase>(
+    `/admin/order-after-sales/${encodeURIComponent(caseNo)}/fulfillment-resolve/`, { method: 'POST', body: JSON.stringify({ token }) }),
   addProviderOrderSupportNote: (
     orderNo: string,
     content: string,
