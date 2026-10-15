@@ -156,7 +156,7 @@ onMounted(load)
           </ul>
           <p class="hint">仅检查已保存配置，不发起网络请求；通过不代表汇付已批准开户或已验证通知可达。</p>
           <div class="withdrawal-status"><strong>实际提现开关</strong><el-tag :type="saved.withdrawal_enabled ? 'success' : 'info'">{{ saved.withdrawal_enabled ? '已开启' : '未开启' }}</el-tag></div>
-          <p class="hint">提现开关与开户独立，白名单、限额、账户及余额核验仍按现有流程执行；保存本表单不会开启提现。</p>
+          <p class="hint">提现开关与开户独立。达人须通过审核、实名及收款账户核验，并满足限额和余额要求，无需逐个加入白名单；保存本表单不会开启提现。</p>
         </aside>
       </div>
     </template>

@@ -194,7 +194,7 @@ onMounted(load)
     </section>
 
     <section class="finance-panel">
-      <el-alert v-if="active === 'settlement'" type="info" :closable="false" show-icon title="业务准备、渠道分账和提现到账分别核验。白名单分账由独立开关控制的命令或任务执行；分账成功先入达人余额，银行卡提现由达人主动申请，本页面不发起出款。" />
+      <el-alert v-if="active === 'settlement'" type="info" :closable="false" show-icon title="业务准备、渠道分账和提现到账分别核验。符合审核、实名及收款账户条件的达人无需白名单；分账仍受独立开关、限额和订单条件控制，核验成功后先入达人余额，提现由达人主动申请。本页面不发起出款。" />
       <div class="record-tabs">
         <button v-for="tab in tabs" :key="tab.key" :class="{ active: active === tab.key }" @click="switchTab(tab.key)">
           {{ tab.label }}<em v-if="tab.key === 'exception' && summary.exception_count">{{ summary.exception_count }}</em>
