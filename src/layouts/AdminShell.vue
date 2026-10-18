@@ -37,7 +37,7 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   receiving_settings: ['operations-group'],
   provider_training: ['operations-group'],
   activities: ['activities-group'], activity_categories: ['activities-group'], activity_reports: ['activities-group'],
-  orders: ['orders-group'], after_sales: ['orders-group'],
+  orders: ['orders-group'], after_sales: ['orders-group'], manual_refunds: ['orders-group'],
   settlements: ['finance-group'], finance_alerts: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
   support_cases: ['support-group'],
   coupons: ['marketing-group', 'coupon-management-group'],
@@ -74,6 +74,7 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'orders-group', label: '订单管理', icon: Document, group: true, visible: can('order.fulfillment.view') || can('order.after_sales.view') },
   { key: 'orders', label: '达人订单', icon: List, child: true, parent: 'orders-group', enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
+  { key: 'manual_refunds', label: '已结算订单人工售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'finance-group', label: '财务管理', icon: Coin, group: true, visible: can('order.finance.view') || can('activity_finance.view') || can('wallet.view') },
   { key: 'settlements', label: '达人订单财务', icon: Document, child: true, parent: 'finance-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
   { key: 'finance_alerts', label: '资金异常核查', icon: Coin, child: true, parent: 'finance-group', enabled: can('order.finance.view') && can('order.finance.manage'), visible: can('order.finance.view') && can('order.finance.manage') },
@@ -118,6 +119,7 @@ const pageLabels: Record<AdminPage, string> = {
   activity_reports: '活动管理 / 举报与处置',
   orders: '订单管理 / 达人订单',
   after_sales: '订单管理 / 退款与售后',
+  manual_refunds: '订单管理 / 已结算订单人工售后',
   settlements: '财务管理 / 达人订单财务',
   finance_alerts: '财务管理 / 资金异常核查',
   activity_finance: '财务管理 / 活动财务',
@@ -153,7 +155,7 @@ function groupActive(key: string) {
   return (key === 'users-group' && props.active === 'users')
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'activities-group' && ['activities', 'activity_categories', 'activity_reports'].includes(props.active))
-    || (key === 'orders-group' && ['orders', 'after_sales'].includes(props.active))
+    || (key === 'orders-group' && ['orders', 'after_sales', 'manual_refunds'].includes(props.active))
     || (key === 'finance-group' && ['settlements', 'finance_alerts', 'activity_finance', 'wallets'].includes(props.active))
     || (key === 'support-group' && props.active === 'support_cases')
     || (['marketing-group', 'coupon-management-group'].includes(key) && ['coupons', 'coupon_records'].includes(props.active))

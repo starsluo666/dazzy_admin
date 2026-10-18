@@ -415,6 +415,12 @@ export const adminApi = {
       method: 'POST', body: JSON.stringify({ requested_principal_amount: principal, requested_service_fee_amount: fee, reason }),
     }),
   organizations: () => request<{ items: AdminOrganization[] }>('/admin/organizations/'),
+  manualRefunds: (query: { page: number; search?: string; status?: string; todo?: string; work_id?: string }) => request<{ items: import('../utils/refunds').ManualRefundCase[]; total: number }>(`/admin/manual-refunds/?${queryString(query)}`),
+  manualRefund: (caseNo: string) => request<import('../utils/refunds').ManualRefundCase>(`/admin/manual-refunds/${encodeURIComponent(caseNo)}/`),
+  createManualRefund: (orderNo: string, amount: number, reason: string, requestKey: string) => request<import('../utils/refunds').ManualRefundCase>('/admin/manual-refunds/', {
+    method: 'POST', body: JSON.stringify({ order_no: orderNo, requested_amount: amount, reason, request_key: requestKey }),
+  }),
+  manualRefundAction: (caseNo: string, body: { action: string; revision: number; note: string; receipt_no?: string; evidence_reference?: string; paid_at?: string }) => request<import('../utils/refunds').ManualRefundCase>(`/admin/manual-refunds/${encodeURIComponent(caseNo)}/`, { method: 'POST', body: JSON.stringify(body) }),
   permissionCatalog: () => request<{
     groups: AdminPermissionGroup[]
     data_scopes: Array<{ value: AdminRoleDataScope; label: string }>

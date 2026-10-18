@@ -11,6 +11,7 @@ import ProviderReviewView from './views/ProviderReviewView.vue'
 import ProviderManagementView from './views/ProviderManagementView.vue'
 import FulfillmentOrdersView from './views/FulfillmentOrdersView.vue'
 import AfterSalesView from './views/AfterSalesView.vue'
+import ManualRefundsView from './views/ManualRefundsView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import ServiceCategoriesView from './views/ServiceCategoriesView.vue'
 import AssetsView from './views/AssetsView.vue'
@@ -310,6 +311,7 @@ onMounted(loadSession)
       :can-manage="canManageActivityReport"
     />
     <FulfillmentOrdersView :key="route.fullPath" v-else-if="currentPage === 'orders'" :preview="preview" :can-create-refund="canCreateProviderRefund" :can-add-note="canAddOrderNote" :can-manage-review="canManageOrderReview" :can-review-fulfillment="canReviewFulfillment" :can-adjust-credit="canAdjustProviderCredit" :initial-search="orderSearch" @open-after-sales="(orderNo) => navigate('after_sales', { search: orderNo })" />
+    <ManualRefundsView :key="route.fullPath" v-else-if="currentPage === 'manual_refunds'" :preview="preview" :can-create="canCreateProviderRefund" />
     <AfterSalesView :key="route.fullPath"
       v-else-if="currentPage === 'after_sales'"
       :preview="preview"
