@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { adminApi } from '../services/api'
 import { useOperationsWork } from '../composables/operationsWork'
 import { financeWorkQueues, type FinanceWorkItem } from '../utils/operationsWork'
 import { formatMoney, formatDateTime } from '../utils/format'
 
-const props = defineProps<{ preview: boolean }>()
+const props = defineProps<{ preview: boolean; permissions?: string[] }>()
+const router = useRouter()
+const canRegister = () => !props.preview && (props.permissions?.includes('*') || props.permissions?.includes('finance.recovery.manage'))
+function register() {
+  if (!selected.value) return
+  const kind = queue.value === 'income_reconciliation' ? 'wallet' : queue.value === 'withdrawal_attention' ? 'withdrawal' : 'distribution'
+  void router.push({ name: 'finance_recovery', query: { kind, target_id: selected.value.id, reference: selected.value.reference } })
+}
 const route = useRoute()
 const work = useOperationsWork()
 const initialQueue = typeof route.query.todo === 'string' ? route.query.todo : ''
@@ -72,7 +79,8 @@ onMounted(load)
           <el-table-column label="收入流水合计"><template #default="{ row }"><span :class="{ mismatch: row.actual !== row.expected }">{{ formatMoney(row.expected) }}</span></template></el-table-column>
         </el-table>
         <h3>核查步骤</h3>
-        <ol><li>使用原流水核对渠道结果、金额、费用及实际到账情况。</li><li>对比平台分账、提现及收入流水，保留处理依据。</li><li>由财务按既有受控流程处理；本页不提供重发、补账或解除冻结按钮。</li></ol>
+        <ol><li>使用原流水核对渠道结果、金额、费用及实际到账情况。</li><li>对比平台分账、提现及收入流水，保留处理依据。</li><li>全平台财务可登记处置单，提交凭证后由另一位财务复核。</li></ol>
+        <el-button v-if="canRegister() && queue !== 'distribution_preflight_attention'" type="primary" @click="register">登记资金处置单</el-button>
         <p class="muted">关闭详情或标为已读不会解除资金冻结，也不会删除异常。证据冲突须人工核账，不能仅凭一次正常查询消除。</p>
       </template>
     </el-drawer>

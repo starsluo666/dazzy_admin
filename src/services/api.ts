@@ -485,6 +485,15 @@ export const adminApi = {
   reconciliation: (params: Record<string, string | number | undefined>) => request<{
     items: import('../utils/reconciliation').ReconciliationRow[]; total: number; enabled: boolean; start_date: string
   }>(`/admin/reconciliation/?${queryString(params)}`),
+  financeRecovery: (params: Record<string, string | number | undefined>) =>
+    request<import('../utils/financeRecovery').RecoveryList>(`/admin/finance-recovery/?${queryString(params)}`),
+  createFinanceRecovery: (payload: { kind: string; target_id: number; note: string }) =>
+    request<import('../utils/financeRecovery').RecoveryCase>('/admin/finance-recovery/', { method: 'POST', body: JSON.stringify(payload) }),
+  financeRecoveryDetail: (id: number) =>
+    request<import('../utils/financeRecovery').RecoveryCase>(`/admin/finance-recovery/${id}/`),
+  financeRecoveryAction: (id: number, payload: { action: string; revision: number; note: string; evidence_reference: string; resolution: string }) =>
+    request<import('../utils/financeRecovery').RecoveryCase>(`/admin/finance-recovery/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
+  paymentJobHealth: () => request<{ items: import('../utils/financeRecovery').PaymentJobHealth[] }>('/admin/payment-job-health/'),
   reconciliationIssue: (id: string | number) => request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`),
   reconciliationAction: (id: string | number, payload: { action: string; revision: number; note: string; evidence_reference: string }) =>
     request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
