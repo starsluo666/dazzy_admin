@@ -35,6 +35,7 @@ import InvitationRecordsView from './views/InvitationRecordsView.vue'
 import ProviderInvitesView from './views/ProviderInvitesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import FinanceWorkView from './views/FinanceWorkView.vue'
+import ReconciliationView from './views/ReconciliationView.vue'
 import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
 import WalletFinanceView from './views/WalletFinanceView.vue'
 import {
@@ -321,6 +322,7 @@ onMounted(loadSession)
       :can-supervise="canSuperviseRefund"
     />
     <FinanceWorkView :key="route.fullPath" v-else-if="currentPage === 'finance_alerts'" :preview="preview" />
+    <ReconciliationView :key="route.fullPath" v-else-if="currentPage === 'reconciliation'" :preview="preview" :permissions="session?.permissions || []" />
     <ProviderOrderFinanceView :key="route.fullPath"
       v-else-if="currentPage === 'settlements'"
       :preview="preview"

@@ -38,7 +38,7 @@ const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
   provider_training: ['operations-group'],
   activities: ['activities-group'], activity_categories: ['activities-group'], activity_reports: ['activities-group'],
   orders: ['orders-group'], after_sales: ['orders-group'], manual_refunds: ['orders-group'],
-  settlements: ['finance-group'], finance_alerts: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
+  settlements: ['finance-group'], finance_alerts: ['finance-group'], reconciliation: ['finance-group'], activity_finance: ['finance-group'], wallets: ['finance-group'],
   support_cases: ['support-group'],
   coupons: ['marketing-group', 'coupon-management-group'],
   coupon_records: ['marketing-group', 'coupon-management-group'],
@@ -75,7 +75,8 @@ const navigation = computed<NavigationItem[]>(() => [
   { key: 'orders', label: '达人订单', icon: List, child: true, parent: 'orders-group', enabled: can('order.fulfillment.view'), visible: can('order.fulfillment.view') },
   { key: 'after_sales', label: '退款 / 售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
   { key: 'manual_refunds', label: '已结算订单人工售后', icon: Coin, child: true, parent: 'orders-group', enabled: can('order.after_sales.view'), visible: can('order.after_sales.view') },
-  { key: 'finance-group', label: '财务管理', icon: Coin, group: true, visible: can('order.finance.view') || can('activity_finance.view') || can('wallet.view') },
+  { key: 'finance-group', label: '财务管理', icon: Coin, group: true, visible: can('order.finance.view') || can('activity_finance.view') || can('wallet.view') || can('reconciliation.view') },
+  { key: 'reconciliation', label: '每日对账', icon: Coin, child: true, parent: 'finance-group', enabled: can('reconciliation.view'), visible: can('reconciliation.view') },
   { key: 'settlements', label: '达人订单财务', icon: Document, child: true, parent: 'finance-group', enabled: can('order.finance.view'), visible: can('order.finance.view') },
   { key: 'finance_alerts', label: '资金异常核查', icon: Coin, child: true, parent: 'finance-group', enabled: can('order.finance.view') && can('order.finance.manage'), visible: can('order.finance.view') && can('order.finance.manage') },
   { key: 'activity_finance', label: '活动财务', icon: Calendar, child: true, parent: 'finance-group', enabled: can('activity_finance.view'), visible: can('activity_finance.view') },
@@ -122,6 +123,7 @@ const pageLabels: Record<AdminPage, string> = {
   manual_refunds: '订单管理 / 已结算订单人工售后',
   settlements: '财务管理 / 达人订单财务',
   finance_alerts: '财务管理 / 资金异常核查',
+  reconciliation: '财务管理 / 每日对账',
   activity_finance: '财务管理 / 活动财务',
   wallets: '财务管理 / 余额与充值',
   support_cases: '客服与投诉 / 客服工单',
@@ -156,7 +158,7 @@ function groupActive(key: string) {
     || (key === 'providers-group' && ['providers', 'provider_reviews'].includes(props.active))
     || (key === 'activities-group' && ['activities', 'activity_categories', 'activity_reports'].includes(props.active))
     || (key === 'orders-group' && ['orders', 'after_sales', 'manual_refunds'].includes(props.active))
-    || (key === 'finance-group' && ['settlements', 'finance_alerts', 'activity_finance', 'wallets'].includes(props.active))
+    || (key === 'finance-group' && ['settlements', 'finance_alerts', 'reconciliation', 'activity_finance', 'wallets'].includes(props.active))
     || (key === 'support-group' && props.active === 'support_cases')
     || (['marketing-group', 'coupon-management-group'].includes(key) && ['coupons', 'coupon_records'].includes(props.active))
     || (['marketing-group', 'growth-management-group'].includes(key) && ['newcomer_gift', 'invitation_rules', 'invitation_records'].includes(props.active))

@@ -482,6 +482,12 @@ export const adminApi = {
     }
   },
   me: () => request<AdminMe>('/admin/me/'),
+  reconciliation: (params: Record<string, string | number | undefined>) => request<{
+    items: import('../utils/reconciliation').ReconciliationRow[]; total: number; enabled: boolean; start_date: string
+  }>(`/admin/reconciliation/?${queryString(params)}`),
+  reconciliationIssue: (id: string | number) => request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`),
+  reconciliationAction: (id: string | number, payload: { action: string; revision: number; note: string; evidence_reference: string }) =>
+    request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
   financeWork: (params: Record<string, string | number | undefined>) => request<{
     items: import('../utils/operationsWork').FinanceWorkItem[]; total: number; page: number; page_size: number
   }>(`/admin/work/finance/?${queryString(params)}`),

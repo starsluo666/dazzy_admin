@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Coin, CreditCard, Refresh, Search, SuccessFilled, Tickets, WarningFilled } from '@element-plus/icons-vue'
 
 import { adminApi } from '../services/api'
+import WalletSettlementPreparation from '../components/WalletSettlementPreparation.vue'
 import { formatDateTime, formatMoney as formatAmount } from '../utils/format'
 import type {
   ProviderOrderFinanceSummary,
@@ -233,7 +234,7 @@ onMounted(load)
           <el-table-column label="资金来源" min-width="140"><template #default="{ row }">{{ row.distribution_plan?.funding_type_label || '待核账' }}</template></el-table-column>
           <el-table-column label="账务状态" width="145"><template #default="{ row }"><el-tag :type="statusType(row.status)" effect="light">{{ row.status_label }}</el-tag></template></el-table-column>
           <el-table-column label="业务准备" min-width="185"><template #default="{ row }"><el-tag :type="row.distribution_plan?.status === 'ready' ? 'success' : 'info'" effect="plain">{{ row.distribution_plan?.status_label || '尚未生成 · 需核账' }}</el-tag></template></el-table-column>
-          <el-table-column label="渠道分账" min-width="240"><template #default="{ row }"><el-tag :type="row.distribution?.attention_reason || row.distribution_preflight?.reason_code ? 'warning' : row.distribution?.status === 'succeeded' ? 'success' : 'info'" effect="plain">{{ row.distribution?.evidence_conflict_code ? '分账证据冲突 · 暂停提现' : row.distribution?.status_label || row.distribution_preflight?.status_label || '尚未发起' }}</el-tag></template></el-table-column>
+          <el-table-column label="渠道结算" min-width="240"><template #default="{ row }"><el-tag :type="row.distribution?.attention_reason || row.distribution_preflight?.reason_code ? 'warning' : row.distribution?.status === 'succeeded' ? 'success' : 'info'" effect="plain">{{ row.distribution?.evidence_conflict_code ? '出款证据冲突 · 暂停提现' : row.distribution?.status_label || row.distribution_preflight?.status_label || '尚未发起' }}</el-tag></template></el-table-column>
           <el-table-column label="账务结算 / 冻结截止" min-width="180"><template #default="{ row }">{{ formatDateTime(row.settled_at || row.freeze_until) }}</template></el-table-column>
         </template>
         <el-table-column v-if="active !== 'exception'" label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
@@ -260,20 +261,28 @@ onMounted(load)
             <p>尚未登记渠道分账请求，不代表资金已经转出；本地业务准备与渠道执行分别核验。</p>
           </template>
           <template v-if="selected.distribution">
-            <el-alert :type="selected.distribution.attention_reason ? 'warning' : 'info'" :closable="false" :title="selected.distribution.status_label" :description="selected.distribution.attention_reason || '渠道分账成功不等于银行卡到账；本页面不支持重发分账或自动回退。'" />
+            <el-alert :type="selected.distribution.attention_reason ? 'warning' : 'info'" :closable="false" :title="selected.distribution.status_label" :description="selected.distribution.attention_reason || '渠道结算成功不等于银行卡到账；本页面不支持重发付款或自动回退。'" />
             <dl>
-              <div><dt>分账请求流水</dt><dd>{{ selected.distribution.req_seq_id }}</dd></div>
+              <div><dt>渠道结算方式</dt><dd>{{ selected.distribution.route_label || '原支付延时分账' }}</dd></div>
+              <div><dt>出款请求流水</dt><dd>{{ selected.distribution.req_seq_id }}</dd></div>
               <div><dt>达人应收（不扣手续费）</dt><dd>{{ formatAmount(selected.distribution.provider_amount) }}</dd></div>
               <div><dt>平台抽成（扣费前）</dt><dd>{{ formatAmount(selected.distribution.platform_amount) }}</dd></div>
+              <template v-if="selected.distribution.route === 'balance'">
+                <div><dt>向达人付款金额</dt><dd>{{ fundingAmount(selected.distribution.account_payment_amount) }}</dd></div>
+                <div><dt>余额支付手续费（平台承担）</dt><dd>{{ fundingAmount(selected.distribution.account_payment_fee_amount) }}</dd></div>
+              </template>
+              <template v-else>
               <div><dt>支付手续费扣款方式</dt><dd>{{ selected.distribution.payment_fee_flag === '2' ? '内扣 · 从平台份额扣除' : selected.distribution.payment_fee_flag === '1' ? '外扣 · 平台另付' : '待核实' }}</dd></div>
-              <div><dt>支付手续费（平台承担）</dt><dd>{{ formatAmount(selected.distribution.payment_fee_amount) }}</dd></div>
+              <div><dt>支付手续费（平台承担）</dt><dd>{{ fundingAmount(selected.distribution.payment_fee_amount) }}</dd></div>
               <div><dt>平台分账金额</dt><dd>{{ fundingAmount(selected.distribution.platform_split_amount) }}</dd></div>
               <div><dt>分账请求总额</dt><dd>{{ fundingAmount(selected.distribution.split_amount) }}</dd></div>
               <div><dt>分账手续费（平台承担）</dt><dd>{{ fundingAmount(selected.distribution.split_fee_amount) }}</dd></div>
+              </template>
               <div><dt>银行卡提现</dt><dd>达人申请后另按提现单核验，不计入本单分账状态</dd></div>
-              <div><dt>最近分账查询</dt><dd>{{ formatDateTime(selected.distribution.last_queried_at) }}</dd></div>
+              <div><dt>最近渠道查询</dt><dd>{{ formatDateTime(selected.distribution.last_queried_at) }}</dd></div>
             </dl>
-            <p>以上分账金额为本次请求金额，到账以渠道核验状态为准。内扣已从平台份额扣除支付手续费；外扣由平台另付，不在分账金额中重复扣除。平台分账金额不等于扣除全部费用后的净收益。</p>
+            <p v-if="selected.distribution.route === 'balance'">平台账户向达人账户支付应收金额，未再次扣用户余额。平台抽成留在平台账户，手续费另由平台承担；充值及原支付手续费不在本次重复计入。</p>
+            <p v-else>以上分账金额为本次请求金额，到账以渠道核验状态为准。内扣已从平台份额扣除支付手续费；外扣由平台另付，不在分账金额中重复扣除。平台分账金额不等于扣除全部费用后的净收益。</p>
           </template>
           <template v-if="selected.distribution_plan">
             <p>{{ selected.distribution_plan.plan_no }} · 第 {{ selected.distribution_plan.revision }} 版</p>
@@ -285,6 +294,9 @@ onMounted(load)
               <div><dt>手续费承担（平台规则）</dt><dd>{{ selected.distribution_plan.fee_policy_snapshot?.bearer === 'platform' ? '平台承担，达人不扣手续费' : '待核实' }}</dd></div>
             </dl>
             <p v-if="selected.distribution_plan.fee_policy_snapshot?.bearer === 'platform'">准备单仅记录平台承担手续费的业务规则。实际支付、分账费用见渠道记录；提现费用归属独立提现单，不重复计入订单。</p>
+            <WalletSettlementPreparation
+              v-if="selected.distribution_plan.funding_snapshot.wallet_settlement_preparation"
+              :preparation="selected.distribution_plan.funding_snapshot.wallet_settlement_preparation" />
             <ul v-if="selected.distribution_plan.blockers.length"><li v-for="reason in selected.distribution_plan.blockers" :key="reason.code">{{ reason.message }}</li></ul>
             <p>最近核对：{{ formatDateTime(selected.distribution_plan.evaluated_at) }}。业务条件满足不代表已获分账授权、渠道资金可用或银行卡到账。</p>
           </template>

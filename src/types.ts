@@ -37,7 +37,7 @@ export interface AdminMe {
   city_codes: string[]
 }
 
-export type AdminPage = 'manual_refunds' | 'provider_invites' | 'coupon_campaigns' | 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'finance_alerts' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
+export type AdminPage = 'reconciliation' | 'manual_refunds' | 'provider_invites' | 'coupon_campaigns' | 'dashboard' | 'users' | 'providers' | 'provider_reviews' | 'services' | 'assets' | 'platform_settings' | 'receiving_settings' | 'provider_rules' | 'provider_training' | 'activities' | 'activity_categories' | 'activity_reports' | 'orders' | 'after_sales' | 'settlements' | 'finance_alerts' | 'activity_finance' | 'wallets' | 'support_cases' | 'coupons' | 'coupon_records' | 'newcomer_gift' | 'invitation_rules' | 'invitation_records' | 'system' | 'tasks' | 'audit_logs'
 
 export interface CouponCampaignRule {
   name: string; face_amount: number; min_order_amount: number; valid_days: number; description: string
@@ -1254,6 +1254,43 @@ export interface ProviderOrderRefundRecord {
   updated_at: string
 }
 
+export interface ProviderWalletSettlementPreparation {
+  version: string
+  status: 'not_required' | 'blocked' | 'awaiting_channel'
+  status_label: string
+  execution_enabled: false
+  channel_funds_verified: false
+  channel_transfer_amount: null
+  channel_fee_amount: null
+  wallet_remaining_amount: number | null
+  external_remaining_amount: number | null
+  traceable_wallet_amount: number | null
+  untraced_wallet_amount: number | null
+  provider_receivable_amount: number
+  platform_gross_amount: number
+  sources: Array<{
+    recharge_no: string
+    debited_amount: number
+    restored_amount: number
+    remaining_amount: number
+    record_complete: boolean
+    evidence_digest: string
+  }>
+  sources_truncated: boolean
+  external_payment: {
+    payment_no: string
+    paid_amount: number | null
+    refunded_amount: number | null
+    remaining_amount: number | null
+    delay_acct_flag: string
+    record_complete: boolean
+    evidence_digest: string
+  } | null
+  source_issues: Array<{ code: string; message: string }>
+  business_blockers: Array<{ code: string; message: string }>
+  pending_confirmations: string[]
+}
+
 export interface ProviderOrderSettlementPlan {
   plan_no: string
   status: 'waiting' | 'ready' | 'blocked' | 'cancelled'
@@ -1281,6 +1318,7 @@ export interface ProviderOrderSettlementPlan {
   funding_snapshot: {
     locally_reconciled: boolean
     channel_funds_verified: boolean
+    wallet_settlement_preparation?: ProviderWalletSettlementPreparation
     wallet_paid_amount: number | null
     external_paid_amount: number | null
     wallet_refunded_amount: number | null
@@ -1326,17 +1364,22 @@ export interface ProviderOrderSettlementRecord {
     next_retry_at: string | null
   } | null
   distribution?: {
+    route?: 'delayed' | 'balance'
+    route_label?: string
     req_date: string
     req_seq_id: string
     status: 'submitting' | 'unknown' | 'processing' | 'succeeded' | 'failed'
     status_label: string
     provider_amount: number
     platform_amount: number
-    payment_fee_flag: '1' | '2'
-    platform_split_amount: number
-    split_amount: number
-    payment_fee_amount: number
+    payment_fee_flag: '1' | '2' | ''
+    platform_split_amount: number | null
+    split_amount: number | null
+    payment_fee_amount: number | null
     split_fee_amount: number | null
+    account_payment_fee_amount?: number | null
+    account_payment_amount?: number | null
+    funds_reserved_amount?: number | null
     bank_settlement_fee_amount: number | null
     bank_arrival_verified: false
     response_code: string
