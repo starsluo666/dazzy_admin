@@ -5,17 +5,19 @@ import { ElMessageBox } from 'element-plus'
 import { adminApi } from '../services/api'
 import { useOperationsWork } from '../composables/operationsWork'
 import { formatDateTime, formatMoney } from '../utils/format'
-import type { RecoveryCase, RecoveryList, PaymentJobHealth } from '../utils/financeRecovery'
+import type { RecoveryCase, RecoveryList, PaymentJobHealth, PaymentReadiness } from '../utils/financeRecovery'
+import PaymentReadinessPanel from '../components/PaymentReadinessPanel.vue'
 
 const props = defineProps<{ preview: boolean; permissions: string[] }>()
 const route = useRoute(), work = useOperationsWork()
 const can = (permission: string) => !props.preview && (props.permissions.includes('*') || props.permissions.includes(permission))
-const view = ref(['jobs', 'pools'].includes(String(route.query.view)) ? String(route.query.view) : 'cases')
+const view = ref(['jobs', 'pools', 'readiness'].includes(String(route.query.view)) ? String(route.query.view) : 'cases')
 const linkedView = route.query.todo === 'payment_pool_hold' ? 'pools' : String(route.query.todo || '').startsWith('finance_recovery_') ? 'cases' : 'jobs'
 const status = ref(route.query.todo === 'finance_recovery_review' ? 'review' : route.query.todo === 'finance_recovery_open' ? 'open' : '')
 const search = ref(view.value === 'cases' && !route.query.kind ? String(route.query.search || '') : '')
 const page = ref(1), total = ref(0), enabled = ref(false), loading = ref(false), saving = ref(false)
 const rows = ref<RecoveryCase[]>([]), pools = ref<RecoveryList['pools']>([]), jobs = ref<PaymentJobHealth[]>([])
+const readiness = ref<PaymentReadiness | null>(null)
 const error = ref(''), detailError = ref(''), drawer = ref(false), selected = ref<RecoveryCase | null>(null)
 const note = ref(''), evidence = ref(''), resolution = ref('record')
 const newKind = ref(String(route.query.kind || '')), newTarget = ref(Number(route.query.target_id || 0))
@@ -28,7 +30,11 @@ async function load() {
   loading.value = true; error.value = ''
   try {
     if (props.preview) return
-    if (view.value === 'jobs') {
+    if (view.value === 'readiness') {
+      readiness.value = null
+      const data = await adminApi.paymentReadiness()
+      if (own === generation) readiness.value = data
+    } else if (view.value === 'jobs') {
       const data = await adminApi.paymentJobHealth()
       if (own === generation) jobs.value = data.items
     } else {
@@ -90,12 +96,13 @@ onMounted(load)
 <template>
   <section class="recovery-page">
     <header><div><h1>资金处置与巡检</h1><p>保留原流水、核查凭证与独立复核记录。</p></div><el-button :loading="loading" @click="load">刷新本地记录</el-button></header>
-    <el-alert type="warning" :closable="false" show-icon title="核查结案不等于解除冻结。这里不重付原单、不自动退款、不直接修改交易成功或余额。" />
+    <el-alert v-if="view !== 'readiness'" type="warning" :closable="false" show-icon title="核查结案不等于解除冻结。这里不重付原单、不自动退款、不直接修改交易成功或余额。" />
     <el-radio-group v-model="view" :disabled="saving" class="tabs" aria-label="资金工作视图">
       <el-radio-button value="cases">资金处置单</el-radio-button><el-radio-button value="pools">平台付款暂停</el-radio-button><el-radio-button value="jobs">支付任务巡检</el-radio-button>
+      <el-radio-button value="readiness">资金上线检查</el-radio-button>
     </el-radio-group>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
-    <div v-if="creating && can('finance.recovery.manage')" class="create-card">
+    <div v-if="creating && ['cases', 'pools'].includes(view) && can('finance.recovery.manage')" class="create-card">
       <h3>登记异常 · {{ newReference }}</h3>
       <el-input v-model="newNote" type="textarea" maxlength="1000" aria-label="登记说明" placeholder="说明异常情况，不要填写密钥、银行卡号或下载链接" />
       <el-button type="primary" :loading="saving" :disabled="newNote.trim().length < 5" @click="create">确认登记</el-button>
@@ -122,6 +129,7 @@ onMounted(load)
       </el-table>
       <footer><span>共 {{ total }} 个暂停账户</span><el-pagination v-model:current-page="page" :total="total" :page-size="20" layout="prev, pager, next" @current-change="load" /></footer>
     </template>
+    <PaymentReadinessPanel v-else-if="view === 'readiness'" :report="readiness" :loading="loading" :preview="preview" @open-jobs="view = 'jobs'" />
     <template v-else>
       <p class="muted">检查实际执行记录，不只看容器在线。任务停止、超时、运行失败及账单核对不完整会进入实时待办；不会自动重发资金请求。</p>
       <el-table v-loading="loading" :data="jobs" empty-text="暂无巡检记录">

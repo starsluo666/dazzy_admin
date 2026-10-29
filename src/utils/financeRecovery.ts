@@ -9,6 +9,17 @@ export interface PaymentJobHealth {
   id: number | null; key: string; label: string; state: string; reason: string; alert: boolean
   started_at: string | null; finished_at: string | null; succeeded_at: string | null; quiet_seconds: number
 }
+export interface PaymentReadiness {
+  checked_at: string
+  environment: string
+  groups: Array<{
+    key: string; label: string; switch: string; enabled: boolean
+    state: 'configured' | 'incomplete' | 'disabled'; limit_cents: number | null
+    checks: Array<{ key: string; label: string; ok: boolean; help: string }>
+  }>
+  jobs: PaymentJobHealth[]
+  manual_checks: Array<{ key: string; label: string; description: string }>
+}
 export interface RecoveryList {
   items: RecoveryCase[]; total: number; pools_total: number; recovery_enabled: boolean
   pools: Array<{ id: number; reference: string; reason: string }>

@@ -399,6 +399,13 @@ function queryString(query: object) {
 }
 
 export const adminApi = {
+  contentReviews: (params: Record<string, string | number | undefined>) =>
+    request<import('../utils/contentReviews').ContentReviewList>(`/admin/content-reviews/?${queryString(params)}`),
+  contentReview: (id: number) => request<import('../utils/contentReviews').ContentReview>(`/admin/content-reviews/${id}/`),
+  registerContentReview: (payload: { kind: string; target_id: number }) =>
+    request<import('../utils/contentReviews').ContentReview>('/admin/content-reviews/', { method: 'POST', body: JSON.stringify(payload) }),
+  decideContentReview: (id: number, payload: { action: string; revision: number; reason: string }) =>
+    request<import('../utils/contentReviews').ContentReview>(`/admin/content-reviews/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
   providerInviteConfig: () => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/'),
   saveProviderInviteConfig: (data: import('../types/providerInvites').InviteConfig) => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/', { method: 'PUT', body: JSON.stringify(data) }),
   providerInviteSources: (params: Record<string, string | number>) => request<import('../types/providerInvites').InvitePage<import('../types/providerInvites').InviteSource>>(`/admin/provider-invites/sources/?${queryString(params)}`),
@@ -494,6 +501,7 @@ export const adminApi = {
   financeRecoveryAction: (id: number, payload: { action: string; revision: number; note: string; evidence_reference: string; resolution: string }) =>
     request<import('../utils/financeRecovery').RecoveryCase>(`/admin/finance-recovery/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
   paymentJobHealth: () => request<{ items: import('../utils/financeRecovery').PaymentJobHealth[] }>('/admin/payment-job-health/'),
+  paymentReadiness: () => request<import('../utils/financeRecovery').PaymentReadiness>('/admin/payment-readiness/'),
   reconciliationIssue: (id: string | number) => request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`),
   reconciliationAction: (id: string | number, payload: { action: string; revision: number; note: string; evidence_reference: string }) =>
     request<import('../utils/reconciliation').ReconciliationRow>(`/admin/reconciliation/issues/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),

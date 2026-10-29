@@ -2,6 +2,7 @@ import type { AdminPage } from './types'
 
 export const ADMIN_PAGES: AdminPage[] = [
   'dashboard',
+  'content_reviews',
   'provider_invites',
   'users',
   'providers',
@@ -37,6 +38,7 @@ export const ADMIN_PAGES: AdminPage[] = [
 ]
 
 export const ADMIN_PAGE_PERMISSIONS: Record<AdminPage, string> = {
+  content_reviews: 'content.review.view',
   provider_invites: 'provider_invite.view',
   dashboard: 'dashboard.view',
   users: 'user.view',

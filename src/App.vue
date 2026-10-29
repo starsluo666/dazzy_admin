@@ -36,6 +36,7 @@ import ProviderInvitesView from './views/ProviderInvitesView.vue'
 import ProviderOrderFinanceView from './views/ProviderOrderFinanceView.vue'
 import FinanceWorkView from './views/FinanceWorkView.vue'
 import FinanceRecoveryView from './views/FinanceRecoveryView.vue'
+import ContentReviewsView from './views/ContentReviewsView.vue'
 import ReconciliationView from './views/ReconciliationView.vue'
 import ActivityFinancePanel from './views/activity/ActivityFinancePanel.vue'
 import WalletFinanceView from './views/WalletFinanceView.vue'
@@ -324,6 +325,7 @@ onMounted(loadSession)
     />
     <FinanceWorkView :key="route.fullPath" v-else-if="currentPage === 'finance_alerts'" :preview="preview" :permissions="session?.permissions || []" />
     <FinanceRecoveryView :key="route.fullPath" v-else-if="currentPage === 'finance_recovery'" :preview="preview" :permissions="session?.permissions || []" />
+    <ContentReviewsView :key="route.fullPath" v-else-if="currentPage === 'content_reviews'" :preview="preview" :permissions="session?.permissions || []" />
     <ReconciliationView :key="route.fullPath" v-else-if="currentPage === 'reconciliation'" :preview="preview" :permissions="session?.permissions || []" />
     <ProviderOrderFinanceView :key="route.fullPath"
       v-else-if="currentPage === 'settlements'"

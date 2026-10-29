@@ -29,6 +29,7 @@ const allNavigationGroups = [
   'growth-management-group',
 ]
 const pageGroupPaths: Partial<Record<AdminPage, string[]>> = {
+  content_reviews: [],
   finance_recovery: ['finance-group'],
   provider_invites: ['marketing-group'],
   users: ['users-group'],
@@ -55,6 +56,7 @@ const can = (permission: string) => Boolean(
 )
 const navigation = computed<NavigationItem[]>(() => [
   { key: 'dashboard', label: '运营总览', icon: DataAnalysis, enabled: can('dashboard.view') },
+  { key: 'content_reviews', label: '内容审核', icon: CircleCheck, enabled: can('content.review.view'), visible: can('content.review.view') },
   { key: 'users-group', label: '用户管理', icon: User, group: true, visible: can('user.view') },
   { key: 'users', label: '用户列表', icon: List, child: true, parent: 'users-group', enabled: can('user.view'), visible: can('user.view') },
   { key: 'providers-group', label: '达人管理', icon: UserFilled, group: true, visible: can('provider.view') || can('provider.review') },
@@ -105,6 +107,7 @@ const scopeLabel = computed(() => props.session?.data_scope === 'all'
     ? `${props.session.city_codes.length}个城市`
     : '本组织')
 const pageLabels: Record<AdminPage, string> = {
+  content_reviews: '内容审核',
   finance_recovery: '财务管理 / 资金处置与巡检',
   provider_invites: '营销管理 / 达人邀请',
   coupon_campaigns: '运营配置 / 领券活动',
