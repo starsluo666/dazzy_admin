@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UserCouponIssueDialog from '../components/UserCouponIssueDialog.vue'
 import UserInvitationPanel from '../components/UserInvitationPanel.vue'
+import UserFunctionRestrictionDialog from '../components/UserFunctionRestrictionDialog.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -32,6 +33,7 @@ const props = defineProps<{
 
 const rows = ref<AdminUser[]>([])
 const couponDialogVisible = ref(false)
+const functionDialogVisible = ref(false)
 const selected = ref<AdminUser | null>(null)
 const summary = ref<AdminUserSummary>({ total: 0, providers: 0, flagged: 0, suspended: 0 })
 const search = ref('')
@@ -48,10 +50,10 @@ const actionVisible = ref(false)
 const actionSaving = ref(false)
 const actionForm = reactive<{
   kind: 'account' | 'risk'
-  action: 'restrict' | 'suspend' | 'restore' | 'mark' | 'clear'
+  action: 'suspend' | 'restore' | 'mark' | 'clear'
   level: UserRiskLevel
   reason: string
-}>({ kind: 'account', action: 'restrict', level: 'medium', reason: '' })
+}>({ kind: 'account', action: 'suspend', level: 'medium', reason: '' })
 
 const accountLabels: Record<AccountStatus, string> = {
   active: '正常', restricted: '受限', suspended: '已封禁', closure_pending: '注销处理中', closed: '已注销',
@@ -225,6 +227,7 @@ async function openDetail(row: AdminUser | string) {
   const publicId = typeof row === 'string' ? row : row.public_id
   if (typeof row !== 'string') selected.value = row
   couponDialogVisible.value = false
+  functionDialogVisible.value = false
   drawerVisible.value = true
   if (props.preview) return
   detailLoading.value = true
@@ -247,7 +250,7 @@ function openAction(kind: 'account' | 'risk', action: typeof actionForm.action) 
 }
 
 const actionTitle = computed(() => ({
-  restrict: '限制用户账号', suspend: '封禁用户账号', restore: '恢复用户账号',
+  suspend: '封禁用户账号', restore: '恢复用户账号',
   mark: selected.value?.risk_flag ? '调整风险标记' : '标记风险用户', clear: '解除风险标记',
 }[actionForm.action]))
 
@@ -272,14 +275,13 @@ async function submitAction() {
         cleared_at: null,
         updated_at: new Date().toISOString(),
       } : actionForm.action === 'clear' ? null : selected.value.risk_flag
-      const accountStatus: AccountStatus = actionForm.action === 'restrict' ? 'restricted'
-        : actionForm.action === 'suspend' ? 'suspended'
+      const accountStatus: AccountStatus = actionForm.action === 'suspend' ? 'suspended'
           : actionForm.action === 'restore' ? 'active' : selected.value.account_status
       updated = { ...selected.value, risk_flag: risk, account_status: accountStatus, account_status_label: accountLabels[accountStatus] }
     } else if (actionForm.kind === 'account') {
       updated = await adminApi.changeUserAccount(
         selected.value.public_id,
-        actionForm.action as 'restrict' | 'suspend' | 'restore',
+        actionForm.action as 'suspend' | 'restore',
         actionForm.reason.trim(),
       )
     } else {
@@ -300,6 +302,11 @@ async function submitAction() {
   } finally {
     actionSaving.value = false
   }
+}
+
+function applyFunctionUpdate(user: AdminUser) {
+  if (selected.value?.public_id === user.public_id) selected.value = { ...selected.value, ...user }
+  rows.value = rows.value.map(item => item.public_id === user.public_id ? { ...item, ...user } : item)
 }
 
 onMounted(load)
@@ -382,7 +389,14 @@ onMounted(load)
         <section class="detail-section"><div class="address-section-title"><h3>常用地址</h3><span>{{ selected.addresses?.length || 0 }} 条</span></div><div v-if="selected.addresses?.length" class="address-records"><article v-for="address in selected.addresses" :key="address.id"><header><strong>{{ address.name }}</strong><el-tag v-if="address.is_default" size="small" type="primary" effect="plain">默认</el-tag></header><p>{{ address.city_name }} {{ address.address }}</p><div class="address-contact"><span>联系人</span><strong>{{ address.contact_name }}{{ address.contact_gender_label }}</strong><span>手机号</span><strong>{{ address.contact_phone }}</strong></div><footer><span>经度 {{ formatCoordinate(address.longitude) }}</span><span>纬度 {{ formatCoordinate(address.latitude) }}</span></footer></article></div><el-empty v-else :image-size="48" description="暂无常用地址" /></section>
         <section class="detail-section"><h3>最近订单</h3><div v-if="selected.recent_orders?.length" class="compact-records"><article v-for="order in selected.recent_orders" :key="order.order_no"><div><strong>{{ order.service_name }}</strong><span>{{ order.order_no }} · 达人 {{ order.provider_name }}</span></div><div><b>{{ formatAmount(order.payable_amount) }}</b><el-tag size="small" effect="plain">{{ order.status_label }}</el-tag></div></article></div><el-empty v-else :image-size="48" description="暂无订单记录" /></section>
         <section class="detail-section"><h3>最近活动</h3><div v-if="selected.recent_activities?.length" class="compact-records"><article v-for="activity in selected.recent_activities" :key="activity.id"><div><strong>{{ activity.title }}</strong><span>{{ formatDateTime(activity.starts_at) }}</span></div><el-tag size="small" effect="plain">{{ activity.status_label }}</el-tag></article></div><el-empty v-else :image-size="48" description="暂无活动记录" /></section>
-        <footer class="drawer-actions"><div><el-button v-if="canManageRisk && !selected.risk_flag" @click="openAction('risk', 'mark')">标记风险</el-button><el-button v-if="canManageRisk && selected.risk_flag" @click="openAction('risk', 'mark')">调整风险</el-button><el-button v-if="canManageRisk && selected.risk_flag" @click="openAction('risk', 'clear')">解除风险</el-button></div><div><el-button v-if="canManageStatus && selected.account_status === 'active'" @click="openAction('account', 'restrict')">限制账号</el-button><el-button v-if="canManageStatus && ['active', 'restricted'].includes(selected.account_status)" type="danger" @click="openAction('account', 'suspend')">封禁账号</el-button><el-button v-if="canManageStatus && ['restricted', 'suspended'].includes(selected.account_status)" type="primary" @click="openAction('account', 'restore')">恢复账号</el-button></div></footer>
+        <section class="detail-section function-restrictions">
+          <div class="address-section-title"><h3>功能限制</h3><span>{{ selected.function_restrictions?.length || 0 }} 项生效</span></div>
+          <div v-if="selected.function_restrictions?.length" class="compact-records">
+            <article v-for="item in selected.function_restrictions" :key="item.function"><div><strong>{{ item.function_label }}</strong><span>{{ item.reason }}</span><span>{{ item.restricted_by_name || '管理员' }} · {{ formatDateTime(item.restricted_at) }}</span></div><el-tag type="warning" size="small">已限制</el-tag></article>
+          </div>
+          <p v-else class="function-empty">暂无限制</p>
+        </section>
+        <footer class="drawer-actions"><div><el-button v-if="canManageRisk && !selected.risk_flag" @click="openAction('risk', 'mark')">标记风险</el-button><el-button v-if="canManageRisk && selected.risk_flag" @click="openAction('risk', 'mark')">调整风险</el-button><el-button v-if="canManageRisk && selected.risk_flag" @click="openAction('risk', 'clear')">解除风险</el-button></div><div><el-button v-if="canManageStatus && ['active', 'restricted', 'suspended'].includes(selected.account_status)" :disabled="detailLoading" @click="functionDialogVisible = true">功能限制</el-button><el-button v-if="canManageStatus && ['active', 'restricted'].includes(selected.account_status)" type="danger" @click="openAction('account', 'suspend')">封禁账号</el-button><el-button v-if="canManageStatus && ['restricted', 'suspended'].includes(selected.account_status)" type="primary" @click="openAction('account', 'restore')">恢复账号</el-button></div></footer>
       </div>
     </el-drawer>
 
@@ -394,11 +408,14 @@ onMounted(load)
       </el-form>
       <template #footer><el-button @click="actionVisible = false">取消</el-button><el-button :type="actionForm.action === 'suspend' ? 'danger' : 'primary'" :loading="actionSaving" @click="submitAction">确认提交</el-button></template>
     </el-dialog>
+    <UserFunctionRestrictionDialog v-model="functionDialogVisible" :user="selected" :can-manage="canManageStatus" :preview="preview" @updated="applyFunctionUpdate" />
     <UserCouponIssueDialog v-model="couponDialogVisible" :user="selected" :can-issue="canIssueCoupon" :preview="preview" />
   </div>
 </template>
 
 <style scoped>
+.function-empty{margin:0;color:var(--muted);font-size:13px}
+.function-restrictions .compact-records span{overflow-wrap:anywhere}
 .user-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.management-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.management-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.management-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.management-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.management-summary .blue{color:#2679e9!important;background:#e9f1ff}.management-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.management-summary .purple{color:#7b61cf;background:#f0edff}.management-summary .red{color:#d9485f;background:#fff0f2}.management-summary .orange{color:#e97825!important;background:#fff0e6}.management-summary span{color:var(--muted);font-size:12px}.management-summary strong{font-size:25px}.management-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.management-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.user-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 120px 130px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.person-cell{display:flex;align-items:center;gap:10px}.person-cell div,.record-cell{display:flex;flex-direction:column;gap:4px}.person-cell strong,.record-cell strong{font-size:13px}.person-cell span,.record-cell span{color:var(--muted);font-size:12px}.normal-copy{display:inline-flex;align-items:center;gap:4px;color:#078d76}.management-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.management-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.management-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.management-drawer>header div{margin-right:auto}.management-drawer>header h2{margin:0;font-size:20px}.management-drawer>header p{max-width:350px;margin:5px 0 0;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis}.management-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.management-drawer>header button:hover{background:#f0f4f5}.risk-alert{margin:14px 20px 0;width:auto}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.account-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px}.account-overview div{display:flex;flex-direction:column;gap:5px}.account-overview span{color:var(--muted);font-size:12px}.account-overview strong{font-size:13px}.business-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.business-counts article{display:flex;align-items:baseline;gap:8px;padding:13px;border-radius:7px;background:#f4f9fa}.business-counts strong{color:var(--brand);font-size:22px}.business-counts span{color:var(--muted);font-size:12px}.compact-records{display:flex;flex-direction:column}.compact-records article{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:58px;border-bottom:1px solid #edf0f3}.compact-records article:last-child{border-bottom:0}.compact-records article>div{display:flex;flex-direction:column;gap:4px}.compact-records article>div:last-child{align-items:end}.compact-records strong,.compact-records b{font-size:13px}.compact-records b{color:var(--orange)}.compact-records span{color:var(--muted);font-size:11px}.drawer-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:610px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.drawer-actions>div{display:flex;gap:7px}.action-form{margin-top:18px}.action-form .el-select{width:100%}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.management-summary small{display:none}.user-filters{grid-template-columns:minmax(170px,1fr) 110px 120px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.management-summary button{transition:none}.management-summary button:hover{transform:none}}
 .address-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.address-section-title h3{margin:0;font-size:15px}.address-section-title span{color:var(--muted);font-size:12px}.address-records{display:flex;flex-direction:column;gap:10px}.address-records article{padding:14px;border:1px solid #e4eaed;border-radius:8px;background:#fbfcfd}.address-records header{display:flex;align-items:center;gap:9px}.address-records header strong{font-size:14px}.address-records p{margin:8px 0 12px;color:#4f5967;font-size:13px;line-height:1.55}.address-contact{display:grid;grid-template-columns:52px 1fr 48px 1fr;align-items:center;gap:7px;padding:10px 12px;border-radius:6px;background:#f1f7f8}.address-contact span{color:var(--muted);font-size:11px}.address-contact strong{font-size:12px}.address-records footer{display:flex;gap:16px;margin-top:10px;color:#75808e;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
 .management-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.user-filters{grid-template-columns:minmax(190px,1.3fr) 120px 130px 120px 66px 66px}@media(max-width:1360px){.user-filters{grid-template-columns:minmax(170px,1fr) 110px 120px 110px 62px 62px}}

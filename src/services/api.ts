@@ -46,6 +46,7 @@ import type {
   AdminServiceCategoryMutation,
   AdminServiceCategorySummary,
   AdminUser,
+  UserRestrictedFunction,
   AdminUserInvitations,
   AdminUserSummary,
   AfterSalesCaseStatus,
@@ -742,7 +743,7 @@ export const adminApi = {
   }>('admin-recharge-orders', `/admin/recharge-orders/?${queryString(query)}`),
   changeUserAccount: (
     publicId: string,
-    action: 'restrict' | 'suspend' | 'restore',
+    action: 'suspend' | 'restore',
     reason: string,
   ) => request<AdminUser>(`/admin/users/${publicId}/account-action/`, {
     method: 'POST',
@@ -756,6 +757,14 @@ export const adminApi = {
   ) => request<AdminUser>(`/admin/users/${publicId}/risk-action/`, {
     method: 'POST',
     body: JSON.stringify({ action, reason, ...(level ? { level } : {}) }),
+  }),
+  changeUserFunctions: (
+    publicId: string,
+    action: 'restrict' | 'restore',
+    functions: UserRestrictedFunction[],
+    reason: string,
+  ) => request<AdminUser>(`/admin/users/${publicId}/function-action/`, {
+    method: 'POST', body: JSON.stringify({ action, functions, reason }),
   }),
   managedProviders: (query: AdminProviderQuery) => requestLatest<{
     items: AdminProvider[]

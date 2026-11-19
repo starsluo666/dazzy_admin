@@ -861,6 +861,16 @@ export interface AdminUserReviewRecord {
   created_at: string
 }
 
+export type UserRestrictedFunction = 'provider_order' | 'activity_publish' | 'review'
+
+export interface UserFunctionRestriction {
+  function: UserRestrictedFunction
+  function_label: string
+  reason: string
+  restricted_at: string
+  restricted_by_name: string
+}
+
 export interface AdminUser {
   public_id: string
   nickname: string
@@ -875,6 +885,7 @@ export interface AdminUser {
   provider_status: ProviderApplicationStatus | null
   provider_status_label: string | null
   risk_flag: AdminUserRiskFlag | null
+  function_restrictions?: UserFunctionRestriction[]
   order_count: number
   activity_count: number
   browsing_count: number
