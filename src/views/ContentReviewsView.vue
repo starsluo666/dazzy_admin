@@ -15,6 +15,7 @@ const enabled = ref(false), automatic = ref(false), loading = ref(false), saving
 const error = ref(''), detailError = ref(''), drawer = ref(false), detailLoading = ref(false)
 const selected = ref<ContentReview | null>(null), reason = ref(''), stale = ref(false)
 const registering = ref(false), registerKind = ref('provider'), targetId = ref<number | undefined>()
+const registerKinds = contentKinds.filter(([value]) => value !== 'nickname')
 const registerError = ref('')
 const canManage = computed(() => !props.preview && (props.permissions.includes('*') || props.permissions.includes('content.review.manage')))
 const available = computed(() => {
@@ -119,7 +120,7 @@ function closeDetail(done: () => void) { if (!saving.value) { ++detailGeneration
     <el-dialog v-model="registering" title="登记现有内容" width="480px" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
       <p class="muted">用于核查历史内容。登记本身不会通过原业务审核；内容不合适时可驳回或下架。</p>
       <el-alert v-if="registerError" :title="registerError" type="error" :closable="false" />
-      <el-form label-position="top"><el-form-item label="内容类型"><el-select v-model="registerKind"><el-option v-for="[value, label] in contentKinds" :key="value" :value="value" :label="label" /></el-select></el-form-item><el-form-item label="原业务记录 ID"><el-input-number v-model="targetId" :min="1" :precision="0" /></el-form-item></el-form>
+      <el-form label-position="top"><el-form-item label="内容类型"><el-select v-model="registerKind"><el-option v-for="[value, label] in registerKinds" :key="value" :value="value" :label="label" /></el-select></el-form-item><el-form-item label="原业务记录 ID"><el-input-number v-model="targetId" :min="1" :precision="0" /></el-form-item></el-form>
       <template #footer><el-button :disabled="saving" @click="registering = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="!targetId" @click="register">登记审核</el-button></template>
     </el-dialog>
   </section>
