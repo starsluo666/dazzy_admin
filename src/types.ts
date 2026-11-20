@@ -881,7 +881,7 @@ export interface AdminUser {
   birth_date: string | null
   account_status: AccountStatus
   account_status_label: string
-  identity: 'user' | 'provider'
+  identity: 'user' | 'provider' | 'store'
   provider_status: ProviderApplicationStatus | null
   provider_status_label: string | null
   risk_flag: AdminUserRiskFlag | null

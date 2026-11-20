@@ -379,6 +379,7 @@ onMounted(loadSession)
       :preview="preview"
     />
     <ProviderInvitesView v-else-if="currentPage === 'provider_invites'" :preview="preview"
+      :can-review-identity="canReviewProvider"
       :can-manage="canManageProviderInvites"
       :can-review="canReviewProviderInvites"
       :can-pay="canPayProviderInvites" />

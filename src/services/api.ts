@@ -273,7 +273,7 @@ export interface ProviderOrderQuery {
 
 export interface AdminUserQuery {
   account_status?: AccountStatus | ''
-  identity?: 'all' | 'provider' | 'user'
+  identity?: 'all' | 'provider' | 'store' | 'user'
   risk?: 'all' | 'flagged' | 'unflagged'
   search?: string
   page?: number
@@ -413,6 +413,16 @@ export const adminApi = {
   createProviderInviteSource: (name: string) => request<import('../types/providerInvites').InviteSource>('/admin/provider-invites/sources/', { method: 'POST', body: JSON.stringify({ name, active: true }) }),
   updateProviderInviteSource: (source: import('../types/providerInvites').InviteSource) => request<import('../types/providerInvites').InviteSource>(`/admin/provider-invites/sources/${source.public_id}/`, { method: 'PATCH', body: JSON.stringify(source) }),
   providerInviteQr: (id: string) => request<import('../types/providerInvites').InviteSource>(`/admin/provider-invites/sources/${id}/`),
+  bindInviteStoreAccount: (id: string, data: { phone: string; real_name: string; revision: number }) =>
+    request<import('../types/providerInvites').InviteSource>(`/admin/provider-invites/sources/${id}/account/`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  inviteStoreIdentity: (id: string) =>
+    request<import('../types/providerInvites').StoreIdentity>(`/admin/provider-invites/sources/${id}/identity/`),
+  reviewInviteStoreIdentity: (id: string, decision: 'approve' | 'reject', reason: string) =>
+    request<Pick<import('../types/providerInvites').StoreIdentity, 'identity_status'>>(
+      `/admin/provider-invites/sources/${id}/identity/`, { method: 'POST', body: JSON.stringify({ decision, reason }) },
+    ),
   providerInviteRewards: (params: Record<string, string | number>) => request<import('../types/providerInvites').RewardPage>(`/admin/provider-invites/rewards/?${queryString(params)}`),
   providerInviteRewardAction: (id: string, data: import('../types/providerInvites').RewardAction) => request<import('../types/providerInvites').InviteReward>(`/admin/provider-invites/rewards/${id}/action/`, { method: 'POST', body: JSON.stringify(data) }),
   refundPolicy: () => request<import('../utils/refunds').RefundPolicy>('/admin/refund-policy/'),

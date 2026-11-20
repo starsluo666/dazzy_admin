@@ -38,7 +38,8 @@ const selected = ref<AdminUser | null>(null)
 const summary = ref<AdminUserSummary>({ total: 0, providers: 0, flagged: 0, suspended: 0 })
 const search = ref('')
 const accountFilter = ref<AccountStatus | ''>('')
-const identityFilter = ref<'all' | 'provider' | 'user'>('all')
+const identityFilter = ref<'all' | 'provider' | 'store' | 'user'>('all')
+const identityLabels: Record<string, string> = { provider: '达人用户', store: '门店负责人', user: '普通用户' }
 const riskFilter = ref<'all' | 'flagged' | 'unflagged'>('all')
 const page = ref(1)
 const pageSize = 20
@@ -330,7 +331,7 @@ onMounted(load)
       <header class="user-filters">
         <el-input v-model="search" clearable :prefix-icon="Search" placeholder="昵称 / 手机号" @keyup.enter="page = 1; load()" />
         <el-select v-model="identityFilter" placeholder="用户身份">
-          <el-option label="全部身份" value="all" /><el-option label="普通用户" value="user" /><el-option label="达人用户" value="provider" />
+          <el-option label="全部身份" value="all" /><el-option label="普通用户" value="user" /><el-option label="达人用户" value="provider" /><el-option label="门店负责人" value="store" />
         </el-select>
         <el-select v-model="accountFilter" clearable placeholder="账号状态">
           <el-option v-for="(label, value) in accountLabels" :key="value" :label="label" :value="value" />
@@ -345,7 +346,7 @@ onMounted(load)
         <el-table-column label="用户" min-width="170">
           <template #default="scope"><div class="person-cell"><el-avatar :size="38" :src="scope.row.avatar_url || undefined">{{ scope.row.nickname.slice(0, 1) }}</el-avatar><div><strong>{{ scope.row.nickname }}</strong><span>{{ scope.row.phone_masked }}</span></div></div></template>
         </el-table-column>
-        <el-table-column label="身份" width="90"><template #default="scope"><el-tag :type="scope.row.identity === 'provider' ? 'primary' : 'info'" effect="plain">{{ scope.row.identity === 'provider' ? '达人' : '用户' }}</el-tag></template></el-table-column>
+        <el-table-column label="身份" width="110"><template #default="scope"><el-tag :type="scope.row.identity === 'provider' ? 'primary' : 'info'" effect="plain">{{ identityLabels[scope.row.identity] }}</el-tag></template></el-table-column>
         <el-table-column label="账号状态" width="98"><template #default="scope"><el-tag :type="accountTagType(scope.row.account_status)" effect="plain">{{ scope.row.account_status_label }}</el-tag></template></el-table-column>
         <el-table-column label="业务记录" min-width="160"><template #default="scope"><div class="record-cell"><strong>{{ scope.row.order_count }} 笔订单 · {{ scope.row.activity_count }} 场活动</strong><span>{{ scope.row.browsing_count }} 条浏览 · {{ scope.row.review_count }} 条评价</span></div></template></el-table-column>
         <el-table-column label="风险标记" min-width="150"><template #default="scope"><el-tag v-if="scope.row.risk_flag" :type="scope.row.risk_flag.level === 'high' ? 'danger' : 'warning'" effect="light">{{ scope.row.risk_flag.level_label }}</el-tag><span v-else class="normal-copy"><el-icon><CircleCheck /></el-icon> 无风险标记</span></template></el-table-column>
@@ -363,7 +364,7 @@ onMounted(load)
           <div class="identity-info">
             <div class="identity-heading">
               <h3>{{ selected.nickname }}</h3>
-              <el-tag size="small" effect="plain">{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</el-tag>
+              <el-tag size="small" effect="plain">{{ identityLabels[selected.identity] }}</el-tag>
             </div>
             <p class="identity-contact">{{ selected.phone_masked }} · {{ selected.gender_label }}</p>
             <p class="identity-joined">注册于 {{ formatDateTime(selected.date_joined) }}</p>
@@ -382,7 +383,7 @@ onMounted(load)
 
         <el-alert v-if="selected.risk_flag" class="risk-alert" type="warning" :closable="false" show-icon :title="`${selected.risk_flag.level_label}：${selected.risk_flag.reason}`" :description="`${selected.risk_flag.marked_by_name} · ${formatDateTime(selected.risk_flag.marked_at)}`" />
 
-        <section class="detail-section account-overview"><div><span>账号状态</span><strong>{{ selected.account_status_label }}</strong></div><div><span>用户身份</span><strong>{{ selected.identity === 'provider' ? '达人用户' : '普通用户' }}</strong></div><div><span>达人状态</span><strong>{{ selected.provider_status_label || '非达人' }}</strong></div><div><span>最近登录</span><strong>{{ formatDateTime(selected.last_login) }}</strong></div></section>
+        <section class="detail-section account-overview"><div><span>账号状态</span><strong>{{ selected.account_status_label }}</strong></div><div><span>用户身份</span><strong>{{ identityLabels[selected.identity] }}</strong></div><div v-if="selected.identity !== 'store'"><span>达人状态</span><strong>{{ selected.provider_status_label || '非达人' }}</strong></div><div><span>最近登录</span><strong>{{ formatDateTime(selected.last_login) }}</strong></div></section>
         <section class="detail-section"><h3>业务概况</h3><div class="business-counts"><article><strong>{{ selected.order_count }}</strong><span>达人订单</span></article><article><strong>{{ selected.activity_count }}</strong><span>关联活动</span></article><article><strong>{{ selected.browsing_count }}</strong><span>浏览对象</span></article><article><strong>{{ selected.review_count }}</strong><span>评价记录</span></article></div></section>
         <section class="detail-section"><div class="address-section-title"><h3>浏览数据</h3><span>最近 {{ selected.browsing_history?.length || 0 }} 条</span></div><div v-if="selected.browsing_history?.length" class="compact-records"><article v-for="record in selected.browsing_history" :key="record.id"><div><strong>{{ record.title }}</strong><span>{{ record.target_type_label }} · {{ record.city_name || '城市未知' }} · 最近 {{ formatDateTime(record.last_viewed_at) }}</span></div><div><b>{{ record.view_count }} 次</b><span>首次 {{ formatDateTime(record.first_viewed_at) }}</span></div></article></div><el-empty v-else :image-size="48" description="暂无浏览数据" /></section>
         <section class="detail-section"><div class="address-section-title"><h3>评价数据</h3><span>最近 {{ selected.reviews?.length || 0 }} 条</span></div><div v-if="selected.reviews?.length" class="compact-records"><article v-for="review in selected.reviews" :key="review.id"><div><strong>{{ review.rating }} 分 · {{ review.service_name }}</strong><span>{{ review.order_no }} · 达人 {{ review.provider_name }}</span><span>{{ review.content || '未填写文字评价' }}</span></div><div><el-tag size="small" :type="review.audit_status === 'approved' ? 'success' : review.audit_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ review.audit_status_label }}</el-tag><span>{{ formatDateTime(review.created_at) }}</span></div></article></div><el-empty v-else :image-size="48" description="暂无评价数据" /></section>
