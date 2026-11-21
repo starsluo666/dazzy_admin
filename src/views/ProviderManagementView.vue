@@ -57,6 +57,56 @@ const commissionSaving = ref(false)
 const commissionPeriod = ref<AdminProvider['commission_reset_period_override']>('')
 const commissionTiers = ref<Array<{ thresholdYuan: number; bonusRate: number }>>([])
 const useGlobalTiers = ref(true)
+const categoryEditorVisible = ref(false)
+const categoryGrantsLoading = ref(false)
+const categoryGrantsSaving = ref(false)
+const categoryGrants = ref<Awaited<ReturnType<typeof adminApi.providerCategoryGrants>> | null>(null)
+const selectedCategoryIds = ref<number[]>([])
+const canEditCategories = computed(() => props.canManage && !props.preview && (
+  selected.value?.status === 'approved' || selected.value?.status === 'suspended'
+))
+const categoryGrantsChanged = computed(() => {
+  const saved = categoryGrants.value?.category_ids
+  return !!saved && (
+    saved.length !== selectedCategoryIds.value.length || saved.some((id) => !selectedCategoryIds.value.includes(id))
+  )
+})
+
+async function openCategoryEditor() {
+  if (!selected.value || !canEditCategories.value || categoryGrantsLoading.value) return
+  const id = selected.value.id
+  categoryGrants.value = null
+  selectedCategoryIds.value = []
+  categoryEditorVisible.value = true
+  categoryGrantsLoading.value = true
+  try {
+    const data = await adminApi.providerCategoryGrants(id)
+    categoryGrants.value = data
+    selectedCategoryIds.value = [...data.category_ids]
+  } catch (error) {
+    categoryEditorVisible.value = false
+    ElMessage.error(error instanceof Error ? error.message : '服务分类加载失败')
+  } finally {
+    categoryGrantsLoading.value = false
+  }
+}
+
+async function saveCategoryGrants() {
+  if (!selected.value || !categoryGrants.value || !canEditCategories.value || !categoryGrantsChanged.value || categoryGrantsSaving.value) return
+  const id = selected.value.id
+  categoryGrantsSaving.value = true
+  try {
+    const updated = await adminApi.updateProviderCategoryGrants(id, selectedCategoryIds.value, categoryGrants.value.category_ids)
+    if (selected.value?.id === id) selected.value = { ...selected.value, ...updated }
+    categoryEditorVisible.value = false
+    ElMessage.success('服务分类已更新')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '服务分类保存失败')
+  } finally {
+    categoryGrantsSaving.value = false
+  }
+}
 
 function loadCommission(profile: AdminProvider) {
   commissionPeriod.value = profile.commission_reset_period_override
@@ -418,7 +468,11 @@ onMounted(load)
           </div>
           <p class="identity-note">仅显示脱敏资料。平台实名认证、资料保存和渠道开户是不同状态；此处不能手工标记分账成功。</p>
         </section>
-        <ProviderCommissionSummary v-if="selected.commission_overview" class="detail-section" :overview="selected.commission_overview" />
+        <ProviderCommissionSummary v-if="selected.commission_overview" class="detail-section" :overview="selected.commission_overview">
+          <template #actions>
+            <el-button v-if="canEditCategories" type="primary" plain size="small" :disabled="detailLoading || categoryGrantsLoading" @click="openCategoryEditor">管理服务分类</el-button>
+          </template>
+        </ProviderCommissionSummary>
         <section class="detail-section commission-setting">
           <h3>专属营业额阶梯加成</h3>
           <p>留空沿用平台阶梯；只影响新订单，已创建订单按原快照结算。</p>
@@ -443,6 +497,24 @@ onMounted(load)
         <footer class="provider-actions"><el-button v-if="canAdjustCredit && ['approved', 'suspended'].includes(selected.status)" @click="openCreditAction">调整信用分</el-button><div><el-button v-if="canManage && selected.status === 'approved' && !selected.admin_order_restricted" @click="openStatusAction('restrict_orders')">限制接单</el-button><el-button v-if="canManage && selected.status === 'approved' && selected.admin_order_restricted" type="primary" @click="openStatusAction('resume_orders')">解除限制</el-button><el-button v-if="canManage && selected.status === 'approved'" type="danger" @click="openStatusAction('suspend_qualification')">暂停资格</el-button><el-button v-if="canManage && selected.status === 'suspended'" type="primary" @click="openStatusAction('restore_qualification')">恢复资格</el-button></div></footer>
       </div>
     </el-drawer>
+
+    <el-dialog v-model="categoryEditorVisible" title="管理服务分类" width="min(520px, 92vw)" append-to-body
+      :show-close="!categoryGrantsSaving" :close-on-click-modal="false" :close-on-press-escape="!categoryGrantsSaving">
+      <div v-loading="categoryGrantsLoading" class="category-editor">
+        <p>取消勾选会停用该分类下的服务，已下单的订单可继续履约。</p>
+        <el-checkbox-group v-if="categoryGrants?.categories.length" v-model="selectedCategoryIds"
+          :disabled="categoryGrantsSaving" aria-label="授权服务分类" class="category-options">
+          <el-checkbox v-for="category in categoryGrants.categories" :key="category.id" :value="category.id" border>
+            {{ category.name }}<span v-if="!category.is_active" class="category-inactive">（已停用）</span>
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty v-else-if="categoryGrants" :image-size="48" description="暂无可授权的服务分类" />
+      </div>
+      <template #footer>
+        <el-button :disabled="categoryGrantsSaving" @click="categoryEditorVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="categoryGrantsLoading || !categoryGrantsChanged" :loading="categoryGrantsSaving" @click="saveCategoryGrants">保存分类</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="actionVisible" :title="actionTitle" width="480px" append-to-body>
       <el-alert v-if="actionForm.action === 'suspend_qualification' && actionForm.kind === 'status'" type="error" :closable="false" show-icon title="暂停后达人无法使用达人端，也不能接受新预约。" />
@@ -471,4 +543,5 @@ onMounted(load)
 .provider-management-page{min-height:calc(100vh - 76px)}.management-heading{margin-bottom:18px}.management-heading>div:last-child{display:flex;gap:8px}.provider-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}.provider-summary button{position:relative;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-items:center;min-height:88px;padding:14px 15px;border:1px solid var(--line);border-radius:8px;color:#172033;background:#fff;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}.provider-summary button:hover{border-color:#9cdfe0;box-shadow:0 8px 24px rgba(29,72,87,.08);transform:translateY(-1px)}.provider-summary button:focus-visible{outline:3px solid rgba(8,184,189,.22);outline-offset:2px}.provider-summary .el-icon{grid-row:1/3;width:40px;height:40px;border-radius:11px;font-size:21px}.provider-summary .blue{color:#2679e9!important;background:#e9f1ff}.provider-summary .cyan{color:#00aeb4!important;background:#e4f8f8}.provider-summary .purple{color:#7b61cf;background:#f0edff}.provider-summary .red{color:#d9485f;background:#fff0f2}.provider-summary .orange{color:#e97825!important;background:#fff0e6}.provider-summary span{color:var(--muted);font-size:12px}.provider-summary strong{font-size:25px}.provider-summary small{position:absolute;right:14px;bottom:14px;color:#a0a7b0}.provider-panel{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-filters{display:grid;grid-template-columns:minmax(190px,1.3fr) 115px 120px 120px 120px 66px 66px;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line)}.provider-person{display:flex;align-items:center;gap:10px}.provider-person>div,.score-cell{display:flex;flex-direction:column;gap:4px}.provider-person strong,.score-cell strong{font-size:13px}.provider-person span,.score-cell span{color:var(--muted);font-size:12px}.score-cell span{display:flex;align-items:center;gap:3px}.score-cell .el-icon{color:#efa834}.service-names{display:flex;flex-wrap:wrap;gap:4px}.service-names>span{color:var(--muted);font-size:12px}.provider-footer{display:flex;align-items:center;justify-content:space-between;height:58px;padding:0 18px;color:var(--muted);font-size:13px}.provider-drawer{min-height:100%;padding-bottom:86px;background:#f7f9fb}.provider-drawer>header{position:sticky;z-index:3;top:0;display:flex;align-items:center;gap:12px;height:76px;padding:0 24px;border-bottom:1px solid var(--line);background:#fff}.provider-drawer>header div{margin-right:auto}.provider-drawer>header h2{margin:0;font-size:20px}.provider-drawer>header p{margin:5px 0 0;color:var(--muted);font-size:12px}.provider-drawer>header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;font-size:22px}.provider-drawer>header button:hover{background:#f0f4f5}.restriction-alert{margin:14px 20px 0;width:auto}.provider-identity{display:flex;align-items:center;gap:14px;margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.provider-identity>div:nth-child(2){flex:1}.provider-identity h3{display:flex;align-items:center;gap:8px;margin:0 0 7px;font-size:17px}.provider-identity p,.provider-identity span{margin:0;color:#5e6877;font-size:12px}.provider-identity span{display:block;margin-top:7px;color:var(--muted)}.credit-score{display:flex;flex-direction:column;align-items:center;width:72px;padding:9px;border-radius:8px;background:#f2fbfb}.credit-score strong{color:var(--brand);font-size:25px}.credit-score span{margin:2px 0 0}.detail-section{margin:14px 20px 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.detail-section>h3{margin:0 0 15px;font-size:15px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.section-title h3{margin:0;font-size:15px}.service-location{display:flex;align-items:flex-start;gap:12px;padding:13px;border-radius:8px;background:#f3fafb}.service-location>.el-icon{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:10px;color:var(--brand);background:#dff5f5;font-size:19px}.service-location>div{display:flex;flex-direction:column;gap:5px;min-width:0}.service-location strong{font-size:14px}.service-location p{margin:0;color:#4e5a68;font-size:12px;line-height:1.5}.service-location span{color:var(--muted);font-size:11px}.location-privacy{margin:12px 0 0;color:#8b6c55;font-size:11px;line-height:1.5}.provider-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.provider-metrics div{display:flex;flex-direction:column;gap:5px}.provider-metrics span{color:var(--muted);font-size:11px}.provider-metrics strong{font-size:19px}.provider-bio{margin:0;color:#4f5a68;font-size:13px;line-height:1.75}.photo-status{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid #edf0f3;font-size:13px}.photo-status .el-image{width:92px;height:72px;border-radius:7px}.service-cards{display:grid;grid-template-columns:1fr 1fr;gap:9px}.service-cards article{padding:12px;border:1px solid #e6eaed;border-radius:7px}.service-cards header{display:flex;align-items:center;justify-content:space-between}.service-cards strong{font-size:13px}.service-cards p{margin:8px 0;color:#596474;font-size:12px}.service-cards b{color:var(--orange)}.service-cards span{color:var(--muted);font-size:11px}.schedule-list{display:flex;flex-wrap:wrap;gap:7px}.schedule-list span{padding:7px 10px;border-radius:5px;color:#485464;background:#f2f7f8;font-size:12px}.provider-records,.credit-history{display:flex;flex-direction:column}.provider-records article,.credit-history article{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;border-bottom:1px solid #edf0f3}.provider-records article:last-child,.credit-history article:last-child{border-bottom:0}.provider-records article>div{display:flex;flex-direction:column;gap:4px}.provider-records article>div:last-child{align-items:end}.provider-records strong,.provider-records b{font-size:13px}.provider-records b{color:var(--orange)}.provider-records span,.credit-history span{color:var(--muted);font-size:11px}.credit-history{gap:0}.credit-history article{justify-content:flex-start}.credit-history>article>strong{display:grid;place-items:center;width:42px;height:34px;border-radius:6px}.credit-history .positive{color:#078d76;background:#ecf9f5}.credit-history .negative{color:#d9485f;background:#fff0f2}.credit-history div{display:flex;flex-direction:column;gap:4px}.credit-history b{font-size:12px}.provider-actions{position:fixed;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;width:640px;min-height:72px;padding:12px 20px;border-top:1px solid var(--line);background:#fff}.provider-actions>div{display:flex;gap:7px}.provider-action-form{margin-top:18px}.score-preview{margin-left:12px;color:var(--muted);font-size:12px}:deep(.el-drawer__body){padding:0}:deep(.el-table__row){cursor:pointer}:deep(.el-table__row:hover td){background:#f2fbfb!important}:deep(.el-empty){padding:12px 0}@media(max-width:1360px){.provider-summary small{display:none}.provider-filters{grid-template-columns:minmax(170px,1fr) 105px 110px 110px 110px 62px 62px}}@media(prefers-reduced-motion:reduce){.provider-summary button{transition:none}.provider-summary button:hover{transform:none}}
 .identity-review{display:flex;gap:14px;flex-direction:column}.identity-fields{display:grid;grid-template-columns:82px 1fr;gap:9px 14px;padding:13px;border-radius:7px;background:#f6f9fa;font-size:12px}.identity-fields span{color:var(--muted)}.identity-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.identity-photos .el-image{display:flex;height:105px;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:7px;background:#f5f7f8}.identity-photos span{color:var(--muted);font-size:11px}.identity-actions{display:flex;justify-content:flex-end;gap:8px}
 .identity-note{color:var(--muted);font-size:12px}
+.category-editor{min-height:90px}.category-editor p{margin:0 0 16px;color:var(--muted);line-height:1.6}.category-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.category-options .el-checkbox{width:100%;margin:0;height:auto;min-height:36px;white-space:normal}.category-inactive{color:var(--muted);font-size:12px}
 </style>

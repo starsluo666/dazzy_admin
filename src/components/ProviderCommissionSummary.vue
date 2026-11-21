@@ -8,7 +8,10 @@ const source = (value: string) => value === 'provider' ? '达人专属' : '平�
 
 <template>
   <section class="commission-summary">
-    <h3>当前生效分成</h3>
+    <header class="commission-heading">
+      <h3>当前生效分成</h3>
+      <slot name="actions" />
+    </header>
     <p class="muted">适用于当前新建订单，历史订单使用下单时的分成快照。</p>
     <el-table :data="overview.categories" empty-text="尚未授权或配置服务分类" size="small">
       <el-table-column prop="category_name" label="服务分类" min-width="90" />
@@ -30,5 +33,6 @@ const source = (value: string) => value === 'provider' ? '达人专属' : '平�
 </template>
 
 <style scoped>
+.commission-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}.commission-summary .commission-heading h3{margin:0}
 .commission-summary{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}.commission-summary h3{margin:0 0 10px;font-size:15px}.commission-summary p{font-size:12px;line-height:1.7}.muted{color:var(--muted)}.rate{color:var(--primary,#078c92)}.turnover{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px;padding:12px;background:#f1fafa;border-radius:8px;font-size:12px}.turnover strong{font-size:18px}
 </style>

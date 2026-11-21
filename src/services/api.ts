@@ -782,6 +782,14 @@ export const adminApi = {
     summary: AdminProviderSummary
   }>('admin-providers', `/admin/providers/?${queryString(query)}`),
   managedProvider: (id: number) => request<AdminProvider>(`/admin/providers/${id}/`),
+  providerCategoryGrants: (id: number) => request<{
+    category_ids: number[]
+    categories: Array<{ id: number; name: string; is_active: boolean }>
+  }>(`/admin/providers/${id}/category-grants/`),
+  updateProviderCategoryGrants: (id: number, category_ids: number[], expected_category_ids: number[]) =>
+    request<AdminProvider>(`/admin/providers/${id}/category-grants/`, {
+      method: 'PATCH', body: JSON.stringify({ category_ids, expected_category_ids }),
+    }),
   correctProviderApplicationName: (id: number, application_real_name: string, reason: string) =>
     request<AdminProvider>(`/admin/providers/${id}/application-name/`, {
       method: 'POST', body: JSON.stringify({ application_real_name, reason }),
