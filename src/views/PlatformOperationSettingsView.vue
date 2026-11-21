@@ -50,6 +50,7 @@ const defaults: Record<FieldKey, number> = {
   support_refund_single_limit: 0,
   support_refund_daily_limit: 0,
   provider_order_payment_timeout_minutes: 15,
+  provider_order_renewal_travel_minutes: 60,
   provider_order_confirmation_timeout_days: 3,
   provider_order_early_tolerance_minutes: 30,
   provider_order_late_tolerance_minutes: 30,
@@ -114,6 +115,13 @@ const rules: RuleDefinition[] = [
     impact: '达人订单、达人档期',
     scope: '新创建的待支付订单',
     risk: '缩短时限可能降低支付转化，延长时限会占用达人档期。',
+  },
+  {
+    key: 'provider_order_renewal_travel_minutes', group: 'provider', label: '续单行程预留',
+    unit: '分钟', min: 0, max: 180, step: 1,
+    help: '续单结束到下一单开始须留出的最短时间',
+    impact: '续单可选时段、达人档期', scope: '新建续单',
+    risk: '留出的时段会随续单一起保留，避免后续预约挤占行程时间。',
   },
   {
     key: 'provider_order_confirmation_timeout_days',
@@ -617,6 +625,18 @@ onMounted(() => {
                   @select="selectRule('provider_order_settlement_freeze_days')"
                 />
               </div>
+              <FlowRuleCard
+                label="续单行程预留"
+                :model-value="form.provider_order_renewal_travel_minutes"
+                unit="分钟"
+                :min="0"
+                :max="180"
+                help="续单结束到下一单开始的最短间隔"
+                :icon="Clock"
+                :selected="selectedRuleKey === 'provider_order_renewal_travel_minutes'"
+                @update:model-value="updateRule('provider_order_renewal_travel_minutes', $event)"
+                @select="selectRule('provider_order_renewal_travel_minutes')"
+              />
             </section>
 
             <section v-if="showActivity" class="flow-lane">

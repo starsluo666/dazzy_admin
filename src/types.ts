@@ -200,6 +200,7 @@ export interface PlatformOperationSetting {
   discovery_cities: Array<{ city_code: string; city_name: string }>
   customer_service_phone: string
   provider_order_payment_timeout_minutes: number
+  provider_order_renewal_travel_minutes: number
   provider_order_confirmation_timeout_days: number
   provider_order_early_tolerance_minutes: number
   provider_order_late_tolerance_minutes: number
