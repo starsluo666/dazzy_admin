@@ -31,7 +31,14 @@ const demoOrders: AdminRechargeOrder[] = [
 ]
 
 function money(value: number) { return `¥${(value / 100).toFixed(2)}` }
-function rateLabel(value: number) { return `${(value / 1000).toFixed(value % 1000 ? 2 : 1)} 折` }
+function rateLabel(value: number) { return Number.isFinite(value) ? `${value / 1000} 折` : '请填写折扣' }
+function tierDiscount(tier: RechargeDiscountTier) {
+  return Number.isFinite(tier.discount_rate_bps) ? tier.discount_rate_bps / 1000 : undefined
+}
+function setTierDiscount(tier: RechargeDiscountTier, value: number | null | undefined) {
+  tier.discount_rate_bps = typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(value * 1000) : Number.NaN
+}
 function formatTime(value: string | null) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' }
 
 function applyConfig(value: RechargeCampaign) {
@@ -95,6 +102,7 @@ function removeTier(index: number) { form.tiers.splice(index, 1) }
 
 async function saveConfig() {
   if (!props.canManage) return ElMessage.warning('当前账号没有充值配置权限')
+  if (form.tiers.some(tier => !Number.isInteger(tier.discount_rate_bps) || tier.discount_rate_bps < 1 || tier.discount_rate_bps > 10000)) return ElMessage.warning('请填写有效的消费折扣，最高10折')
   saving.value = true
   try {
     const payload = {
@@ -170,7 +178,7 @@ onMounted(loadRows)
           <template #header><div class="card-title"><div><strong>消费折扣档位</strong><small>按本次充值张数匹配档位，随该批余额用完为止</small></div><el-button v-if="canManage" text type="primary" @click="addTier">新增档位</el-button></div></template>
           <div v-if="!form.tiers.length" class="empty-tiers">未配置时不附带消费折扣，充值实付与到账金额仍相同</div>
           <div v-for="(tier, index) in form.tiers" :key="index" class="tier-row">
-            <span>购买满</span><el-input-number v-model="tier.min_quantity" :min="1" :max="form.max_quantity_per_order" :disabled="!canManage" /><span>张，消费享</span><el-input-number v-model="tier.discount_rate_bps" :min="1" :max="10000" :step="100" :disabled="!canManage" /><strong>{{ rateLabel(tier.discount_rate_bps) }}</strong><el-button v-if="canManage" text type="danger" @click="removeTier(index)">删除</el-button>
+            <span>购买满</span><el-input-number v-model="tier.min_quantity" :min="1" :max="form.max_quantity_per_order" :disabled="!canManage" /><span>张，消费享</span><el-input-number :model-value="tierDiscount(tier)" :min="0.001" :max="10" :step="0.1" :disabled="!canManage" aria-label="消费折扣（折）" @update:model-value="setTierDiscount(tier, $event)" /><strong>折</strong><el-button v-if="canManage" text type="danger" @click="removeTier(index)">删除</el-button>
           </div>
           <div class="example">示例：购买 2 张、配置 9.5 折，实付与到账均为 {{ money(200000) }}。下单先减券，再按可用余额最优档位整单打折，最后加路费。95 折余额仅剩 50 元时，100 元服务仍应付 95 元；无其他余额时，余额付 50 元、微信补 45 元。</div>
         </el-card>
@@ -181,5 +189,6 @@ onMounted(loadRows)
 </template>
 
 <style scoped>
+.tier-row .el-input-number{width:100%;min-width:0}
 .wallet-finance{display:flex;flex-direction:column;gap:18px}.page-head,.card-title,.toolbar,.save-bar{display:flex;align-items:center;justify-content:space-between;gap:16px}.page-head h1{margin:0;color:#17252b;font-size:24px}.page-head p{margin:7px 0 0;color:#7d8c93}.finance-tabs{padding:0 20px;border:1px solid #e4eaed;border-radius:14px;background:#fff}.toolbar{justify-content:flex-start}.toolbar .el-input{max-width:360px}.toolbar .el-select{width:160px}.primary-cell{display:flex;flex-direction:column;gap:5px}.primary-cell span,.card-title small{color:#8a989f;font-size:12px}.amount{color:#0aaeb5}.config-grid{display:grid;grid-template-columns:minmax(360px,.8fr) minmax(520px,1.2fr);gap:18px}.card-title>div{display:flex;flex-direction:column;gap:4px}.el-form-item p{margin:8px 0 0;color:#95a0a5;font-size:12px}.suffix{margin-left:8px}.tier-row{display:grid;grid-template-columns:auto 120px auto 150px 70px auto;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid #eef1f2}.tier-row strong{color:#0aaeb5}.empty-tiers{padding:30px;text-align:center;color:#9aa6ab}.example{margin-top:18px;padding:14px 16px;border-radius:10px;color:#5e777d;background:#eefafa}.save-bar{padding:16px 20px;border:1px solid #dce7e9;border-radius:12px;background:#fff}.save-bar span{color:#74868c;font-size:13px}@media(max-width:1000px){.config-grid{grid-template-columns:1fr}.tier-row{grid-template-columns:auto 100px auto 130px 60px auto}}
 </style>

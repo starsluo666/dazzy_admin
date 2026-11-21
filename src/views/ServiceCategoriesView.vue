@@ -37,11 +37,18 @@ const editing = ref<AdminServiceCategory | null>(null)
 const pickerOpen = ref(false)
 const selectedIconUrl = ref<string | null>(null)
 const iconTouched = ref(false)
-const form = reactive<AdminServiceCategoryMutation>({
+const commissionError = '请输入 10%～60% 的抽成比例，最多两位小数'
+const form = reactive<Omit<AdminServiceCategoryMutation, 'platform_commission_rate'> & { platform_commission_rate: string }>({
   name: '', slug: '', icon_asset_id: null, city_codes: [], sort_order: 0, is_active: true,
-  platform_commission_rate: 20,
+  platform_commission_rate: '20.00',
   hourly_min_price_amount: 50, hourly_max_price_amount: 500,
   per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
+})
+const commissionRate = computed(() => {
+  const input = form.platform_commission_rate.trim()
+  if (!/^\d+(?:\.\d{1,2})?$/.test(input)) return null
+  const rate = Number(input)
+  return rate >= 10 && rate <= 60 ? rate : null
 })
 
 const cityOptions = [
@@ -145,14 +152,14 @@ function resetForm(category?: AdminServiceCategory) {
     city_codes: [...category.city_codes],
     sort_order: category.sort_order,
     is_active: category.is_active,
-    platform_commission_rate: Number(category.platform_commission_rate),
+    platform_commission_rate: String(category.platform_commission_rate ?? ''),
     hourly_min_price_amount: category.hourly_min_price_amount / 100,
     hourly_max_price_amount: category.hourly_max_price_amount / 100,
     per_session_min_price_amount: category.per_session_min_price_amount / 100,
     per_session_max_price_amount: category.per_session_max_price_amount / 100,
   } : {
     name: '', slug: '', icon_asset_id: null, city_codes: [], sort_order: 0, is_active: true,
-    platform_commission_rate: 20,
+    platform_commission_rate: '20.00',
     hourly_min_price_amount: 50, hourly_max_price_amount: 500,
     per_session_min_price_amount: 100, per_session_max_price_amount: 1000,
   })
@@ -191,8 +198,10 @@ function cityLabel(code: string) {
 async function save() {
   const name = form.name.trim()
   const slug = form.slug.trim().toLowerCase()
+  const rate = commissionRate.value
   if (!name) return ElMessage.warning('请输入分类名称')
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return ElMessage.warning('分类标识仅支持小写字母、数字和连字符')
+  if (rate === null) return ElMessage.warning(commissionError)
   if (form.hourly_min_price_amount > form.hourly_max_price_amount) return ElMessage.warning('按小时最高价不能低于最低价')
   if (form.per_session_min_price_amount > form.per_session_max_price_amount) return ElMessage.warning('按次最高价不能低于最低价')
   saving.value = true
@@ -200,6 +209,7 @@ async function save() {
     ...form,
     name,
     slug,
+    platform_commission_rate: rate,
     city_codes: [...new Set(form.city_codes.map((item) => item.trim()).filter(Boolean))],
     hourly_min_price_amount: Math.round(form.hourly_min_price_amount * 100),
     hourly_max_price_amount: Math.round(form.hourly_max_price_amount * 100),
@@ -374,7 +384,9 @@ onMounted(load)
         </div>
         <div class="form-grid compact-grid">
           <el-form-item label="前台排序"><el-input-number v-model="form.sort_order" :min="0" :max="9999" controls-position="right" /></el-form-item>
-          <el-form-item label="平台抽成比例"><el-input-number v-model="form.platform_commission_rate" :min="0" :max="100" :step="0.5" :precision="2" controls-position="right" /></el-form-item>
+          <el-form-item label="平台抽成比例（%）" :error="commissionRate === null ? commissionError : ''">
+            <el-input v-model="form.platform_commission_rate" inputmode="decimal" placeholder="10～60" />
+          </el-form-item>
         </div>
         <div class="form-grid compact-grid">
           <el-form-item label="按小时价格区间（元）" required>
@@ -399,7 +411,7 @@ onMounted(load)
           </div>
         </el-form-item>
       </el-form>
-      <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存分类</el-button></template>
+      <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="commissionRate === null" @click="save">保存分类</el-button></template>
     </el-dialog>
     <AssetPicker v-model="pickerOpen" :selected-id="form.icon_asset_id" :can-upload="canUploadAssets" :preview="preview" @select="chooseIcon" />
   </div>
