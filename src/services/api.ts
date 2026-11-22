@@ -407,6 +407,12 @@ export const adminApi = {
     request<import('../utils/contentReviews').ContentReview>('/admin/content-reviews/', { method: 'POST', body: JSON.stringify(payload) }),
   decideContentReview: (id: number, payload: { action: string; revision: number; reason: string }) =>
     request<import('../utils/contentReviews').ContentReview>(`/admin/content-reviews/${id}/`, { method: 'POST', body: JSON.stringify(payload) }),
+  contentKeywordRules: (page: number, q: string) =>
+    request<{ items: import('../utils/contentReviews').KeywordRule[]; pagination: { total: number } }>(`/admin/content-review-rules/?${queryString({ page, q })}`),
+  saveContentKeywordRule: (payload: import('../utils/contentReviews').KeywordRuleInput, id?: number) =>
+    request<import('../utils/contentReviews').KeywordRule>(`/admin/content-review-rules/${id ? `${id}/` : ''}`, {
+      method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload),
+    }),
   providerInviteConfig: () => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/'),
   saveProviderInviteConfig: (data: import('../types/providerInvites').InviteConfig) => request<import('../types/providerInvites').InviteConfig>('/admin/provider-invites/config/', { method: 'PUT', body: JSON.stringify(data) }),
   providerInviteSources: (params: Record<string, string | number>) => request<import('../types/providerInvites').InvitePage<import('../types/providerInvites').InviteSource>>(`/admin/provider-invites/sources/?${queryString(params)}`),
@@ -860,7 +866,7 @@ export const adminApi = {
     ),
   moderateProviderOrderReview: (
     orderNo: string,
-    action: 'approve' | 'reject' | 'hide' | 'restore',
+    action: 'hide' | 'restore',
     reason = '',
   ) => request<AdminProviderOrder>(
     `/admin/provider-orders/${encodeURIComponent(orderNo)}/review/action/`,

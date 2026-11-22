@@ -18,9 +18,18 @@ export interface ContentReview {
   text?: Record<string, string>
   blocking_review?: { id: number; public_id: string } | null
   target_available?: boolean
+  local_findings?: { rule_id?: number; keyword?: string; label: string }[]
   assets?: { id: string; kind: string; url: string | null }[]
   items?: { position: number; kind: string; state: string; suggestion: string; label: string; score: number | null; error_code: string; request_id: string; task_id: string }[]
   events?: { action: string; revision: number; actor: string; note: string; created_at: string }[]
+}
+
+export type KeywordRuleScope = 'nickname' | 'review' | 'both'
+export interface KeywordRuleInput {
+  keyword: string; scope: KeywordRuleScope; label: string; enabled: boolean
+}
+export interface KeywordRule extends KeywordRuleInput {
+  id: number; updated_at: string
 }
 export interface ContentReviewList {
   items: ContentReview[]; pagination: { page: number; page_size: number; total: number }

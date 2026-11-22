@@ -486,30 +486,30 @@ async function reverseTimeoutPenalty() {
   } finally { fulfillmentSaving.value = false }
 }
 
-async function moderateReview(action: 'approve' | 'reject' | 'hide' | 'restore') {
+async function moderateReview(action: 'hide' | 'restore') {
   if (!selected.value?.review || reviewSaving.value) return
   let reason = ''
-  if (action === 'hide' || action === 'reject') {
+  if (action === 'hide') {
     try {
       const result = await ElMessageBox.prompt(
-        action === 'hide' ? '请填写屏蔽原因，操作会同步影响达人公开评分。' : '请填写驳回原因，用户将在通知中心看到该原因。',
-        action === 'hide' ? '屏蔽评价' : '驳回评价',
+        '请填写屏蔽原因，操作会同步影响达人公开评分。',
+        '屏蔽评价',
         { inputPlaceholder: '例如：包含辱骂或泄露隐私信息', inputValidator: value => value.trim().length >= 2 || '至少填写2个字' },
       )
       reason = result.value
     } catch { return }
   } else {
-    try { await ElMessageBox.confirm(action === 'approve' ? '审核通过后评价会公开展示，并计入达人评分。' : '恢复后评价会重新公开，并计入达人评分。', action === 'approve' ? '通过评价' : '恢复评价') }
+    try { await ElMessageBox.confirm('恢复后评价会重新公开，并计入达人评分。', '恢复评价') }
     catch { return }
   }
   reviewSaving.value = true
   try {
     const updated = props.preview
-      ? { ...selected.value, review: { ...selected.value.review, is_visible: action === 'restore' || action === 'approve', audit_status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : selected.value.review.audit_status } }
+      ? { ...selected.value, review: { ...selected.value.review, is_visible: action === 'restore' } }
       : await adminApi.moderateProviderOrderReview(selected.value.order_no, action, reason)
     selected.value = updated
     rows.value = rows.value.map(item => item.order_no === updated.order_no ? updated : item)
-    ElMessage.success({ approve: '评价已审核通过', reject: '评价已驳回', hide: '评价已屏蔽', restore: '评价已恢复' }[action])
+    ElMessage.success(action === 'hide' ? '评价已屏蔽' : '评价已恢复')
     if (!props.preview) await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评价状态更新失败')
@@ -815,7 +815,8 @@ onMounted(load)
           <div class="section-heading"><h3><el-icon><CircleCheck /></el-icon> 用户评价</h3><div class="review-status-tags"><el-tag :type="selected.review.audit_status === 'approved' ? 'success' : selected.review.audit_status === 'rejected' ? 'danger' : 'warning'" effect="plain">{{ selected.review.audit_status_label }}</el-tag><el-tag v-if="selected.review.audit_status === 'approved'" :type="selected.review.is_visible ? 'success' : 'info'" effect="plain">{{ selected.review.is_visible ? '公开展示' : '已屏蔽' }}</el-tag></div></div>
           <div class="review-admin"><strong>{{ '★'.repeat(selected.review.rating) }}<span>{{ selected.review.rating }} 分</span></strong><small>{{ selected.review.customer_name }}{{ selected.review.is_anonymous ? '（匿名展示）' : '' }} · {{ formatDateTime(selected.review.created_at) }}</small><p>{{ selected.review.content || '用户未填写文字评价' }}</p><div v-if="selected.review.image_urls.length" class="review-images"><el-image v-for="url in selected.review.image_urls" :key="url" :src="url" :preview-src-list="selected.review.image_urls" fit="cover" preview-teleported /></div></div>
           <p v-if="selected.review.audit_status === 'rejected'" class="review-rejection">驳回原因：{{ selected.review.audit_rejection_reason }}</p>
-          <div v-if="canManageReview" class="review-actions"><template v-if="selected.review.audit_status === 'pending'"><el-button type="success" :loading="reviewSaving" @click="moderateReview('approve')">审核通过</el-button><el-button type="danger" plain :loading="reviewSaving" @click="moderateReview('reject')">驳回评价</el-button></template><el-button v-else-if="selected.review.audit_status === 'approved'" :loading="reviewSaving" :type="selected.review.is_visible ? 'danger' : 'primary'" plain @click="moderateReview(selected.review.is_visible ? 'hide' : 'restore')">{{ selected.review.is_visible ? '屏蔽评价' : '恢复评价' }}</el-button></div>
+          <p v-if="selected.review.audit_status === 'pending'">请在「内容审核」中处理。评价通过后会自动公开，无需在订单中再次审核。</p>
+          <div v-else-if="canManageReview && selected.review.audit_status === 'approved'" class="review-actions"><el-button :loading="reviewSaving" :type="selected.review.is_visible ? 'danger' : 'primary'" plain @click="moderateReview(selected.review.is_visible ? 'hide' : 'restore')">{{ selected.review.is_visible ? '屏蔽评价' : '恢复评价' }}</el-button></div>
         </section>
 
         <section class="detail-section support-section">

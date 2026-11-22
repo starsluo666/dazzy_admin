@@ -6,6 +6,7 @@ import { adminApi } from '../services/api'
 import { useOperationsWork } from '../composables/operationsWork'
 import { contentKinds, contentStates, contentActions, type ContentReview } from '../utils/contentReviews'
 import { formatDateTime } from '../utils/format'
+import ContentKeywordRulesDialog from '../components/ContentKeywordRulesDialog.vue'
 
 const props = defineProps<{ preview: boolean; permissions: string[] }>()
 const route = useRoute(), work = useOperationsWork()
@@ -17,6 +18,7 @@ const selected = ref<ContentReview | null>(null), reason = ref(''), stale = ref(
 const registering = ref(false), registerKind = ref('provider'), targetId = ref<number | undefined>()
 const registerKinds = contentKinds.filter(([value]) => value !== 'nickname')
 const registerError = ref('')
+const rulesVisible = ref(false)
 const canManage = computed(() => !props.preview && (props.permissions.includes('*') || props.permissions.includes('content.review.manage')))
 const available = computed(() => {
   const row = selected.value
@@ -81,13 +83,13 @@ function closeDetail(done: () => void) { if (!saving.value) { ++detailGeneration
 
 <template>
   <section class="content-reviews">
-    <header><div><h1>内容审核</h1><p>集中核查公开内容，保留检测结果和每次处置依据。</p></div><div><el-button :loading="loading" @click="load">刷新记录</el-button><el-button v-if="canManage" type="primary" @click="registering = true; registerError = ''">登记现有内容</el-button></div></header>
-    <el-alert :closable="false" :type="enabled ? 'info' : 'warning'" :title="!enabled ? '新内容自动送审尚未启用，可登记现有内容进行人工核查。' : automatic ? '自动检测已启用；存疑或检测失败的内容转人工复核。' : '当前采用人工内容审核。'" />
-    <p class="muted">内容通过不替代达人、活动、评价原有业务审核。下架仅停止公开展示和新预约，不会自动退款或变更已有订单。</p>
+    <header><div><h1>内容审核</h1><p>集中核查公开内容，保留检测结果和每次处置依据。</p></div><div><el-button v-if="!preview" @click="rulesVisible = true">本地词库</el-button><el-button :loading="loading" @click="load">刷新记录</el-button><el-button v-if="canManage" type="primary" @click="registering = true; registerError = ''">登记现有内容</el-button></div></header>
+    <el-alert :closable="false" :type="enabled ? 'info' : 'warning'" :title="enabled && automatic ? '自动检测已启用；有疑点或检测失败的内容转人工复核。' : '评价文字、配图、用户昵称及头像采用人工审核。'" />
+    <p class="muted">订单评价通过后直接公开并计入达人评分，不用再次审核。达人和活动仍按各自业务流程处理。</p>
     <div class="filters">
       <el-select v-model="status" clearable placeholder="全部状态" aria-label="内容状态"><el-option v-for="[value, label] in contentStates" :key="value" :value="value" :label="label" /></el-select>
       <el-select v-model="kind" clearable placeholder="全部类型" aria-label="内容类型"><el-option v-for="[value, label] in contentKinds" :key="value" :value="value" :label="label" /></el-select>
-      <el-input v-model="search" clearable placeholder="搜索审核编号或文字" aria-label="搜索内容" @keyup.enter="page = 1; load()" />
+      <el-input v-model="search" clearable placeholder="搜索审核编号、订单号或文字" aria-label="搜索内容" @keyup.enter="page = 1; load()" />
       <el-button type="primary" @click="page = 1; load()">查询</el-button>
     </div>
     <el-alert v-if="error" type="error" :title="error" :closable="false" />
@@ -109,6 +111,7 @@ function closeDetail(done: () => void) { if (!saving.value) { ++detailGeneration
           <el-alert v-if="selected.blocking_review" title="此公开内容由另一条审核记录下架，请先核查原记录。" type="warning" :closable="false"><el-button link type="primary" :disabled="saving" @click="open(selected.blocking_review.id)">查看原下架记录</el-button></el-alert>
           <h3>送审内容</h3>
           <dl><template v-for="(value, label) in selected.text" :key="label"><dt>{{ label }}</dt><dd>{{ value || '未填写' }}</dd></template></dl>
+          <template v-if="selected.local_findings?.length"><h3>本地初筛提示</h3><ul><li v-for="(finding, index) in selected.local_findings" :key="index">{{ finding.label }}<template v-if="finding.keyword">：{{ finding.keyword }}</template></li></ul></template>
           <div class="media-grid"><div v-for="asset in selected.assets" :key="asset.id"><template v-if="asset.url"><video v-if="asset.kind === 'video'" :src="asset.url" controls preload="metadata" /><el-image v-else :src="asset.url" :preview-src-list="[asset.url]" fit="contain" preview-teleported /></template><el-alert v-else title="素材已变更或不可用，请核实后再处理" type="warning" :closable="false" /></div></div>
           <h3>检测记录</h3>
           <el-table :data="selected.items" empty-text="无检测记录"><el-table-column label="类型" width="80"><template #default="{ row }">{{ row.kind === 'text' ? '文字' : row.kind === 'video' ? '视频' : '图片' }}</template></el-table-column><el-table-column label="结果"><template #default="{ row }">{{ itemStates[row.state] || '待核查' }}</template></el-table-column><el-table-column label="检测分类" prop="label" /><el-table-column label="跟踪记录" min-width="170"><template #default="{ row }"><small>{{ row.error_code || row.request_id || '—' }}</small></template></el-table-column></el-table>
@@ -123,6 +126,7 @@ function closeDetail(done: () => void) { if (!saving.value) { ++detailGeneration
       <el-form label-position="top"><el-form-item label="内容类型"><el-select v-model="registerKind"><el-option v-for="[value, label] in registerKinds" :key="value" :value="value" :label="label" /></el-select></el-form-item><el-form-item label="原业务记录 ID"><el-input-number v-model="targetId" :min="1" :precision="0" /></el-form-item></el-form>
       <template #footer><el-button :disabled="saving" @click="registering = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="!targetId" @click="register">登记审核</el-button></template>
     </el-dialog>
+    <ContentKeywordRulesDialog v-if="rulesVisible" :can-manage="canManage" @close="rulesVisible = false" />
   </section>
 </template>
 
